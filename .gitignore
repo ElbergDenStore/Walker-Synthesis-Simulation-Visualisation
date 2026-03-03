@@ -1,0 +1,13 @@
+# MATLAB Live Scripts and Autosaves
+*.mlx
+*.mlsx
+*.asv
+
+# Large Data files (Keep these local!)
+*.mat
+*.tar.gz
+
+# Folders to ignore
+Litterature/
+simulation_output/
+temp_ue/
