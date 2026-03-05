@@ -1,4 +1,4 @@
-function metrics = coverage_simulator_function(Cfg)
+function metrics = coverage_simulator_function(Cfg,plot_results)
 % RUN_SATELLITE_SIM Simulates satellite coverage and link budget.
 % Inputs: Cfg - Struct containing all configuration parameters
 % Outputs: metrics - Struct containing key performance indicators for optimization
@@ -197,66 +197,68 @@ function metrics = coverage_simulator_function(Cfg)
 
     %% Plot Generation & Saving
     % fprintf('Generating and saving plots...\n');
-    
-    % Combined Constellation Stats
-    f1 = figure('Visible', 'off', 'Name', 'Combined Constellation Stats', 'Color', 'w', 'Position', [100 100 1000 600]); 
-    t2 = tiledlayout(f1, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-    
-    nexttile; histogram(all_snr, 'Normalization', 'pdf', 'FaceColor', '#0072BD', 'EdgeColor', 'none');
-    grid on; title('Global SNR PDF (DL)'); xlabel('SNR (dB)'); ylabel('Probability Density');
-    
-    nexttile; histogram(all_thpt./1e6, 'Normalization', 'pdf', 'FaceColor', '#D95319', 'EdgeColor', 'none');
-    grid on; title('Global Throughput PDF (DL)'); xlabel('Throughput (Mbps)'); ylabel('Probability Density');
-    
-    nexttile; [f_thpt, x_thpt] = ecdf(all_thpt./1e6); plot(x_thpt, f_thpt, 'LineWidth', 2, 'Color', '#7E2F8E');
-    grid on; title('Throughput CDF (DL)'); xlabel('Throughput (Mbps)'); ylabel('Probability <= x'); xlim([0 max(x_thpt)]);
-    
-    nexttile; axis off; 
-    col1_str = {
-        ['\bfConstellation\rm'];
-        ['Total Satellites: ' num2str(Cfg.Total_sats)];
-        ['Inclination:      ' num2str(Cfg.Inclination, '%.1f') '\circ'];
-        ['Altitude:         ' num2str(Cfg.Orbit_height/1e3, '%.0f') ' km'];
-    };
-    col2_str = {
-        ['\bfDL Performance Results\rm'];
-        ['10% Throughput: ' num2str(metrics.throughput_10pct_Mbps, '%.2f') ' Mbps'];
-        ['Mean Throughput: ' num2str(metrics.throughput_mean_Mbps, '%.2f') ' Mbps'];
-        ['Worst Coverage: ' num2str(metrics.worst_coverage_percent, '%.2f') ' %'];
-    };
-    text(0.05, 0.9, col1_str, 'Units', 'normalized', 'VerticalAlignment', 'top', 'FontSize', 10, 'FontName', 'Consolas', 'Interpreter', 'tex');
-    text(0.55, 0.9, col2_str, 'Units', 'normalized', 'VerticalAlignment', 'top', 'FontSize', 10, 'FontName', 'Consolas', 'Interpreter', 'tex');
-    
-    saveas(f1, fullfile(out_dir, 'Global_Stats.png'));
-    close(f1);
-
-    % Mapping (Probability of Service)
-    lat_vector = cellfun(@(x) x.Lat, UEs);
-    lon_vector = cellfun(@(x) x.Lon, UEs);
-    
-    lat_lim = [min(Cfg.Lat_vec) max(Cfg.Lat_vec)];
-    lon_lim = [min(Cfg.Lon_vec) max(Cfg.Lon_vec)];
-    [LonG, LatG] = meshgrid(linspace(lon_lim(1), lon_lim(2), 200), linspace(lat_lim(1), lat_lim(2), 200));
-    
-    try
-        ValG = griddata(lon_vector, lat_vector, prob_coverage', LonG, LatG, 'cubic');
+    if plot_results
         
-        f2 = figure('Visible', 'off');
-        ax = axesm('lambertstd', 'MapLatLimit', lat_lim, 'MapLonLimit', lon_lim, 'Frame', 'on', 'Grid', 'on', 'MeridianLabel','on','ParallelLabel','on');
-        axis off; 
-        land = shaperead('landareas.shp','UseGeoCoords',true);
-        geoshow([land.Lat], [land.Lon], 'DisplayType','polygon', 'FaceColor',[0.8 0.8 0.8]);
-        surfm(LatG, LonG, ValG,'FaceAlpha',0.5);
+        % Combined Constellation Stats
+        f1 = figure('Visible', 'off', 'Name', 'Combined Constellation Stats', 'Color', 'w', 'Position', [100 100 1000 600]); 
+        t2 = tiledlayout(f1, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
         
-        cb = colorbar; caxis([0 100]); ylabel(cb, 'P(Sat \geq 1)');
-        set(gca,'FontSize', 15);
-        saveas(f2, fullfile(out_dir, 'Coverage_Map.png'));
-        close(f2);
-    catch
-        fprintf('Warning: Grid too sparse for Map generation. Skipping map plot.\n');
+        nexttile; histogram(all_snr, 'Normalization', 'pdf', 'FaceColor', '#0072BD', 'EdgeColor', 'none');
+        grid on; title('Global SNR PDF (DL)'); xlabel('SNR (dB)'); ylabel('Probability Density');
+        
+        nexttile; histogram(all_thpt./1e6, 'Normalization', 'pdf', 'FaceColor', '#D95319', 'EdgeColor', 'none');
+        grid on; title('Global Throughput PDF (DL)'); xlabel('Throughput (Mbps)'); ylabel('Probability Density');
+        
+        nexttile; [f_thpt, x_thpt] = ecdf(all_thpt./1e6); plot(x_thpt, f_thpt, 'LineWidth', 2, 'Color', '#7E2F8E');
+        grid on; title('Throughput CDF (DL)'); xlabel('Throughput (Mbps)'); ylabel('Probability <= x'); xlim([0 max(x_thpt)]);
+        
+        nexttile; axis off; 
+        col1_str = {
+            ['\bfConstellation\rm'];
+            ['Total Satellites: ' num2str(Cfg.Total_sats)];
+            ['Inclination:      ' num2str(Cfg.Inclination, '%.1f') '\circ'];
+            ['Altitude:         ' num2str(Cfg.Orbit_height/1e3, '%.0f') ' km'];
+        };
+        col2_str = {
+            ['\bfDL Performance Results\rm'];
+            ['10% Throughput: ' num2str(metrics.throughput_10pct_Mbps, '%.2f') ' Mbps'];
+            ['Mean Throughput: ' num2str(metrics.throughput_mean_Mbps, '%.2f') ' Mbps'];
+            ['Worst Coverage: ' num2str(metrics.worst_coverage_percent, '%.2f') ' %'];
+        };
+        text(0.05, 0.9, col1_str, 'Units', 'normalized', 'VerticalAlignment', 'top', 'FontSize', 10, 'FontName', 'Consolas', 'Interpreter', 'tex');
+        text(0.55, 0.9, col2_str, 'Units', 'normalized', 'VerticalAlignment', 'top', 'FontSize', 10, 'FontName', 'Consolas', 'Interpreter', 'tex');
+        
+        exportgraphics(f1, fullfile(out_dir, 'Global_Stats.png'), 'Resolution', 300);
+        close(f1);
+    
+        % Mapping (Probability of Service)
+        lat_vector = cellfun(@(x) x.Lat, UEs);
+        lon_vector = cellfun(@(x) x.Lon, UEs);
+        
+        lat_lim = [min(Cfg.Lat_vec) max(Cfg.Lat_vec)];
+        lon_lim = [min(Cfg.Lon_vec) max(Cfg.Lon_vec)];
+        [LonG, LatG] = meshgrid(linspace(lon_lim(1), lon_lim(2), 200), linspace(lat_lim(1), lat_lim(2), 200));
+        
+        try
+            ValG = griddata(lon_vector, lat_vector, prob_coverage', LonG, LatG, 'cubic');
+            
+            f2 = figure('Visible', 'off');
+            ax = axesm('lambertstd', 'MapLatLimit', lat_lim, 'MapLonLimit', lon_lim, 'Frame', 'on', 'Grid', 'on', 'MeridianLabel','on','ParallelLabel','on');
+            axis off; 
+            land = shaperead('landareas.shp','UseGeoCoords',true);
+            geoshow([land.Lat], [land.Lon], 'DisplayType','polygon', 'FaceColor',[0.8 0.8 0.8]);
+            surfm(LatG, LonG, ValG,'FaceAlpha',0.5);
+            
+            cb = colorbar; caxis([0 100]); ylabel(cb, 'P(Sat \geq 1)');
+            set(gca,'FontSize', 15);
+            exportgraphics(f2, fullfile(out_dir, 'Coverage_Map.png'), 'Resolution', 300);
+            close(f2);
+        catch
+            fprintf('Warning: Grid too sparse for Map generation. Skipping map plot.\n');
+        end
+    
+        fprintf('Run Complete. All data saved to %s\n', out_dir);
     end
-
-    fprintf('Run Complete. All data saved to %s\n', out_dir);
 end
 
 %% ========================================================================
