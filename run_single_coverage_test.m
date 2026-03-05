@@ -1,12 +1,12 @@
 clear all; close all; clc;
 
 Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-Cfg.StopTime   = datetime('1-Jun-2025 23:59:59', 'TimeZone', 'UTC');
+Cfg.StopTime   = datetime('1-Jun-2025 2:59:59', 'TimeZone', 'UTC');
 Cfg.SampleTime = 20; % seconds
 
-Cfg.Lat_vec = linspace(50, 85, 6); 
+Cfg.Lat_vec = linspace(50, 85, 2); 
 % Cfg.lat_vec = linspace(50, 85, 8); 
-Cfg.Lon_vec = linspace(-60, 30, 3);
+Cfg.Lon_vec = linspace(-60, 30, 2);
 
 
 
@@ -27,10 +27,14 @@ Cfg.Min_elevation_UE = 20;
 Cfg.Orbit_height = 932e3;
 Cfg.Num_planes     = 5;  
 Cfg.Sats_per_plane = 14;
+Cfg.Total_sats = Cfg.Num_planes * Cfg.Sats_per_plane;
 Cfg.Inclination    = 88; 
 Cfg.Phasing = Cfg.Num_planes / 2;
 Cfg.WalkerStar     = true;  
+Normal_gap         = 180 / (Cfg.Num_planes - 1/3); % only valid for flattop hexagons
+Cfg.Seam_gap       = 2/3 * Normal_gap;             % only valid for flattop hexagons
 
 plot_results = true;
-metrics = coverage_simulator_function(Cfg, plot_results);
+use_parallel = true;
+metrics = coverage_simulator_function(Cfg, plot_results,use_parallel);
 fprintf("Worst Coverage percentage" + metrics.worst_coverage_percent);
