@@ -6,23 +6,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
     % fprintf('\n======================================================\n');
     fprintf('\n Starting Simulation: %d Sats, %.1f deg Inclination\n', Cfg.Total_sats, Cfg.Inclination);
     % fprintf('======================================================\n');
-
-    if plot_results
-        %% Create Output Directory
-        % Format: simulation_output/orbit_sats_inclination_phasing_date
-        date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-        folder_name = sprintf('%.0f_%d_%.0f_%.1f_%s', ...
-            Cfg.Orbit_height/1e3, Cfg.Total_sats, Cfg.Inclination, Cfg.Phasing, date_str);
-        out_dir = fullfile('simulation_output', folder_name);
-        
-        if ~exist(out_dir, 'dir')
-            mkdir(out_dir);
-        end
-        % fprintf('Results will be saved to: %s\n', out_dir);
     
-        % Save the configuration file immediately
-        save(fullfile(out_dir, 'Config.mat'), 'Cfg');
-    end
 
     %% Scenario & Constellation Setup
     % fprintf('Defining constellation...\n');
@@ -253,8 +237,27 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
     end
 
     %% Plot Generation & Saving
-    % fprintf('Generating and saving plots...\n');
     if plot_results
+        if (isfield(Cfg, 'Save_dir')) %Provide location to save results
+            out_dir = Cfg.Save_dir;
+        else
+            %% Create Output Directory
+            % Format: simulation_output/orbit_sats_inclination_phasing_date
+            date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+            folder_name = sprintf('%.0f_%d_%.0f_%.1f_%s', ...
+                Cfg.Orbit_height/1e3, Cfg.Total_sats, Cfg.Inclination, Cfg.Phasing, date_str);
+            out_dir = fullfile('simulation_output', folder_name);
+            
+            if ~exist(out_dir, 'dir')
+                mkdir(out_dir);
+            end
+        end
+    
+        % Save the configuration file immediately
+        save(fullfile(out_dir, 'Config.mat'), 'Cfg');
+
+
+
         num_plots = 8; %plot progress bar
         plot_dq = parallel.pool.DataQueue;
         updateLiveScriptProgress(num_plots, true); 
