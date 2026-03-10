@@ -1,8 +1,3 @@
-orbit_height = 1000e3
-num_runs = 10
-plot_results = true
-best_params = bayesian_constellation_optimizer(orbit_height, num_runs, plot_results)
-disp(best_params);
 function best_params = bayesian_constellation_optimizer(orbit_height, num_runs, plot_results)
 
     Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');

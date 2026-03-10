@@ -1,4 +1,8 @@
-% run_altitude_sweep.m
+% How to run through the night
+% matlab -nodisplay -nosplash -nodesktop -batch "run_bayesian"
+% -nodisplay -nosplash -nodesktop tells MATLAB to run purely as a command-line engine without booting up the heavy Java GUI interface.
+% 
+% -batch tells it to run your script, print the output directly to your terminal, and gracefully exit when it's done.
 clear all; close all; clc;
 
 %% 1. Define the Sweep Parameters
@@ -11,6 +15,15 @@ plot_individual_results = true; % Set true to save the 6 detailed plots per heig
 % Preallocate an array to store the best satellite count for each height
 % We use NaN (Not a Number) so we can easily skip heights that fail to find a valid solution
 min_sats_array = NaN(size(orbit_heights)); 
+
+dq = parallel.pool.DataQueue;
+updateLiveScriptProgress(size(orbit_heights), true); 
+afterEach(dq, @(~) updateLiveScriptProgress(size(orbit_heights), false));
+start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
+fprintf('\n=======================================================\n');
+fprintf('SWEEP STARTED AT: %s\n', char(start_time));
+fprintf('=======================================================\n');
+
 
 %% 2. Run the Loop
 for i = 1:length(orbit_heights)
@@ -40,6 +53,7 @@ for i = 1:length(orbit_heights)
         % the entire multi-hour loop from terminating early!
         fprintf('\n[!] Error evaluating %d km: %s\n', heights_km(i), ME.message);
     end
+    send(dq, []);
 end
 
 %% 3. Plot the Final Master Curve
@@ -66,3 +80,64 @@ exportgraphics(gcf, 'Master_MinSats_vs_Altitude.png', 'Resolution', 300);
 
 fprintf('\n=== SWEEP COMPLETE ===\n');
 fprintf('Master plot saved as Master_MinSats_vs_Altitude.png\n');
+
+% --- RECORD END TIME ---
+end_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
+elapsed_time = end_time - start_time;
+
+fprintf('\n=======================================================\n');
+fprintf('SWEEP FINISHED AT: %s\n', char(end_time));
+fprintf('TOTAL ELAPSED TIME: %s\n', char(elapsed_time));
+fprintf('Master plot saved as Master_MinSats_vs_Altitude.png\n');
+fprintf('=======================================================\n');
+
+
+function updateLiveScriptProgress(total_pts, reset_flag)
+    persistent p last_percent reverseStr
+    
+    % Initialization / Reset
+    if nargin > 1 && reset_flag
+        p = 0;
+        last_percent = -1; 
+        reverseStr = '';
+        return;
+    end
+    
+    if isempty(p)
+        p = 0;
+        last_percent = -1;
+        reverseStr = '';
+    end
+    
+    p = p + 1;
+    current_percent = floor((p / total_pts) * 100);
+    
+    % Only update the screen when the percentage actually changes (prevents terminal lag)
+    if current_percent > last_percent || p == total_pts
+        bar_length = 40; % How wide you want the progress bar to be
+        num_equals = round((current_percent / 100) * bar_length);
+        num_spaces = bar_length - num_equals;
+        
+        % Build the string: e.g., [========          ]
+        bar_str = ['[', repmat('=', 1, num_equals), repmat(' ', 1, num_spaces), ']'];
+        
+        % Create the full message
+        msg = sprintf('Processing: %s %d%%', bar_str, current_percent);
+        
+        % Print backspaces to clear the old line, then print the new line
+        fprintf([reverseStr, msg]);
+        
+        % Save the number of backspaces needed for the next loop
+        reverseStr = repmat(sprintf('\b'), 1, length(msg)-1);
+        
+        last_percent = current_percent;
+    end
+    
+    % Cap it off cleanly when finished and drop to a new line
+    if p >= total_pts
+        % fprintf('\n');
+        p = 0; 
+        last_percent = -1;
+        reverseStr = ''; 
+    end
+end
