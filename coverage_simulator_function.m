@@ -1,4 +1,4 @@
-function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
+function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, calc_link)
 % RUN_SATELLITE_SIM Simulates satellite coverage and link budget.
 % Inputs: Cfg - Struct containing all configuration parameters
 % Outputs: metrics - Struct containing key performance indicators for optimization
@@ -177,39 +177,15 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
         send(dq, []);
     end
     fprintf('\nGeometry calculation complete (%.1f sec).\n', toc);
-
-    %% Link Budget Calculation
-    tic
-    parfor (idx = 1:NumUEs,num_workers)
-        UEs{idx}.DL = link_calc(UEs{idx}, Cfg.DL, Cfg);
-        send(dq, []);
-    end
-    fprintf('\nLoss calculation complete (%.1f sec).', toc);
-
-    %% Data Aggregation & Metrics
-    all_snr  = [];
-    all_thpt = [];
-    all_loss = [];
-    all_adjusted_power_dBm = [];
-    all_el_deg = [];
-    all_pfd_W_MHz = [];
+    
+    % Coverage Stats
     nT = length(UEs{1}.SimData.Time);
     counts = zeros(NumUEs, nT);
 
-    meanThroughput = zeros(NumUEs,1);
-    
     for idx = 1:NumUEs
-        all_snr  = [all_snr, [UEs{idx}.DL.SNR]];
-        all_thpt = [all_thpt, [UEs{idx}.DL.Throughput]];
-        meanThroughput(idx) = mean(UEs{idx}.DL.Throughput);
-        all_loss = [all_loss, [UEs{idx}.DL.Total_loss]];
-        all_adjusted_power_dBm = [all_adjusted_power_dBm, [UEs{idx}.DL.Adjusted_EIRP_dBm]];
-        all_el_deg =  [all_el_deg, [UEs{idx}.SimData.Elevation_deg]];
-        all_pfd_W_MHz = [all_pfd_W_MHz, [UEs{idx}.DL.PFD_W_MHz]];
         counts(idx,:) = UEs{idx}.SimData.Num_visible;
     end
 
-    % Coverage Stats
     more_1_satellites = (counts >= 1);
     prob_coverage = 100 * sum(more_1_satellites, 2) ./ nT; % Array per UE
     minNumberSatellites = min(counts, [], 2);
@@ -234,28 +210,76 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
     % Compile specific return metrics for the search algorithm
     metrics.worst_coverage_percent = min(prob_coverage);
     metrics.worst_gap_minutes      = max(maxGapMinutes);
-    metrics.throughput_10pct_Mbps  = prctile(all_thpt, 10) / 1e6;
-    metrics.throughput_mean_Mbps   = mean(all_thpt, 'omitnan') / 1e6;
     metrics.Num_visible = counts; % returns num visible timeseries
 
-    fprintf('\nMetrics Calculated: Min Cov = %.2f%%, Max Gap = %.1f min, 10%% Thpt = %.2f Mbps\n', ...
-        metrics.worst_coverage_percent, metrics.worst_gap_minutes, metrics.throughput_10pct_Mbps);
+    metrics.throughput_10pct  = 69;
+    metrics.throughput_mean   = 420;
+
+
+    %% Link Budget Calculation
+    if calc_link
+        tic
+        parfor (idx = 1:NumUEs,num_workers)
+            UEs{idx}.DL = link_calc(UEs{idx}, Cfg.DL, Cfg);
+            send(dq, []);
+        end
+        fprintf('\nLoss calculation complete (%.1f sec).\n', toc);
+    
+        %% Data Aggregation & Metrics
+        all_snr  = [];
+        all_thpt = [];
+        all_loss = [];
+        all_adjusted_power_dBm = [];
+        all_el_deg = [];
+        all_pfd_W_MHz = [];
+        
+        
+    
+        meanThroughput = zeros(1,NumUEs);
+        
+        for idx = 1:NumUEs
+            all_snr  = [all_snr, [UEs{idx}.DL.SNR]];
+            all_thpt = [all_thpt, [UEs{idx}.DL.Throughput]];
+            meanThroughput(idx) = mean(UEs{idx}.DL.Throughput);
+            all_loss = [all_loss, [UEs{idx}.DL.Total_loss]];
+            all_adjusted_power_dBm = [all_adjusted_power_dBm, [UEs{idx}.DL.Adjusted_EIRP_dBm]];
+            all_el_deg =  [all_el_deg, [UEs{idx}.SimData.Elevation_deg]];
+            all_pfd_W_MHz = [all_pfd_W_MHz, [UEs{idx}.DL.PFD_W_MHz]];
+        end
+    
+
+        metrics.throughput_10pct  = prctile(all_thpt, 10);
+        metrics.throughput_mean   = mean(all_thpt);
+    end
 
     %% Plot Generation & Saving
     % fprintf('Generating and saving plots...\n');
     if plot_results
+        num_plots = 8; %plot progress bar
+        plot_dq = parallel.pool.DataQueue;
+        updateLiveScriptProgress(num_plots, true); 
+        afterEach(plot_dq, @(~) updateLiveScriptProgress(num_plots, false));
+        tic
+
+        if Cfg.DL.B < 1e6
+            thpt_scale = 1e3;
+            thpt_unit = 'kbps';
+        else
+            thpt_scale = 1e6;
+            thpt_unit = 'Mbps';
+        end
         
         % Combined Constellation Stats
         f1 = figure('Visible', 'off', 'Name', 'Combined Constellation Stats', 'Color', 'w', 'Position', [100 100 1000 600]); 
         t2 = tiledlayout(f1, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
         
         % Tile 1: Throughput PDF
-        nexttile; histogram(all_thpt./1e6, 'Normalization', 'pdf', 'FaceColor', '#D95319', 'EdgeColor', 'none');
-        grid on; title('Global Throughput PDF (DL)'); xlabel('Throughput (Mbps)'); ylabel('Probability Density');
+        nexttile; histogram(all_thpt./thpt_scale, 'Normalization', 'pdf', 'FaceColor', '#D95319', 'EdgeColor', 'none');
+        grid on; title('Global Throughput PDF (DL)'); xlabel(sprintf('Throughput (%s)', thpt_unit)); ylabel('Probability Density');
         
         % Tile 2: Throughput CDF
-        nexttile; [f_thpt, x_thpt] = ecdf(all_thpt./1e6); plot(x_thpt, f_thpt, 'LineWidth', 2, 'Color', '#7E2F8E');
-        grid on; title('Throughput CDF (DL)'); xlabel('Throughput (Mbps)'); ylabel('Probability \leq x'); xlim([0 max(x_thpt)]);
+        nexttile; [f_thpt, x_thpt] = ecdf(all_thpt./thpt_scale); plot(x_thpt, f_thpt, 'LineWidth', 2, 'Color', '#7E2F8E');
+        grid on; title('Throughput CDF (DL)'); xlabel(sprintf('Throughput (%s)', thpt_unit)); ylabel('Probability \leq x'); xlim([0 max(x_thpt)]);
         
         % Tile 3 & 4 (Merged to span the whole bottom row for our text)
         nexttile(3, [1 2]); axis off; 
@@ -283,9 +307,9 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
         col2_str = {
             '\bfLink Budget Specs\rm';
             ['Direction:      ' char(Cfg.DL.Direction)];
-            ['Freq / BW:      ' num2str(Cfg.DL.f/1e9, '%.2f') ' GHz / ' num2str(Cfg.DL.B/1e6, '%.1f') ' MHz'];
+            ['Freq / BW:      ' num2str(Cfg.DL.f/1e9, '%.2f') ' GHz / ' num2str(Cfg.DL.B/thpt_scale, '%.1f') sprintf(' %s', thpt_unit)];
             ['Tx Type/Gain:   ' char(Cfg.DL.Tx_type) '  / ' num2str(Cfg.DL.G_tx, '%.1f') ' dBi'];
-            ['P\_tx / EIRP:    ' num2str(Cfg.DL.P_tx_dBm, '%.1f') ' W / ' num2str(Cfg.DL.EIRP_dBm, '%.1f') ' dBm'];
+            ['P\_tx / EIRP:    ' num2str(Cfg.DL.P_tx_dBm, '%.1f') ' dBm / ' num2str(Cfg.DL.EIRP_dBm, '%.1f') ' dBm'];
             ['Rx Type/Gain:   ' char(Cfg.DL.Rx_type) '  / ' num2str(Cfg.DL.G_rx, '%.1f') ' dBi'];
             ['Noise Fig:      ' num2str(Cfg.DL.NF, '%.1f') ' dB'];
         };  
@@ -293,8 +317,8 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
         % Column 3: Performance Results
         col3_str = {
             '\bfPerformance Results\rm';
-            ['  10% Throughput:   ' num2str(metrics.throughput_10pct_Mbps, '%.2f') ' Mbps'];
-            ['  Mean Throughput:  ' num2str(metrics.throughput_mean_Mbps, '%.2f') ' Mbps'];
+            ['  10% Throughput:   ' num2str(metrics.throughput_10pct / thpt_scale, '%.2f') sprintf(' %s', thpt_unit)];
+            ['  Mean Throughput:  ' num2str(metrics.throughput_mean / thpt_scale, '%.2f') sprintf(' %s', thpt_unit)];
             ['  Worst Coverage:   ' num2str(metrics.worst_coverage_percent, '%.2f') ' %'];
             ['\bfSNR (dB)\rm'];
             ['  Mean: ' num2str(mean(all_snr,'omitnan'), '%.2f')];
@@ -309,6 +333,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
         
         exportgraphics(f1, fullfile(out_dir, 'Global_Stats.png'), 'Resolution', 300);
         close(f1);
+        send(plot_dq, []);
     
         % Mapping (Probability of Service)
         lat_vector = cellfun(@(x) x.Lat, UEs)';
@@ -342,6 +367,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
             set(gca, 'FontSize', 14);
             exportgraphics(f2, fullfile(out_dir, 'Map_Min_Sats.png'), 'Resolution', 300);
             close(f2);
+            send(plot_dq, []);
             
             %% MAP 2: Mean Number of Satellites
             ValG_mean = griddata(lon_vector, lat_vector, meanNumberSatellites, LonG, LatG, 'cubic');
@@ -363,6 +389,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
             set(gca, 'FontSize', 14);
             exportgraphics(f3, fullfile(out_dir, 'Map_Mean_Sats.png'), 'Resolution', 300);
             close(f3);
+            send(plot_dq, []);
             
             %% MAP 3: Probability of Coverage (>= 1 Satellite)
             ValG_prob = griddata(lon_vector, lat_vector, prob_coverage, LonG, LatG, 'cubic');
@@ -384,6 +411,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
             set(gca, 'FontSize', 14);
             exportgraphics(f4, fullfile(out_dir, 'Map_Coverage_Prob.png'), 'Resolution', 300);
             close(f4);
+            send(plot_dq, []);
 
 
             %% Figure 5: Adjusted Power vs Elevation
@@ -402,6 +430,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
             set(gca, 'FontSize', 14, 'LineWidth', 1.5);
             exportgraphics(f5, fullfile(out_dir, 'adjusted_power.png'), 'Resolution', 300);
             close(f5);
+            send(plot_dq, []);
             
             %% Figure 6: Adjusted Power vs SNR
             f6 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
@@ -418,6 +447,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
             set(gca, 'FontSize', 14, 'LineWidth', 1.5);
             exportgraphics(f6, fullfile(out_dir, 'adjusted_power_but_snr.png'), 'Resolution', 300);
             close(f6);
+            send(plot_dq, []);
 
             %% Figure 7: PFD regulation
             f7 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
@@ -429,39 +459,53 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel)
             title('Elevation vs. PFD', 'FontSize', 22, 'FontWeight', 'bold');
             xlabel('Elevation angle (deg)', 'FontSize', 18);
             ylabel('PFD (dBW/m^2/MHz)', 'FontSize', 18);
-            ylim([-120 -100]);
+            ylim([all_pfd_W_MHz(1)-5, all_pfd_W_MHz(1)+5]);
             
             set(gca, 'FontSize', 14, 'LineWidth', 1.5);
             exportgraphics(f7, fullfile(out_dir, 'pfd_regulation.png'), 'Resolution', 300);
             close(f7);
+            send(plot_dq, []);
 
             %% MAP 8: Mean Throughput
-            meanThroughputGrid = griddata(lat_vector,lon_vector,meanThroughput*1e-6,LatG, LonG, 'cubic'); %cubic interpolation between actual points and the higher res map
+            % 1. Force everything to be a column vector (using :) to prevent mismatches
+            lats = lat_vector(:);
+            lons = lon_vector(:);
+            thpt_vals = meanThroughput(:) / thpt_scale;
+            
+            % 2. Run griddata with consistent dimensions
+            meanThroughputGrid = griddata(lats, lons, thpt_vals, LatG, LonG, 'cubic'); 
+            
             f8 = figure('Visible', 'off', 'Color', 'w');
             ax3 = axesm('lambertstd', 'MapLatLimit', lat_lim, 'MapLonLimit', lon_lim, ...
                         'Frame', 'on', 'Grid', 'on', 'MeridianLabel','on','ParallelLabel','on');
             axis off;  
+            
             geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
             surfm(LatG, LonG, meanThroughputGrid, 'FaceAlpha', 0.5);
             
-            for i = 1:NumUEs
-                textm(lat_vector(i), lon_vector(i), sprintf('%.1f', meanThroughput(i)*1e-6), ...
+            for i = 1:length(lats)
+                textm(lats(i), lons(i), sprintf('%.1f', thpt_vals(i)), ...
                       'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
                       'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k');
             end
             
-            cb3 = colorbar; caxis([0 max([meanThroughput*1e-6; 1])]); ylabel(cb3, 'Mean Throughput (Mbps)');
+            cb3 = colorbar; 
+            % 3. Use a comma for caxis and [] for string concatenation in ylabel
+            caxis([0, max([thpt_vals; 1])]); 
+            ylabel(cb3, ['Mean Throughput (', thpt_unit, ')']); 
+            
             set(gca, 'FontSize', 14);
             exportgraphics(f8, fullfile(out_dir, 'Map_Mean_Throughput.png'), 'Resolution', 300);
             close(f8);
+            send(plot_dq, []);
 
             
         catch ME
-            fprintf('Warning: Map generation failed. Ensure Mapping Toolbox is installed and grid is not too sparse.\n');
+            fprintf('Warning: Map generation failed. Error message:\n');
             disp(ME.message);
         end
     
-        fprintf('Run Complete. All data saved to %s\n', out_dir);
+        fprintf('\nPlots generation complete (%.1f sec).', toc);
     end
 end
 
@@ -500,9 +544,9 @@ function Link = link_calc(UE, link_cfg, general_config)
     Link.Throughput(~valid_idx) = 0; % Force 0 for NaN
 end
 
-function pfd_W_MHz = pfd_calc(adjusted_EIRP_dBm, bandwidth, steer_loss_tx, range_vec)
+function pfd_dBW_MHz = pfd_calc(adjusted_EIRP_dBm, bandwidth, steer_loss_tx, range_vec)
     area = 10*log10(4*pi.*range_vec.^2); % area of sphere
-    pfd_W_MHz = adjusted_EIRP_dBm - 30 - area - steer_loss_tx - 10*log10(bandwidth/1e6); %subtract 30 to get in Watts
+    pfd_dBW_MHz = adjusted_EIRP_dBm - 30 - area - steer_loss_tx - 10*log10(bandwidth/1e6); %subtract 30 to get in Watts
 end
 
 function adjusted_tx_power = Adjust_tx_power(el_vec, range_vec, min_elevation, orbit_height, tx_type, max_power)
@@ -552,6 +596,7 @@ function [loss_struct, sky_temp_K] = Absorption_calc(f, el_vec, lat, lon)
     grid_Ar = zeros(1, n_grid); grid_As = zeros(1, n_grid);
     grid_At = zeros(1, n_grid); grid_Tsky = zeros(1, n_grid);
     
+    old_warn_state = warning('off', 'all'); %silencing warnings inside p618
     for i = 1:n_grid
         link_cfg = p618Config('Frequency', f, 'ElevationAngle', el_grid(i), ... 
             'Latitude', lat, 'Longitude', lon, 'TotalAnnualExceedance', 1, ... 
@@ -560,6 +605,7 @@ function [loss_struct, sky_temp_K] = Absorption_calc(f, el_vec, lat, lon)
         grid_Ag(i) = pl.Ag; grid_Ac(i) = pl.Ac; grid_Ar(i) = pl.Ar;
         grid_As(i) = pl.As; grid_At(i) = pl.At; grid_Tsky(i) = tsky;
     end
+    warning(old_warn_state); % getting back at the old warning state
     
     loss_struct.Ag = interp1(el_grid, grid_Ag, el_vec, 'linear');
     loss_struct.Ac = interp1(el_grid, grid_Ac, el_vec, 'linear');
