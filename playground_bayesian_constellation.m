@@ -218,7 +218,7 @@ else
     num_to_run = min(5, length(best_valid_indices));
     fprintf('Found %d valid constellations. Running detailed simulations for the top %d...\n\n', length(best_valid_indices), num_to_run);
     
-    
+    % Cfg.Save_dir = out_dir;
     plot_results = true;
     use_parallel = true; 
     calc_link    = true;

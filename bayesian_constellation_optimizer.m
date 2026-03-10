@@ -190,72 +190,73 @@ function best_params = bayesian_constellation_optimizer(orbit_height, num_runs, 
         
         exportgraphics(f6, fullfile(out_dir, 'Top5_Solutions.png'), 'Resolution', 300);
         close(f6);
-    end 
     
-    % Show high res result of best constellation
-
-    valid_indices = find(results.ConstraintsTrace <= 0);
-
-    if isempty(valid_indices)
-        fprintf('[!] No valid constellations found to simulate.\n');
-    else
-        % 2. Get the Total Satellites (Objective) for those valid runs
-        valid_objectives = results.ObjectiveTrace(valid_indices);
-        
-        % 3. Sort them from lowest number of sats to highest
-        [sorted_sats, sort_order] = sort(valid_objectives, 'ascend');
-        
-        % 4. Map the sorted list back to the original run numbers
-        best_valid_indices = valid_indices(sort_order);
-        
-        % 5. Cap amount of runs
-        num_to_run = min(1, length(best_valid_indices));
-        fprintf('Found %d valid constellations. Running detailed simulations for the top %d...\n\n', length(best_valid_indices), num_to_run);
-
-        % Downlink Link Budget Config FR2
-        Cfg.DL.Direction = "DL";
-        Cfg.DL.B         = 2e6;     
-        Cfg.DL.f         = 20e9;    
-        Cfg.DL.P_tx_dBm  = 20; 
-        Cfg.DL.G_tx      = 42; 
-        Cfg.DL.Tx_type   = "array";      
-        Cfg.DL.G_rx      = 32;      
-        Cfg.DL.Rx_type   = "array";      
-        Cfg.DL.NF        = 5;
-        Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
-        
-        Cfg.Save_dir = out_dir;
-        plot_results = true;
-        use_parallel = true; 
-        calc_link    = true;
-        Cfg.StopTime   = datetime('2-Jun-2025 23:59:59', 'TimeZone', 'UTC'); % 48 hours
-        Cfg.SampleTime = 20; % seconds
-        
-        Cfg.Lat_vec = linspace(55, 85, 10); % 32 workers on server
-        Cfg.Lon_vec = linspace(-60, 30, 3);
-        
-        for i = 1:num_to_run
-            % Extract the parameters for this specific rank
-            idx = best_valid_indices(i);
-            best_params = results.XTrace(idx, :);
+    
+        % Show high res result of best constellation
+    
+        valid_indices = find(results.ConstraintsTrace <= 0);
+    
+        if isempty(valid_indices)
+            fprintf('[!] No valid constellations found to simulate.\n');
+        else
+            % 2. Get the Total Satellites (Objective) for those valid runs
+            valid_objectives = results.ObjectiveTrace(valid_indices);
             
-            fprintf('\n--------------------------------------------------\n');
-            fprintf('--- Simulating Rank %d (Total Sats: %d, Run Index: %d) ---\n', i, sorted_sats(i), idx);
-            disp(best_params);
+            % 3. Sort them from lowest number of sats to highest
+            [sorted_sats, sort_order] = sort(valid_objectives, 'ascend');
             
-            % 7. Inject these parameters back into Cfg
-            Cfg.Num_planes     = best_params.Num_planes;
-            Cfg.Sats_per_plane = best_params.Sats_per_plane;
-            Cfg.Inclination    = best_params.Inclination;
+            % 4. Map the sorted list back to the original run numbers
+            best_valid_indices = valid_indices(sort_order);
             
-            % Do the exact same Phasing math we did in the objective function
-            Cfg.Phasing = round((best_params.Phasing_Degrees / 360) * Cfg.Num_planes);
-            Cfg.Phasing = max(0, min(Cfg.Phasing, Cfg.Num_planes - 1));
-            Cfg.Total_sats = Cfg.Num_planes * Cfg.Sats_per_plane;
+            % 5. Cap amount of runs
+            num_to_run = min(1, length(best_valid_indices));
+            fprintf('Found %d valid constellations. Running detailed simulations for the top %d...\n\n', length(best_valid_indices), num_to_run);
+    
+            % Downlink Link Budget Config FR2
+            Cfg.DL.Direction = "DL";
+            Cfg.DL.B         = 2e6;     
+            Cfg.DL.f         = 20e9;    
+            Cfg.DL.P_tx_dBm  = 20; 
+            Cfg.DL.G_tx      = 42; 
+            Cfg.DL.Tx_type   = "array";      
+            Cfg.DL.G_rx      = 32;      
+            Cfg.DL.Rx_type   = "array";      
+            Cfg.DL.NF        = 5;
+            Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
             
-            % 8. Run the simulator!
-            detailed_metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
+            Cfg.Save_dir = out_dir;
+            plot_results = true;
+            use_parallel = true; 
+            calc_link    = true;
+            Cfg.StopTime   = datetime('2-Jun-2025 23:59:59', 'TimeZone', 'UTC'); % 48 hours
+            Cfg.SampleTime = 20; % seconds
             
+            Cfg.Lat_vec = linspace(55, 85, 10); % 32 workers on server
+            Cfg.Lon_vec = linspace(-60, 30, 3);
+            
+            for i = 1:num_to_run
+                % Extract the parameters for this specific rank
+                idx = best_valid_indices(i);
+                best_params = results.XTrace(idx, :);
+                
+                fprintf('\n--------------------------------------------------\n');
+                fprintf('--- Simulating Rank %d (Total Sats: %d, Run Index: %d) ---\n', i, sorted_sats(i), idx);
+                disp(best_params);
+                
+                % 7. Inject these parameters back into Cfg
+                Cfg.Num_planes     = best_params.Num_planes;
+                Cfg.Sats_per_plane = best_params.Sats_per_plane;
+                Cfg.Inclination    = best_params.Inclination;
+                
+                % Do the exact same Phasing math we did in the objective function
+                Cfg.Phasing = round((best_params.Phasing_Degrees / 360) * Cfg.Num_planes);
+                Cfg.Phasing = max(0, min(Cfg.Phasing, Cfg.Num_planes - 1));
+                Cfg.Total_sats = Cfg.Num_planes * Cfg.Sats_per_plane;
+                
+                % 8. Run the simulator!
+                detailed_metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
+                
+            end
         end
     end
 end
