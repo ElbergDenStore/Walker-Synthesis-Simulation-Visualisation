@@ -48,7 +48,7 @@ function best_params = bayesian_constellation_optimizer(orbit_height, num_runs, 
         %% Create Output Directory
         % Format: simulation_output/bayesian_runs/orbit_sats_inclination_phasing_date
         date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-        folder_name = sprintf('%.0f_%d', ...
+        folder_name = sprintf('%.0f_%d_%s', ...
             Cfg.Orbit_height/1e3, custom_metrics_history{best_idx}.Total_sats, date_str);
         out_dir = fullfile('simulation_output/bayesian_runs', folder_name);
         

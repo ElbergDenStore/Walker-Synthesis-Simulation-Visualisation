@@ -3,14 +3,15 @@
 % -nodisplay -nosplash -nodesktop tells MATLAB to run purely as a command-line engine without booting up the heavy Java GUI interface.
 % 
 % -batch tells it to run your script, print the output directly to your terminal, and gracefully exit when it's done.
+% Press Ctrl+b, release both keys, and then press d.
 clear all; close all; clc;
 
 %% 1. Define the Sweep Parameters
-heights_km = 700:50:1200; % From 700 to 1200 in steps of 50
+heights_km = 700:25:1200; % From 700 to 1200 in steps of 50
 orbit_heights = heights_km * 1e3; % Convert to meters
 
-num_runs = 100; % Number of iterations PER height 
-plot_individual_results = true; % Set true to save the 6 detailed plots per height
+num_runs = 1000; % Number of iterations PER height 
+plot_individual_results = false; % Set true to save the 6 detailed plots per height
 
 % Preallocate an array to store the best satellite count for each height
 % We use NaN (Not a Number) so we can easily skip heights that fail to find a valid solution
@@ -52,27 +53,35 @@ for i = 1:length(orbit_heights)
     end
 end
 
-%% 3. Plot the Final Master Curve
-figure('Name', 'Min Sats vs Orbit Height', 'Color', 'w');
+%% 3. Plot the Final Master Curvefigure('Name', 'Min Sats vs Orbit Height', 'Color', 'w');
 
 % Only plot the heights where a valid constellation was successfully found
 valid_idx = ~isnan(min_sats_array);
-
+f1 = figure('Visible', 'off', 'Name', 'Bayesian_sweep_results', 'Color', 'w', 'Position', [100 100 1000 600]); 
 % Plot the curve with distinct markers
-plot(heights_km(valid_idx), min_sats_array(valid_idx), '-ok', ...
-    'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', [0.2 0.7 0.2]);
+scatter(heights_km(valid_idx), min_sats_array(valid_idx),25, 'filled', ...
+                'MarkerFaceColor', '#0072BD', 'MarkerFaceAlpha', 1);
 
-xlabel('Orbit Altitude (km)', 'FontWeight', 'bold');
-ylabel('Minimum Required Satellites', 'FontWeight', 'bold');
-title('Optimal Constellation Size vs. Orbit Altitude (99.9% Coverage Requirement)');
+xlabel('Orbit Height (km)', 'FontWeight', 'bold');
+ylabel('Num Sats', 'FontWeight', 'bold');
+title('Optimal Constellation and Orbit Height');
 grid on;
 
 % Make the Y-axis strictly integers since you can't have half a satellite
-yticks(min(min_sats_array(valid_idx)):max(min_sats_array(valid_idx)));
+% yticks(min(min_sats_array(valid_idx)):max(min_sats_array(valid_idx)));
+date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+folder_name = sprintf('Bayesian_sweep_%s', date_str);
+out_dir = fullfile('simulation_output', folder_name);
+            
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
+end
 
 % Save the master plot and the raw data array so you don't lose the results!
-save('Master_Altitude_Sweep_Results.mat', 'heights_km', 'min_sats_array');
-exportgraphics(gcf, 'Master_MinSats_vs_Altitude.png', 'Resolution', 300);
+save(fullfile(out_dir,'Master_Altitude_Sweep_Results.mat'),'heights_km', 'min_sats_array');
+exportgraphics(f1, fullfile(out_dir, 'Bayesian_sweep_results.png'), 'Resolution', 300);
+close(f1);
+% exportgraphics(gcf, 'Master_MinSats_vs_Altitude.png', 'Resolution', 300);
 
 fprintf('\n=== SWEEP COMPLETE ===\n');
 fprintf('Master plot saved as Master_MinSats_vs_Altitude.png\n');
