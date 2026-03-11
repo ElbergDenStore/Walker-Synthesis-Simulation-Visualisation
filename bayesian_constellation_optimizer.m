@@ -97,6 +97,42 @@ function best_params = bayesian_constellation_optimizer(orbit_height, num_runs, 
         sats_pp = history_X.Sats_per_plane;
         phase = history_X.Phasing_Degrees;
         inc = history_X.Inclination;
+
+        % --- PLOT 3: Best Valid Loss Over Time ---
+        % Calculate the running minimum of valid objective evaluations
+        num_evals = length(history_Loss);
+        best_valid_so_far = NaN(num_evals, 1);
+        current_best = inf;
+        
+        for k = 1:num_evals
+            % Update current best only if the run is valid AND lower than previous best
+            if history_Constraints(k) <= 0 && history_Loss(k) < current_best
+                current_best = history_Loss(k);
+            end
+            
+            % Record the best valid loss found up to run 'k'
+            if ~isinf(current_best)
+                best_valid_so_far(k) = current_best;
+            end
+        end
+        
+        f3 = figure('Visible','off','Name', 'Best Valid Loss Over Time', 'Color', 'w'); hold on;
+        
+        % Plot all runs in the background for context
+        scatter(find(~isValid), history_Loss(~isValid), 20, [0.8 0.8 0.8], 'x'); 
+        scatter(find(isValid), history_Loss(isValid), 30, [0.6 0.8 0.6], 'filled');
+        
+        % Plot the step line for the best valid loss found so far
+        stairs(1:num_evals, best_valid_so_far, 'b-', 'LineWidth', 2.5);
+        
+        xlabel('Evaluation Number', 'FontWeight', 'bold');
+        ylabel('Best Minimum Sats (Loss)', 'FontWeight', 'bold');
+        title("Observed Best Valid Loss vs. Runs @ " + num2str(Cfg.Orbit_height / 1000) + " km");
+        legend('Invalid Runs', 'Valid Runs', 'Best Valid So Far', 'Location', 'northeast');
+        grid on; hold off;
+        
+        exportgraphics(f3, fullfile(out_dir, 'Best_Loss_Over_Time.png'), 'Resolution', 300);
+        close(f3);
         
         % --- PLOT 4: Architecture Map (Planes vs Sats per Plane) ---
         f4 = figure('Visible','off','Name', 'Architecture Map', 'Color', 'w'); hold on;
