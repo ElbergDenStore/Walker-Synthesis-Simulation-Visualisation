@@ -30,7 +30,7 @@ function best_params = gridsearch(orbit_height,plot_results)
     
     %% 2. The Smart Filters
     % Filter out anything that isn't between 50 and 100 satellites
-    isValidTarget = search_grid.Total_Sats >= 50 & search_grid.Total_Sats <= 100;
+    isValidTarget = search_grid.Total_Sats >= 99 & search_grid.Total_Sats <= 160;
     search_grid = search_grid(isValidTarget, :);
     
     % Sort from cheapest to most expensive!
@@ -106,7 +106,12 @@ function best_params = gridsearch(orbit_height,plot_results)
             break; 
         end
     end
-
+    if isempty(best_params)
+        fprintf('\n[!] GRID SEARCH EXHAUSTED [!]\n');
+        fprintf('No constellation achieved 99.9%% coverage within the 50-100 satellite limit.\n');
+        fprintf('Returning empty results for %d km.\n', orbit_height / 1000);
+        return; % Safely exit the function without crashing the whole sweep!
+    end
     %% --- PREPARE DATA FOR PLOTTING ---
     if plot_results
         % 1. Extract ONLY the rows we actually simulated before breaking

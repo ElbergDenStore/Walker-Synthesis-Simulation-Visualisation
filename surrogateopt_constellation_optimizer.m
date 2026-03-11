@@ -86,9 +86,9 @@ function best_params = surrogateopt_constellation_optimizer(orbit_height, num_ru
         end
 
         %% --- POST-RUN VISUALIZATIONS ---
-        history_X = results.XTrace; 
-        history_Loss = results.ObjectiveTrace;
-        history_Constraints = results.ConstraintsTrace;
+        % history_X = results.XTrace; 
+        % history_Loss = results.ObjectiveTrace;
+        % history_Constraints = results.ConstraintsTrace;
         
         % Mask for valid runs (99.9% coverage or better)
         isValid = history_Constraints <= 0; 
@@ -107,8 +107,8 @@ function best_params = surrogateopt_constellation_optimizer(orbit_height, num_ru
         close(f1);
         
         % --- PLOT 2: The Trade-off (Coverage vs Total Satellites) ---
-        cov_history = cellfun(@(x) x.Cov_percent, results.UserDataTrace);
-        sat_history = cellfun(@(x) x.Total_sats, results.UserDataTrace);
+        % cov_history = cellfun(@(x) x.Cov_percent, results.UserDataTrace);
+        % sat_history = cellfun(@(x) x.Total_sats, results.UserDataTrace);
         
         f2 = figure('Visible','off','Name', 'Trade-off Analysis', 'Color', 'w'); hold on;
         scatter(sat_history(~isValid), cov_history(~isValid), 40, [0.8 0.3 0.3], 'x', 'LineWidth', 1.2);
@@ -258,76 +258,51 @@ function best_params = surrogateopt_constellation_optimizer(orbit_height, num_ru
     
     
         % Show high res result of best constellation
-    
-        valid_indices = find(results.ConstraintsTrace <= 0);
-    
-        if isempty(valid_indices)
-            fprintf('[!] No valid constellations found to simulate.\n');
-        else
-            % 2. Get the Total Satellites (Objective) for those valid runs
-            valid_objectives = results.ObjectiveTrace(valid_indices);
-            
-            % 3. Sort them from lowest number of sats to highest
-            [sorted_sats, sort_order] = sort(valid_objectives, 'ascend');
-            
-            % 4. Map the sorted list back to the original run numbers
-            best_valid_indices = valid_indices(sort_order);
-            
-            % 5. Cap amount of runs
-            num_to_run = min(1, length(best_valid_indices));
-            fprintf('Found %d valid constellations. Running detailed simulations for the top %d...\n\n', length(best_valid_indices), num_to_run);
-    
-            % Downlink Link Budget Config FR2
-            Cfg.DL.Direction = "DL";
-            Cfg.DL.B         = 2e6;     
-            Cfg.DL.f         = 20e9;    
-            Cfg.DL.P_tx_dBm  = 20; 
-            Cfg.DL.G_tx      = 42; 
-            Cfg.DL.Tx_type   = "array";      
-            Cfg.DL.G_rx      = 32;      
-            Cfg.DL.Rx_type   = "array";      
-            Cfg.DL.NF        = 5;
-            Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
-            
-            Cfg.Save_dir = out_dir;
-            plot_results = true;
-            use_parallel = true; 
-            calc_link    = true;
-            Cfg.StopTime   = datetime('2-Jun-2025 23:59:59', 'TimeZone', 'UTC'); % 48 hours
-            Cfg.SampleTime = 20; % seconds
-            
-            Cfg.Lat_vec = linspace(55, 85, 10); % 32 workers on server
-            Cfg.Lon_vec = linspace(-60, 30, 3);
-            
-            for i = 1:num_to_run
-                % Extract the parameters for this specific rank
-                idx = best_valid_indices(i);
-                best_params = results.XTrace(idx, :);
-                
-                fprintf('\n--------------------------------------------------\n');
-                fprintf('--- Simulating Rank %d (Total Sats: %d, Run Index: %d) ---\n', i, sorted_sats(i), idx);
-                disp(best_params);
-                
-                % 7. Inject these parameters back into Cfg
-                Cfg.Num_planes     = best_params.Num_planes;
-                Cfg.Sats_per_plane = best_params.Sats_per_plane;
-                Cfg.Inclination    = best_params.Inclination;
-                
-                % Do the exact same Phasing math we did in the objective function
-                Cfg.Phasing = round((best_params.Phasing_Degrees / 360) * Cfg.Num_planes);
-                Cfg.Phasing = max(0, min(Cfg.Phasing, Cfg.Num_planes - 1));
-                Cfg.Total_sats = Cfg.Num_planes * Cfg.Sats_per_plane;
-                
-                % 8. Run the simulator!
-                detailed_metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
-                
-                show_interactive = false;
-                save_fig = true;
-                show_constellation(Cfg, show_interactive, save_fig, out_dir)
-                
-            end
-        end
-    end
+        %% Show high res result of best constellation
+        fprintf('\nRunning detailed simulations for the optimal result...\n');
+        
+        % Downlink Link Budget Config FR2
+        Cfg.DL.Direction = "DL";
+        Cfg.DL.B         = 2e6;     
+        Cfg.DL.f         = 20e9;    
+        Cfg.DL.P_tx_dBm  = 20; 
+        Cfg.DL.G_tx      = 42; 
+        Cfg.DL.Tx_type   = "array";      
+        Cfg.DL.G_rx      = 32;      
+        Cfg.DL.Rx_type   = "array";      
+        Cfg.DL.NF        = 5;
+        Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
+        
+        Cfg.Save_dir = out_dir;
+        plot_results = true;
+        use_parallel = true; 
+        calc_link    = true;
+        Cfg.StopTime   = datetime('2-Jun-2025 23:59:59', 'TimeZone', 'UTC'); % 48 hours
+        Cfg.SampleTime = 20; % seconds
+        
+        Cfg.Lat_vec = linspace(55, 85, 10); % 32 workers on server
+        Cfg.Lon_vec = linspace(-60, 30, 3);
+        
+        % Inject final parameters directly from surrogateopt's best_params
+        Cfg.Num_planes     = best_params.Num_planes;
+        Cfg.Sats_per_plane = best_params.Sats_per_plane;
+        Cfg.Inclination    = best_params.Inclination;
+        Cfg.Total_sats     = Cfg.Num_planes * Cfg.Sats_per_plane;
+        
+        % Calculate true Walker Phase constraint using modulo math
+        Cfg.Phasing = mod(best_params.Phasing_Factor, Cfg.Num_planes);
+        
+        fprintf('\n--------------------------------------------------\n');
+        fprintf('--- Simulating Optimal Constellation (Total Sats: %d) ---\n', Cfg.Total_sats);
+        disp(best_params);
+        
+        % Run the detailed simulator!
+        detailed_metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
+        
+        show_interactive = false;
+        save_fig = true;
+        show_constellation(Cfg, show_interactive, save_fig, out_dir);
+     end
 end
 
 %% --- HELPER: Surrogate Optimization Wrapper ---
@@ -338,7 +313,9 @@ function obj_struct = surrogateWrapper(x_vec, Cfg)
     Cfg.Inclination = x_vec(3);
     
     % 2. Calculate true Walker Phase constraint! (Integer modulo math)
-    Cfg.Phasing = mod(x_vec(4), Cfg.Num_planes); 
+    Cfg.Phasing = round((x_vec(3) / 360) * Cfg.Num_planes); 
+    Cfg.Phasing = max(0, min(Cfg.Phasing, Cfg.Num_planes - 1)); 
+    % Cfg.Phasing = mod(x_vec(4), Cfg.Num_planes); 
     
     Cfg.Total_sats = Cfg.Num_planes * Cfg.Sats_per_plane;
     

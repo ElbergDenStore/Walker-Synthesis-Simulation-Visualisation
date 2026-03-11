@@ -35,15 +35,15 @@ for i = 1:length(orbit_heights)
     try
         % Call your optimizer function!
         % best_params = bayesian_constellation_optimizer(current_height, num_runs, plot_individual_results);
-        best_params = surrogateopt_constellation_optimizer(current_height, num_runs, plot_individual_results);
-        % best_params = gridsearch(current_height, plot_individual_results);
+        % best_params = surrogateopt_constellation_optimizer(current_height, num_runs, plot_individual_results);
+        best_params = gridsearch(current_height, plot_individual_results);
 
         % Verify the optimizer actually returned a valid table row
         if ~isempty(best_params) && istable(best_params)
             % Calculate the total number of satellites from the winning parameters
             total_sats = best_params.Num_planes * best_params.Sats_per_plane;
             min_sats_array(i) = total_sats;
-            fprintf('\n--> WINNER FOR %d km: %d Satellites\n', heights_km(i), total_sats);
+            fprintf('\n--> Optimal constellation for %d km: %d Satellites\n', heights_km(i), total_sats);
         else
             fprintf('\n--> [!] No valid constellation found for %d km.\n', heights_km(i));
         end
