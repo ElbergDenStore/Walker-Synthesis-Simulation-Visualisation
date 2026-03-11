@@ -4,55 +4,55 @@
 % 
 % -batch tells it to run your script, print the output directly to your terminal, and gracefully exit when it's done.
 % Press Ctrl+b, release both keys, and then press d.
+
+% function best_params = master_constellation_optimizer(orbit_height,
+% method, plot_results) - might make it into a function
+
 clear all; close all; clc;
-
-%% 1. Define the Sweep Parameters
-heights_km = 700:25:701; % From 700 to 1200 in steps of 50
-orbit_heights = heights_km * 1e3; % Convert to meters
-
-num_runs = 100; % Number of iterations PER height 
-plot_individual_results = true; % Set true to save the 6 detailed plots per height
-
-% Preallocate an array to store the best satellite count for each height
-% We use NaN (Not a Number) so we can easily skip heights that fail to find a valid solution
-min_sats_array = NaN(size(orbit_heights)); 
-
-start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
-fprintf('\n=======================================================\n');
-fprintf('SWEEP STARTED AT: %s\n', char(start_time));
-fprintf('=======================================================\n');
+method = "grid"
+orbit_height = 700e3; % can make it a vector
+target_lat = 55;
 
 
-%% 2. Run the Loop
-for i = 1:length(orbit_heights)
-    current_height = orbit_heights(i);
-    
-    fprintf('\n=======================================================\n');
-    fprintf('Starting Optimization for Orbit Height: %d km (%d of %d)\n', ...
-        heights_km(i), i, length(orbit_heights));
-    fprintf('=======================================================\n');
-    
-    try
-        % Call your optimizer function!
-        % best_params = bayesian_constellation_optimizer(current_height, num_runs, plot_individual_results);
-        % best_params = surrogateopt_constellation_optimizer(current_height, num_runs, plot_individual_results);
-        best_params = gridsearch(current_height, plot_individual_results);
+%% 1. Base Configuration
+Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
+Cfg.StopTime   = datetime('1-Jun-2025 11:59:59', 'TimeZone', 'UTC'); 
+Cfg.SampleTime = 60; 
+Cfg.Lat_vec = linspace(55, 85, 6); 
+Cfg.Lon_vec = linspace(-60, 30, 1);
+Cfg.Min_elevation_UE = 20;
+Cfg.WalkerStar     = false; % optimizing walker deltas
+Cfg.Orbit_height = orbit_height;
 
-        % Verify the optimizer actually returned a valid table row
-        if ~isempty(best_params) && istable(best_params)
-            % Calculate the total number of satellites from the winning parameters
-            total_sats = best_params.Num_planes * best_params.Sats_per_plane;
-            min_sats_array(i) = total_sats;
-            fprintf('\n--> Optimal constellation for %d km: %d Satellites\n', heights_km(i), total_sats);
-        else
-            fprintf('\n--> [!] No valid constellation found for %d km.\n', heights_km(i));
-        end
+%% 2. The Analytical "Seed" (Walker Star Baseline)
+% Call your custom math to find the theoretical upper bound
+[star_P, star_S, star_N] = get_analytical_star(orbit_height / 1000, target_lat, Cfg.Min_elevation_UE);
+
+fprintf('\n======================================================\n');
+fprintf('Analytical Star Baseline: %d Planes x %d Sats (%d Total)\n', star_P, star_S, star_N);
+fprintf('======================================================\n');
+
+%% 3. Dynamically Bound the Search Space
+min_sats = floor(star_N * 0.7); % Search down to 70%
+max_sats = star_N*1.2;          % max
+
+
+%% 4. Route to the chosen Optimizer
+switch lower(method)
+    case 'grid'
+        fprintf('Running Smart Ascending Grid Search...\n');
+        best_params = gridsearch(Cfg,plot_results, min_sats, max_sats);
         
-    catch ME
-        % If the optimizer crashes for one specific height, this prevents 
-        % the entire multi-hour loop from terminating early!
-        fprintf('\n[!] Error evaluating %d km: %s\n', heights_km(i), ME.message);
-    end
+    case 'surrogate'
+        fprintf('Running Surrogate Optimization...\n');
+        best_params = run_surrogate(Cfg, num_runs, min_sats, max_sats);
+        
+    case 'bayes'
+        fprintf('Running Bayesian Optimization...\n');
+        best_params = run_bayes(Cfg, num_runs, min_sats, max_sats);
+        
+    otherwise
+        error('Invalid method. Choose: ''grid'', ''surrogate'', or ''bayes''.');
 end
 
 %% 3. Plot the Final Master Curvefigure('Name', 'Min Sats vs Orbit Height', 'Color', 'w');
@@ -97,3 +97,18 @@ fprintf('SWEEP FINISHED AT: %s\n', char(end_time));
 fprintf('TOTAL ELAPSED TIME: %s\n', char(elapsed_time));
 fprintf('Master plot saved as Master_MinSats_vs_Altitude.png\n');
 fprintf('=======================================================\n');
+
+
+function [P, S, N] = get_analytical_star(alt_km, phi_min, eps_min)
+    Re = 6378.137;           
+    Rs = Re + alt_km; 
+    earth_O_at_lat = (cosd(phi_min)*Re)*2*pi;
+    
+    alpha = asind((Re / Rs) * cosd(eps_min));
+    ECA = deg2rad(180 - (90 + eps_min + alpha));
+    
+    hex_side = ECA * Re;
+    P = ceil((((earth_O_at_lat / 2) - hex_side) / (1.5 * hex_side)) + 1);
+    S = ceil((2*pi)/(sqrt(3)*ECA)); 
+    N = P * S;
+end

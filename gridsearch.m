@@ -1,4 +1,4 @@
-function best_params = gridsearch(orbit_height,plot_results)
+function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
     %% Base Configuration
     Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
     Cfg.StopTime   = datetime('1-Jun-2025 11:59:59', 'TimeZone', 'UTC'); 
