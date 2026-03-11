@@ -7,11 +7,11 @@
 clear all; close all; clc;
 
 %% 1. Define the Sweep Parameters
-heights_km = 700:25:1200; % From 700 to 1200 in steps of 50
+heights_km = 700:25:701; % From 700 to 1200 in steps of 50
 orbit_heights = heights_km * 1e3; % Convert to meters
 
-num_runs = 1000; % Number of iterations PER height 
-plot_individual_results = false; % Set true to save the 6 detailed plots per height
+num_runs = 100; % Number of iterations PER height 
+plot_individual_results = true; % Set true to save the 6 detailed plots per height
 
 % Preallocate an array to store the best satellite count for each height
 % We use NaN (Not a Number) so we can easily skip heights that fail to find a valid solution
@@ -36,7 +36,7 @@ for i = 1:length(orbit_heights)
         % Call your optimizer function!
         % best_params = bayesian_constellation_optimizer(current_height, num_runs, plot_individual_results);
         best_params = surrogateopt_constellation_optimizer(current_height, num_runs, plot_individual_results);
-        % best_params = gridsearch(current_height);
+        % best_params = gridsearch(current_height, plot_individual_results);
 
         % Verify the optimizer actually returned a valid table row
         if ~isempty(best_params) && istable(best_params)
