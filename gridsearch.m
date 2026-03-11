@@ -1,14 +1,4 @@
 function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
-    %% Base Configuration
-    Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-    Cfg.StopTime   = datetime('1-Jun-2025 11:59:59', 'TimeZone', 'UTC'); 
-    Cfg.SampleTime = 60; 
-    Cfg.Lat_vec = linspace(55, 85, 6); 
-    Cfg.Lon_vec = linspace(-60, 30, 1);
-    Cfg.Min_elevation_UE = 20;
-    Cfg.WalkerStar     = false;
-    Cfg.Orbit_height = orbit_height;
-
     %% 1. Build the Ascending Grid
     P_vec = 4:15; % Num Planes
     S_vec = 4:15; % Sats per Plane
@@ -29,15 +19,15 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Factor', 'Total_Sats'});
     
     %% 2. The Smart Filters
-    % Filter out anything that isn't between 50 and 100 satellites
-    isValidTarget = search_grid.Total_Sats >= 99 & search_grid.Total_Sats <= 160;
+    % Filter out anything that isn't between min_sats and max_sats satellites
+    isValidTarget = search_grid.Total_Sats >= min_sats & search_grid.Total_Sats <= max_sats;
     search_grid = search_grid(isValidTarget, :);
     
     % Sort from cheapest to most expensive!
     search_grid = sortrows(search_grid, 'Total_Sats', 'ascend');
     
     fprintf('\n=== Starting Ascending Grid Search ===\n');
-    fprintf('Testing %d valid architectures between 50 and 100 satellites...\n\n', height(search_grid));
+    fprintf('Testing %d valid architectures between %d and %d satellites...\n\n', height(search_grid), min_sats,max_sats);
     
     %% 3. Simulate until we find the Global Minimum (Batched Parallel)
     best_params = [];

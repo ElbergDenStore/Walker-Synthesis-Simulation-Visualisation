@@ -1,93 +1,110 @@
-% How to run through the night
-% matlab -nodisplay -nosplash -nodesktop -batch "run_bayesian"
-% -nodisplay -nosplash -nodesktop tells MATLAB to run purely as a command-line engine without booting up the heavy Java GUI interface.
-% 
-% -batch tells it to run your script, print the output directly to your terminal, and gracefully exit when it's done.
-% Press Ctrl+b, release both keys, and then press d.
+% How to run through the night:
+% matlab -nodisplay -nosplash -nodesktop -batch "run_master_sweep"
 
-% function best_params = master_constellation_optimizer(orbit_height,
-% method, plot_results) - might make it into a function
+clear; close all; clc;
 
-clear all; close all; clc;
-method = "grid"
-orbit_height = 700e3; % can make it a vector
+%% --- 1. Master Configuration ---
+method = "grid"; % Toggle: 'grid', 'surrogate', or 'bayes'
+heights_km = 700:25:750; % Iterate over these altitudes (in km)
 target_lat = 55;
-plot_results = true;
+plot_individual_results = false; % Keep false for the sweep to save time
 
+% Record start time for the sweep
+start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
+fprintf('=======================================================\n');
+fprintf('STARTING CONSTELLATION SWEEP AT: %s\n', char(start_time));
+fprintf('=======================================================\n');
 
-%% 1. Base Configuration
-Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-Cfg.StopTime   = datetime('1-Jun-2025 11:59:59', 'TimeZone', 'UTC'); 
-Cfg.SampleTime = 60; 
-Cfg.Lat_vec = linspace(55, 85, 6); 
-Cfg.Lon_vec = linspace(-60, 30, 1);
-Cfg.Min_elevation_UE = 20;
-Cfg.WalkerStar     = false; % optimizing walker deltas
-Cfg.Orbit_height = orbit_height;
+% Arrays to store the data for our combined plot
+star_sats_array = NaN(size(heights_km));
+delta_sats_array = NaN(size(heights_km));
 
-%% 2. The Analytical "Seed" (Walker Star Baseline)
-% Call your custom math to find the theoretical upper bound
-[star_P, star_S, star_N] = get_analytical_star(orbit_height / 1000, target_lat, Cfg.Min_elevation_UE);
+%% --- 2. The Sweep Loop ---
+for i = 1:length(heights_km)
+    current_h_meters = heights_km(i) * 1000;
+    
+    %% Base Cfg for this iteration
+    Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
+    Cfg.StopTime   = datetime('1-Jun-2025 11:59:59', 'TimeZone', 'UTC'); 
+    Cfg.SampleTime = 60; 
+    Cfg.Lat_vec = linspace(55, 85, 6); 
+    Cfg.Lon_vec = linspace(-60, 30, 1);
+    Cfg.Min_elevation_UE = 20;
+    Cfg.WalkerStar     = false; % We are optimizing Walker Deltas
+    Cfg.Orbit_height = current_h_meters;
 
-fprintf('\n======================================================\n');
-fprintf('Analytical Star Baseline: %d Planes x %d Sats (%d Total)\n', star_P, star_S, star_N);
-fprintf('======================================================\n');
+    %% The Analytical "Seed" (Walker Star Baseline)
+    [star_P, star_S, star_N] = get_analytical_star(heights_km(i), target_lat, Cfg.Min_elevation_UE);
+    star_sats_array(i) = star_N; % Save for the plot!
 
-%% 3. Dynamically Bound the Search Space
-min_sats = floor(star_N * 0.7); % Search down to 70%
-max_sats = star_N*1.2;          % max
+    fprintf('\n======================================================\n');
+    fprintf('ALTITUDE: %d km\n', heights_km(i));
+    fprintf('Analytical Star Baseline: %d Planes x %d Sats (%d Total)\n', star_P, star_S, star_N);
+    fprintf('======================================================\n');
 
+    %% Dynamically Bound the Search Space
+    % We expect the Delta to beat the Star, so we look between 70% and 120% of the Star's sats
+    min_sats = floor(star_N * 0.7); 
+    max_sats = ceil(star_N * 1.2);          
 
-%% 4. Route to the chosen Optimizer
-switch lower(method)
-    case 'grid'
-        fprintf('Running Smart Ascending Grid Search...\n');
-        best_params = gridsearch(Cfg,plot_results, min_sats, max_sats);
-        
-    case 'surrogate'
-        fprintf('Running Surrogate Optimization...\n');
-        best_params = run_surrogate(Cfg, num_runs, min_sats, max_sats);
-        
-    case 'bayes'
-        fprintf('Running Bayesian Optimization...\n');
-        best_params = run_bayes(Cfg, num_runs, min_sats, max_sats);
-        
-    otherwise
-        error('Invalid method. Choose: ''grid'', ''surrogate'', or ''bayes''.');
+    %% Route to the chosen Optimizer
+    best_params = [];
+    switch lower(method)
+        case 'grid'
+            fprintf('Running Smart Ascending Grid Search...\n');
+            % NOTE: Ensure your gridsearch function accepts these inputs!
+            best_params = gridsearch(Cfg, plot_individual_results, min_sats, max_sats);
+            
+        case 'surrogate'
+            fprintf('Running Surrogate Optimization...\n');
+            best_params = run_surrogate(Cfg, plot_individual_results, min_sats, max_sats);
+            
+        case 'bayes'
+            fprintf('Running Bayesian Optimization...\n');
+            best_params = run_bayes(Cfg, plot_individual_results, min_sats, max_sats);
+            
+        otherwise
+            error('Invalid method. Choose: ''grid'', ''surrogate'', or ''bayes''.');
+    end
+    
+    %% Save the Optimized Result
+    if ~isempty(best_params)
+        delta_sats_array(i) = best_params.Total_Sats;
+    else
+        fprintf('[!] Optimizer failed to find a valid constellation within bounds for %d km.\n', heights_km(i));
+    end
 end
 
-%% 3. Plot the Final Master Curvefigure('Name', 'Min Sats vs Orbit Height', 'Color', 'w');
+%% --- 3. Plot the Final Master Curve (Star vs Delta) ---
+f1 = figure('Visible', 'off', 'Name', 'Constellation Comparison', 'Color', 'w', 'Position', [100 100 1000 600]); hold on;
 
-% Only plot the heights where a valid constellation was successfully found
-valid_idx = ~isnan(min_sats_array);
-f1 = figure('Visible', 'off', 'Name', 'Bayesian_sweep_results', 'Color', 'w', 'Position', [100 100 1000 600]); 
-% Plot the curve with distinct markers
-scatter(heights_km(valid_idx), min_sats_array(valid_idx),25, 'filled', ...
-                'MarkerFaceColor', '#0072BD', 'MarkerFaceAlpha', 1);
+% Plot the Analytical Walker Star baseline (Red Line)
+plot(heights_km, star_sats_array, '-ro', 'LineWidth', 2, 'MarkerSize', 6, 'MarkerFaceColor', 'r', 'DisplayName', 'Analytical Walker Star');
+
+% Plot the Optimized Walker Delta results (Blue Line)
+% We only plot valid indices in case one of the heights failed
+valid_idx = ~isnan(delta_sats_array);
+plot(heights_km(valid_idx), delta_sats_array(valid_idx), '-bs', 'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', 'b', 'DisplayName', 'Optimized Walker Delta');
 
 xlabel('Orbit Height (km)', 'FontWeight', 'bold');
-ylabel('Num Sats', 'FontWeight', 'bold');
-title('Optimal Constellation and Orbit Height');
-grid on;
+ylabel('Total Satellites Required', 'FontWeight', 'bold');
+title(sprintf('Coverage Efficiency: Walker Star vs Walker Delta (Lat: %d°)', target_lat));
+legend('Location', 'northeast');
+grid on; hold off;
 
-% Make the Y-axis strictly integers since you can't have half a satellite
-% yticks(min(min_sats_array(valid_idx)):max(min_sats_array(valid_idx)));
+%% --- 4. Save Outputs ---
 date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-folder_name = sprintf('Bayesian_sweep_%s', date_str);
+folder_name = sprintf('Master_Sweep_%s', date_str);
 out_dir = fullfile('simulation_output', folder_name);
             
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
 
-% Save the master plot and the raw data array so you don't lose the results!
-save(fullfile(out_dir,'Master_Altitude_Sweep_Results.mat'),'heights_km', 'min_sats_array');
-exportgraphics(f1, fullfile(out_dir, 'Bayesian_sweep_results.png'), 'Resolution', 300);
+% Save the data and the plot
+save(fullfile(out_dir,'Master_Altitude_Sweep_Results.mat'), 'heights_km', 'star_sats_array', 'delta_sats_array');
+exportgraphics(f1, fullfile(out_dir, 'Star_vs_Delta_Comparison.png'), 'Resolution', 300);
 close(f1);
-% exportgraphics(gcf, 'Master_MinSats_vs_Altitude.png', 'Resolution', 300);
-
-fprintf('\n=== SWEEP COMPLETE ===\n');
-fprintf('Master plot saved as Master_MinSats_vs_Altitude.png\n');
 
 % --- RECORD END TIME ---
 end_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
@@ -96,10 +113,11 @@ elapsed_time = end_time - start_time;
 fprintf('\n=======================================================\n');
 fprintf('SWEEP FINISHED AT: %s\n', char(end_time));
 fprintf('TOTAL ELAPSED TIME: %s\n', char(elapsed_time));
-fprintf('Master plot saved as Master_MinSats_vs_Altitude.png\n');
+fprintf('Master plot saved as Star_vs_Delta_Comparison.png\n');
 fprintf('=======================================================\n');
 
 
+%% --- HELPER FUNCTIONS ---
 function [P, S, N] = get_analytical_star(alt_km, phi_min, eps_min)
     Re = 6378.137;           
     Rs = Re + alt_km; 
