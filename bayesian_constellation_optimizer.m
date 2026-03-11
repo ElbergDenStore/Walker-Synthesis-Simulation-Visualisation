@@ -291,6 +291,9 @@ function best_params = bayesian_constellation_optimizer(orbit_height, num_runs, 
                 
                 % 8. Run the simulator!
                 detailed_metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
+                show_interactive = false;
+                save_fig = true;
+                show_constellation(Cfg, show_interactive, save_fig, out_dir)
                 
             end
         end

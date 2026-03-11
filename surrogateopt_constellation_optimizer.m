@@ -77,8 +77,8 @@ function best_params = surrogateopt_constellation_optimizer(orbit_height, num_ru
         %% Create Output Directory
         % Format: simulation_output/bayesian_runs/orbit_sats_inclination_phasing_date
         date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-        folder_name = sprintf('%.0f_%d_%s', ...
-            Cfg.Orbit_height/1e3, custom_metrics_history{best_idx}.Total_sats, date_str);
+        folder_name = sprintf('%.0f_%d_%d_%s', ...
+            Cfg.Orbit_height/1e3, best_params.Num_planes,best_params.Sats_per_plane, date_str);
         out_dir = fullfile('simulation_output/bayesian_runs', folder_name);
         
         if ~exist(out_dir, 'dir')
@@ -320,6 +320,10 @@ function best_params = surrogateopt_constellation_optimizer(orbit_height, num_ru
                 
                 % 8. Run the simulator!
                 detailed_metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
+                
+                show_interactive = false;
+                save_fig = true;
+                show_constellation(Cfg, show_interactive, save_fig, out_dir)
                 
             end
         end

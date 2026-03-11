@@ -1,8 +1,18 @@
-function best_params = gridsearch(orbit_height)
+function best_params = gridsearch(orbit_height,plot_results)
+    %% Base Configuration
+    Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
+    Cfg.StopTime   = datetime('1-Jun-2025 11:59:59', 'TimeZone', 'UTC'); 
+    Cfg.SampleTime = 60; 
+    Cfg.Lat_vec = linspace(55, 85, 6); 
+    Cfg.Lon_vec = linspace(-60, 30, 1);
+    Cfg.Min_elevation_UE = 20;
+    Cfg.WalkerStar     = false;
+    Cfg.Orbit_height = orbit_height;
+
     %% 1. Build the Ascending Grid
     P_vec = 4:15; % Num Planes
     S_vec = 4:15; % Sats per Plane
-    Inc_vec = linspace(70, 80, 11); % 6 Inclinations
+    Inc_vec = linspace(70, 80, 11);
     
     grid_data = [];
     for p = P_vec
@@ -58,33 +68,25 @@ function best_params = gridsearch(orbit_height)
         
         % --- THE PARALLEL LOOP ---
         parfor i = 1:batch_size
-            % Initialize Cfg completely inside the loop for parallel safety
-            Cfg = struct();
-            Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-            Cfg.StopTime   = datetime('1-Jun-2025 11:59:59', 'TimeZone', 'UTC'); 
-            Cfg.SampleTime = 60; 
-            Cfg.Lat_vec = linspace(55, 85, 6); 
-            Cfg.Lon_vec = linspace(-60, 30, 1);
-            Cfg.Min_elevation_UE = 20;
-            Cfg.WalkerStar     = false;
-            Cfg.Orbit_height   = orbit_height;
+            % Local Cfg for parallel safety
+            local_Cfg = Cfg;
+            local_Cfg.Num_planes     = batch_grid.Num_planes(i);
+            local_Cfg.Sats_per_plane = batch_grid.Sats_per_plane(i);
+            local_Cfg.Inclination    = batch_grid.Inclination(i);
+            local_Cfg.Phasing        = batch_grid.Phasing_Factor(i); 
+            local_Cfg.Total_sats     = batch_grid.Total_Sats(i);
             
-            % Inject architecture parameters
-            Cfg.Num_planes     = batch_grid.Num_planes(i);
-            Cfg.Sats_per_plane = batch_grid.Sats_per_plane(i);
-            Cfg.Inclination    = batch_grid.Inclination(i);
-            Cfg.Phasing        = batch_grid.Phasing_Factor(i); 
-            Cfg.Total_sats     = batch_grid.Total_Sats(i);
-            
-            % Run the simulator!
-            metrics = coverage_simulator_function(Cfg, false, false, false);
+            % Run simulator
+            metrics = coverage_simulator_function(local_Cfg, false, false, false);
             batch_coverage(i) = metrics.worst_coverage_percent;
             
             fprintf('Finished %dx%d (Inc: %.1f, Phase: %d) -> Cov: %.2f%%\n', ...
-                Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Inclination, Cfg.Phasing, batch_coverage(i));
+                local_Cfg.Num_planes, local_Cfg.Sats_per_plane, local_Cfg.Inclination, local_Cfg.Phasing, batch_coverage(i));
         end
-        % --- END PARALLEL LOOP ---
         
+        % Save batch results into the master history array
+        evaluated_coverage(batch_start:batch_end) = batch_coverage;
+
         % Evaluate the batch results
         valid_indices = find(batch_coverage >= 99.9);
         
@@ -103,5 +105,154 @@ function best_params = gridsearch(orbit_height)
             % BREAK THE OUTER LOOP! We are done.
             break; 
         end
+    end
+
+    %% --- PREPARE DATA FOR PLOTTING ---
+    if plot_results
+        % 1. Extract ONLY the rows we actually simulated before breaking
+        was_evaluated = ~isnan(evaluated_coverage);
+        eval_grid = search_grid(was_evaluated, :);
+        eval_cov = evaluated_coverage(was_evaluated);
+        
+        % 2. Reconstruct your specific plotting variables
+        history_Loss = eval_grid.Total_Sats;
+        history_Constraints = 99.9 - eval_cov;
+        isValid = history_Constraints <= 0;
+        
+        % Rebuild history_X, converting Phasing_Factor back to Degrees
+        phasing_deg = (eval_grid.Phasing_Factor ./ eval_grid.Num_planes) .* 360;
+        history_X = table(eval_grid.Num_planes, eval_grid.Sats_per_plane, ...
+            eval_grid.Inclination, phasing_deg, ...
+            'VariableNames', {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees'});
+        
+        %% Create Output Directory
+        date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+        folder_name = sprintf('%.0f_%d_%s', Cfg.Orbit_height/1e3, best_params.Total_Sats, date_str);
+        out_dir = fullfile('simulation_output/gridsearch_runs', folder_name);
+        
+        if ~exist(out_dir, 'dir')
+            mkdir(out_dir);
+        end
+        
+        %% --- POST-RUN VISUALIZATIONS ---
+        
+        % --- PLOT 1: Loss vs. Inclination ---
+        f1 = figure('Visible','off','Name', 'Sats vs Inclination', 'Color', 'w'); hold on;
+        scatter(history_X.Inclination(~isValid), history_Loss(~isValid), 35, [0.6 0.6 0.6], 'x', 'LineWidth', 1);
+        scatter(history_X.Inclination(isValid), history_Loss(isValid), 60, history_Loss(isValid), 'filled', 'MarkerEdgeColor', 'k');
+        colormap('parula'); cb = colorbar; cb.Label.String = 'Total Satellites';
+        xlabel('Inclination (deg)', 'FontWeight', 'bold');
+        ylabel('Num Sats', 'FontWeight', 'bold');
+        title("Num Sats and Inclination @ " + num2str(Cfg.Orbit_height / 1000) + " km");
+        legend('Invalid', 'Valid');
+        grid on; hold off;
+        exportgraphics(f1, fullfile(out_dir, 'Inclinations_NumSats.png'), 'Resolution', 300);
+        close(f1);
+        
+        % --- PLOT 2: The Trade-off (Coverage vs Total Satellites) ---
+        cov_history = eval_cov; 
+        sat_history = history_Loss;
+        
+        f2 = figure('Visible','off','Name', 'Trade-off Analysis', 'Color', 'w'); hold on;
+        scatter(sat_history(~isValid), cov_history(~isValid), 40, [0.8 0.3 0.3], 'x', 'LineWidth', 1.2);
+        scatter(sat_history(isValid), cov_history(isValid), 60, [0.2 0.7 0.2], 'filled', 'MarkerEdgeColor', 'k');
+        xlabel('Num Sats', 'FontWeight', 'bold');
+        ylabel('Worst Coverage (%)', 'FontWeight', 'bold');
+        title("Num Sats and Coverage @ " + num2str(Cfg.Orbit_height / 1000) + " km");
+        legend('Infeasible', 'Feasible', 'Location', 'southeast');
+        grid on; hold off;
+        exportgraphics(f2, fullfile(out_dir, 'NumSats_Coverage.png'), 'Resolution', 300);
+        close(f2);
+        
+        % Extract arrays for easier plotting
+        planes = history_X.Num_planes;
+        sats_pp = history_X.Sats_per_plane;
+        phase = history_X.Phasing_Degrees;
+        inc = history_X.Inclination;
+        
+        % --- PLOT 4: Architecture Map (Planes vs Sats per Plane) ---
+        f4 = figure('Visible','off','Name', 'Architecture Map', 'Color', 'w'); hold on;
+        jitter_x = planes + (rand(size(planes))-0.5)*0.4;
+        jitter_y = sats_pp + (rand(size(sats_pp))-0.5)*0.4;
+        
+        scatter(jitter_x(~isValid), jitter_y(~isValid), 30, [0.8 0.3 0.3], 'x');
+        scatter(jitter_x(isValid), jitter_y(isValid), 70, history_Loss(isValid), 'filled', 'MarkerEdgeColor', 'k');
+        
+        colormap('parula'); cb = colorbar; cb.Label.String = 'Num Sats';
+        xlabel('Num Planes', 'FontWeight', 'bold');
+        ylabel('Sats per Plane', 'FontWeight', 'bold');
+        title("Evaluated Architectures @ " + num2str(Cfg.Orbit_height / 1000) + " km");
+        legend('Invalid', 'Valid', 'Location', 'best');
+        grid on; hold off;
+        exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', 300);
+        close(f4);
+        
+        % --- PLOT 5: Orbital Mechanics (Phasing vs Inclination) ---
+        f5 = figure('Visible','off','Name', 'Phasing vs Inclination', 'Color', 'w'); hold on;
+        scatter(phase(~isValid), inc(~isValid), 30, [0.8 0.3 0.3], 'x');
+        scatter(phase(isValid), inc(isValid), 70, history_Loss(isValid), 'filled', 'MarkerEdgeColor', 'k');
+        colormap('parula'); cb = colorbar; cb.Label.String = 'Total Satellites';
+        xlabel('Phasing (deg)', 'FontWeight', 'bold');
+        ylabel('Inclination (deg)', 'FontWeight', 'bold');
+        title("Phasing and Inclination @ " + num2str(Cfg.Orbit_height / 1000) + " km");
+        legend('Invalid', 'Valid', 'Location', 'northeast');
+        grid on; hold off;
+        exportgraphics(f5, fullfile(out_dir, 'Phasing_vs_Inclination.png'), 'Resolution', 300);
+        close(f5);
+        
+        % --- PLOT 6: Parallel Coordinates ---
+        f6 = figure('Visible','off','Name', 'Parallel Coordinates', 'Color', 'w');
+        valid_data = history_X(isValid, :);
+        valid_loss = history_Loss(isValid);
+        
+        if height(valid_data) > 0
+            valid_data.Total_Sats = valid_loss;
+            coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_Sats'};
+            p = parallelplot(valid_data, 'CoordinateVariables', coord_vars);
+            p.Color = lines(height(valid_data));
+            p.LineWidth = 4; 
+            p.LineAlpha = 0.8; 
+            title('Optimal Solution(s) Found');
+        else
+            text(0.5, 0.5, 'No valid runs to plot.', 'HorizontalAlignment', 'center', 'FontSize', 14);
+            axis off;
+        end
+        exportgraphics(f6, fullfile(out_dir, 'Top_Solutions.png'), 'Resolution', 300);
+        close(f6);
+    
+        %% Show high res result of best constellation
+        fprintf('\nRunning detailed simulations for the optimal result...\n');
+        
+        % Downlink Link Budget Config FR2
+        Cfg.DL.Direction = "DL";
+        Cfg.DL.B         = 2e6;     
+        Cfg.DL.f         = 20e9;    
+        Cfg.DL.P_tx_dBm  = 20; 
+        Cfg.DL.G_tx      = 42; 
+        Cfg.DL.Tx_type   = "array";      
+        Cfg.DL.G_rx      = 32;      
+        Cfg.DL.Rx_type   = "array";      
+        Cfg.DL.NF        = 5;
+        Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
+        
+        Cfg.Save_dir = out_dir;
+        Cfg.StopTime   = datetime('2-Jun-2025 23:59:59', 'TimeZone', 'UTC'); % 48 hours
+        Cfg.SampleTime = 20; % seconds
+        Cfg.Lat_vec = linspace(55, 85, 10); 
+        Cfg.Lon_vec = linspace(-60, 30, 3);
+        
+        % Inject final parameters
+        Cfg.Num_planes     = best_params.Num_planes;
+        Cfg.Sats_per_plane = best_params.Sats_per_plane;
+        Cfg.Inclination    = best_params.Inclination;
+        Cfg.Phasing        = best_params.Phasing_Factor; % Already integer!
+        Cfg.Total_sats     = best_params.Total_Sats;
+        
+        % Run the detailed simulator!
+        detailed_metrics = coverage_simulator_function(Cfg, true, true, true);
+        
+        show_interactive = false;
+        save_fig = true;
+        show_constellation(Cfg, show_interactive, save_fig, out_dir)
     end
 end
