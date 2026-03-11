@@ -12,6 +12,7 @@ clear all; close all; clc;
 method = "grid"
 orbit_height = 700e3; % can make it a vector
 target_lat = 55;
+plot_results = true;
 
 
 %% 1. Base Configuration
