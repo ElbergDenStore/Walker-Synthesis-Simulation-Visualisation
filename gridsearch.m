@@ -78,6 +78,7 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         evaluated_coverage(batch_start:batch_end) = batch_coverage;
 
         % Evaluate the batch results
+        % valid_indices = 1; %quickly test plotting
         valid_indices = find(batch_coverage >= 99.9);
         
         if ~isempty(valid_indices)
@@ -98,7 +99,7 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
     end
     if isempty(best_params)
         fprintf('\n[!] GRID SEARCH EXHAUSTED [!]\n');
-        fprintf('No constellation achieved 99.9%% coverage within the 50-100 satellite limit.\n');
+        fprintf('No constellation achieved 99.9%% coverage within the satellite limit.\n');
         fprintf('Returning empty results for %d km.\n', orbit_height / 1000);
         return; % Safely exit the function without crashing the whole sweep!
     end
