@@ -34,8 +34,10 @@ for i = 1:length(orbit_heights)
     
     try
         % Call your optimizer function!
-        best_params = bayesian_constellation_optimizer(current_height, num_runs, plot_individual_results);
-        
+        % best_params = bayesian_constellation_optimizer(current_height, num_runs, plot_individual_results);
+        best_params = surrogateopt_constellation_optimizer(current_height, num_runs, plot_individual_results);
+        % best_params = gridsearch(current_height);
+
         % Verify the optimizer actually returned a valid table row
         if ~isempty(best_params) && istable(best_params)
             % Calculate the total number of satellites from the winning parameters
