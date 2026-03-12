@@ -87,7 +87,6 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
             
             % --- CREATE A TEMPORARY CONFIG FOR DETAILED RUN ---
             detailed_Cfg = Cfg; 
-            detailed_Cfg.Save_dir = out_dir;
             detailed_Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
             detailed_Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
             detailed_Cfg.SampleTime = 20; % seconds
