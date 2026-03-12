@@ -84,13 +84,13 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir)
     %% --- SMART VISUALIZATION LOGIC ---
     
     % Check if we are in a headless environment (Linux server w/ no display)
-    is_headless = ~usejava('desktop');
-    
-    if is_headless
-        fprintf('\n[i] Headless mode detected. 3D Globe rendering is skipped to prevent crashes.\n');
-        fprintf('[i] Simulation math and scenario setup completed successfully.\n');
-        return; % Exit the function safely here!
-    end
+    % is_headless = ~usejava('desktop');
+    % 
+    % if is_headless
+    %     fprintf('\n[i] Headless mode detected. 3D Globe rendering is skipped to prevent crashes.\n');
+    %     fprintf('[i] Simulation math and scenario setup completed successfully.\n');
+    %     return; % Exit the function safely here!
+    % end
     
     % If we are here, we are on a computer with a GUI (like your Windows laptop)
     if show_interactive || save_fig

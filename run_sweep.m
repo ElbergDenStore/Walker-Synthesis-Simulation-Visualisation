@@ -1,11 +1,13 @@
 % How to run through the night:
-% matlab -nodisplay -nosplash -nodesktop -batch "run_master_sweep"
+% matlab  -nosplash -nodesktop -batch "run_sweep"
+% 
+% matlab -nodisplay -nosplash -nodesktop -batch "run_sweep"
 
 clear; close all; clc;
 
 %% --- 1. Master Configuration ---
 method = "grid"; % Toggle: 'grid', 'surrogate', or 'bayes'
-heights_km = 700:25:1200; % Iterate over these altitudes (in km)
+heights_km = 700:10:1200; % Iterate over these altitudes (in km)
 target_lat = 55;
 plot_individual_results = true; % Keep false for the sweep to save time
 
@@ -44,8 +46,8 @@ for i = 1:length(heights_km)
 
     %% Dynamically Bound the Search Space
     % We expect the Delta to beat the Star, so we look between 70% and 120% of the Star's sats
-    min_sats = floor(star_N * 0.7); 
-    max_sats = ceil(star_N * 1.2);          
+    min_sats = floor(star_N * 0.5); 
+    max_sats = ceil(star_N);          
 
     %% Route to the chosen Optimizer
     best_params = [];

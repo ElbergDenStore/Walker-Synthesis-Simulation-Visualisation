@@ -1,26 +1,27 @@
 clear all; close all; clc;
 
-Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-Cfg.StopTime   = datetime('1-Jun-2025 0:59:59', 'TimeZone', 'UTC');
+Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
+Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
 Cfg.SampleTime = 20; % seconds
 
-Cfg.Lat_vec = linspace(55, 85, 2); 
-Cfg.Lon_vec = linspace(-60, 30, 2);
+Cfg.Lat_vec = linspace(55, 85, 10); 
+Cfg.Lon_vec = linspace(-60, 30, 3);
 
 % Constellation
 Cfg.Min_elevation_UE = 20;
 % Cfg.Orbit_height = 932e3;
 % Cfg.Num_planes     = 5;  
 % Cfg.Sats_per_plane = 14;
-Cfg.Orbit_height = 707e3;
-Cfg.Num_planes     = 6;  
-Cfg.Sats_per_plane = 17;
+Cfg.Orbit_height = 960e3;
+Cfg.Num_planes     = 4;  
+Cfg.Sats_per_plane = 14;
 Cfg.Total_sats = Cfg.Num_planes * Cfg.Sats_per_plane;
-Cfg.Inclination    = 88; 
-Cfg.Phasing = Cfg.Num_planes / 2;
-Cfg.WalkerStar     = true;  
-Normal_gap         = 180 / (Cfg.Num_planes - 1/3); % only valid for flattop hexagons
-Cfg.Seam_gap       = 2/3 * Normal_gap;             % only valid for flattop hexagons
+Cfg.Inclination    = 77; 
+% Cfg.Phasing = Cfg.Num_planes / 2;
+Cfg.Phasing = 2;
+Cfg.WalkerStar     = false;  
+% Normal_gap         = 180 / (Cfg.Num_planes - 1/3); % only valid for flattop hexagons
+% Cfg.Seam_gap       = 2/3 * Normal_gap;             % only valid for flattop hexagons
 
 
 % Downlink Link Budget Config FR2
@@ -49,8 +50,8 @@ Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
 
 
 
-calc_link = false;
-plot_results = false;
+calc_link = true;
+plot_results = true;
 if length(Cfg.Lat_vec)*length(Cfg.Lon_vec) > 8 % automate le decision
     use_parallel = true;
 else
@@ -58,4 +59,8 @@ else
 end
 
 metrics = coverage_simulator_function(Cfg, plot_results,use_parallel,calc_link);
+show_interactive = false;
+save_fig = true;
+
+show_constellation(Cfg, show_interactive, save_fig)
 fprintf("Worst Coverage percentage" + metrics.worst_coverage_percent);
