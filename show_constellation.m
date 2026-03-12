@@ -116,7 +116,7 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir)
         % 3. Position the camera
         target_lat = 57;
         target_lon = -9;
-        target_alt = (r_earth + Cfg.Orbit_height) * 3;
+        target_alt = (r_earth + Cfg.Orbit_height) * 2;
         campos(v, target_lat, target_lon, target_alt);
         
         % 4. Force the GPU to draw the cones by nudging the time forward by 1 second
