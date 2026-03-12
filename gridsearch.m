@@ -41,7 +41,7 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
     total_runs = height(search_grid);
     
     fprintf('Using %d parallel workers for batch processing...\n', num_workers);
-    
+    found_global_minimum = false;
     % Outer loop steps forward by the number of workers
     for batch_start = 1 : num_workers : total_runs
         % Calculate where this batch ends

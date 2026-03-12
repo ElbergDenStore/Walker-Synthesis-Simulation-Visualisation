@@ -46,7 +46,7 @@ for i = 1:length(heights_km)
 
     %% Dynamically Bound the Search Space
     % We expect the Delta to beat the Star, so we look between 70% and 120% of the Star's sats
-    min_sats = floor(star_N * 0.5); 
+    min_sats = floor(star_N * 0.6); 
     max_sats = ceil(star_N);          
 
     %% Route to the chosen Optimizer
