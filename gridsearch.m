@@ -106,7 +106,7 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
                 detailed_Cfg.Num_planes, detailed_Cfg.Sats_per_plane, detailed_Cfg.Total_sats);
             
             
-            detailed_metrics = coverage_simulator_function(Cfg, false, true, false); %plot_results = false; use_parallel = true; calc_link = false;
+            detailed_metrics = coverage_simulator_function(detailed_Cfg, false, true, false); %plot_results = false; use_parallel = true; calc_link = false;
             
             if detailed_metrics.worst_coverage_percent > 99.999
                 fprintf('\n======================================\n');
