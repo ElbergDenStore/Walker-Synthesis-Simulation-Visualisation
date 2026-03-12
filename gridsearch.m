@@ -80,21 +80,55 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         % Evaluate the batch results
         % valid_indices = 1; %quickly test plotting
         valid_indices = find(batch_coverage >= 99.9);
-        
-        if ~isempty(valid_indices)
-            % Because the grid is pre-sorted by satellite count, 
-            % the FIRST index in valid_indices is guaranteed to be the cheapest!
-            best_local_idx = valid_indices(1);
+
+        for v = 1:length(valid_indices)
+            best_local_idx = valid_indices(v);
             best_params = batch_grid(best_local_idx, :);
             
-            fprintf('\n======================================\n');
-            fprintf('=== EUREKA! GLOBAL MINIMUM FOUND ===\n');
-            fprintf('======================================\n');
-            fprintf('Total Satellites: %d\n', best_params.Total_Sats);
-            disp(best_params);
+            % --- CREATE A TEMPORARY CONFIG FOR DETAILED RUN ---
+            detailed_Cfg = Cfg; 
+            detailed_Cfg.Save_dir = out_dir;
+            detailed_Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
+            detailed_Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
+            detailed_Cfg.SampleTime = 20; % seconds
+            detailed_Cfg.Lat_vec = linspace(55, 85, 10); 
+            detailed_Cfg.Lon_vec = linspace(-60, 30, 3);
             
-            % BREAK THE OUTER LOOP! We are done.
-            break; 
+            % Inject final parameters
+            detailed_Cfg.Num_planes     = best_params.Num_planes;
+            detailed_Cfg.Sats_per_plane = best_params.Sats_per_plane;
+            detailed_Cfg.Inclination    = best_params.Inclination;
+            detailed_Cfg.Phasing        = best_params.Phasing_Factor;
+            detailed_Cfg.Total_sats     = best_params.Total_Sats;
+            
+            fprintf('  -> High-Fidelity Test for %dx%d (Total: %d)...\n', ...
+                detailed_Cfg.Num_planes, detailed_Cfg.Sats_per_plane, detailed_Cfg.Total_sats);
+            
+
+            plot_results = false;
+            use_parallel = true;
+            calc_link = false;
+            detailed_metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
+            
+            if detailed_metrics.worst_coverage_percent > 99.999
+                fprintf('\n======================================\n');
+                fprintf('====== GLOBAL MINIMUM FOUND ==========\n');
+                fprintf('======================================\n');
+                fprintf('Total Satellites: %d\n', best_params.Total_Sats);
+                disp(best_params);
+            
+                % Set flag and break the inner testing loop
+                found_global_minimum = true;
+                break; 
+            else
+                fprintf('  -> [x] Failed high-fidelity test (Cov: %.4f%%). Moving to next candidate.\n', ...
+                    detailed_metrics.worst_coverage_percent);
+            end
+        end
+        
+        % If the inner loop found the winner, break the outer batch loop too!
+        if found_global_minimum
+            break;
         end
     end
     if isempty(best_params)
@@ -232,7 +266,8 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
         
         Cfg.Save_dir = out_dir;
-        Cfg.StopTime   = datetime('2-Jun-2025 23:59:59', 'TimeZone', 'UTC'); % 48 hours
+        Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
+        Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
         Cfg.SampleTime = 20; % seconds
         Cfg.Lat_vec = linspace(55, 85, 10); 
         Cfg.Lon_vec = linspace(-60, 30, 3);
@@ -241,7 +276,7 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         Cfg.Num_planes     = best_params.Num_planes;
         Cfg.Sats_per_plane = best_params.Sats_per_plane;
         Cfg.Inclination    = best_params.Inclination;
-        Cfg.Phasing        = best_params.Phasing_Factor; % Already integer!
+        Cfg.Phasing        = best_params.Phasing_Factor;
         Cfg.Total_sats     = best_params.Total_Sats;
         
         % Run the detailed simulator!

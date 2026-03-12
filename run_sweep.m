@@ -7,7 +7,7 @@ clear; close all; clc;
 
 %% --- 1. Master Configuration ---
 method = "grid"; % Toggle: 'grid', 'surrogate', or 'bayes'
-heights_km = 700:10:1200; % Iterate over these altitudes (in km)
+heights_km = 700:25:1200; % Iterate over these altitudes (in km)
 target_lat = 55;
 plot_individual_results = true; % Keep false for the sweep to save time
 
@@ -27,9 +27,9 @@ for i = 1:length(heights_km)
     
     %% Base Cfg for this iteration
     Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-    Cfg.StopTime   = datetime('1-Jun-2025 11:59:59', 'TimeZone', 'UTC'); 
+    Cfg.StopTime   = datetime('1-Jun-2025 01:59:59', 'TimeZone', 'UTC'); 
     Cfg.SampleTime = 60; 
-    Cfg.Lat_vec = linspace(55, 85, 6); 
+    Cfg.Lat_vec = linspace(55, 85, 4); 
     Cfg.Lon_vec = linspace(-60, 30, 1);
     Cfg.Min_elevation_UE = 20;
     Cfg.WalkerStar     = false; % We are optimizing Walker Deltas
