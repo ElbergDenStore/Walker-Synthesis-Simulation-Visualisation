@@ -42,6 +42,9 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
     
     fprintf('Using %d parallel workers for batch processing...\n', num_workers);
     found_global_minimum = false;
+
+    % Add this right before your "for batch_start = ..." loop
+    evaluated_coverage = NaN(total_runs, 1);
     % Outer loop steps forward by the number of workers
     for batch_start = 1 : num_workers : total_runs
         % Calculate where this batch ends
@@ -80,10 +83,9 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         % Evaluate the batch results
         % valid_indices = 1; %quickly test plotting
         valid_indices = find(batch_coverage >= 99.9);
-
         for v = 1:length(valid_indices)
             best_local_idx = valid_indices(v);
-            best_params = batch_grid(best_local_idx, :);
+            temp_params = batch_grid(best_local_idx, :);
             
             % --- CREATE A TEMPORARY CONFIG FOR DETAILED RUN ---
             detailed_Cfg = Cfg; 
@@ -94,29 +96,26 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
             detailed_Cfg.Lon_vec = linspace(-60, 30, 3);
             
             % Inject final parameters
-            detailed_Cfg.Num_planes     = best_params.Num_planes;
-            detailed_Cfg.Sats_per_plane = best_params.Sats_per_plane;
-            detailed_Cfg.Inclination    = best_params.Inclination;
-            detailed_Cfg.Phasing        = best_params.Phasing_Factor;
-            detailed_Cfg.Total_sats     = best_params.Total_Sats;
+            detailed_Cfg.Num_planes     = temp_params.Num_planes;
+            detailed_Cfg.Sats_per_plane = temp_params.Sats_per_plane;
+            detailed_Cfg.Inclination    = temp_params.Inclination;
+            detailed_Cfg.Phasing        = temp_params.Phasing_Factor;
+            detailed_Cfg.Total_sats     = temp_params.Total_Sats;
             
             fprintf('  -> High-Fidelity Test for %dx%d (Total: %d)...\n', ...
                 detailed_Cfg.Num_planes, detailed_Cfg.Sats_per_plane, detailed_Cfg.Total_sats);
             
-
-            plot_results = false;
-            use_parallel = true;
-            calc_link = false;
-            detailed_metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
+            
+            detailed_metrics = coverage_simulator_function(Cfg, false, true, false); %plot_results = false; use_parallel = true; calc_link = false;
             
             if detailed_metrics.worst_coverage_percent > 99.999
                 fprintf('\n======================================\n');
                 fprintf('====== GLOBAL MINIMUM FOUND ==========\n');
                 fprintf('======================================\n');
-                fprintf('Total Satellites: %d\n', best_params.Total_Sats);
-                disp(best_params);
+                fprintf('Total Satellites: %d\n', temp_params.Total_Sats);
+                disp(temp_params);
             
-                % Set flag and break the inner testing loop
+                best_params = temp_params;
                 found_global_minimum = true;
                 break; 
             else
@@ -133,8 +132,12 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
     if isempty(best_params)
         fprintf('\n[!] GRID SEARCH EXHAUSTED [!]\n');
         fprintf('No constellation achieved 99.9%% coverage within the satellite limit.\n');
-        fprintf('Returning empty results for %d km.\n', orbit_height / 1000);
-        return; % Safely exit the function without crashing the whole sweep!
+        best_params.Num_planes     = NaN;
+        best_params.Sats_per_plane = NaN;
+        best_params.Inclination    = NaN;
+        best_params.Phasing_Factor = NaN;
+        best_params.Total_Sats     = NaN;
+        return;
     end
     %% --- PREPARE DATA FOR PLOTTING ---
     if plot_results
@@ -279,7 +282,7 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         Cfg.Total_sats     = best_params.Total_Sats;
         
         % Run the detailed simulator!
-        detailed_metrics = coverage_simulator_function(Cfg, true, true, true);
+        detailed_metrics = coverage_simulator_function(Cfg, true, true, true); %plot_results = true; use_parallel = true; calc_link = true;
         
         show_interactive = false;
         save_fig = true;

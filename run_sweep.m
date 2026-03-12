@@ -7,7 +7,7 @@ clear; close all; clc;
 
 %% --- 1. Master Configuration ---
 method = "grid"; % Toggle: 'grid', 'surrogate', or 'bayes'
-heights_km = 700:25:1200; % Iterate over these altitudes (in km)
+heights_km = 700:10:1200; % Iterate over these altitudes (in km)
 target_lat = 55;
 plot_individual_results = true; % Keep false for the sweep to save time
 
@@ -18,8 +18,11 @@ fprintf('STARTING CONSTELLATION SWEEP AT: %s\n', char(start_time));
 fprintf('=======================================================\n');
 
 % Arrays to store the data for our combined plot
-star_sats_array = NaN(size(heights_km));
-delta_sats_array = NaN(size(heights_km));
+% star_sats_array = NaN(size(heights_km));
+% delta_sats_array = NaN(size(heights_km));
+
+star_sats = [];
+delta_sats = [];
 
 %% --- 2. The Sweep Loop ---
 for i = 1:length(heights_km)
@@ -37,7 +40,12 @@ for i = 1:length(heights_km)
 
     %% The Analytical "Seed" (Walker Star Baseline)
     [star_P, star_S, star_N] = get_analytical_star(heights_km(i), target_lat, Cfg.Min_elevation_UE);
-    star_sats_array(i) = star_N; % Save for the plot!
+    star_sats(i).Orbit_height = heights_km(i);
+    star_sats(i).Num_sats = star_N;
+    star_sats(i).Num_planes = star_P;
+    star_sats(i).Phasing = star_P/2;
+    star_sats(i).Inclination = 87;
+    star_sats(i).Sats_per_plane = star_S;
 
     fprintf('\n======================================================\n');
     fprintf('ALTITUDE: %d km\n', heights_km(i));
@@ -71,22 +79,28 @@ for i = 1:length(heights_km)
     
     %% Save the Optimized Result
     if ~isempty(best_params)
-        delta_sats_array(i) = best_params.Total_Sats;
+        delta_sats(i).Orbit_height = heights_km(i);
+        delta_sats(i).Num_sats       = best_params.Total_sats    ;
+        delta_sats(i).Num_planes     = best_params.Num_planes;
+        delta_sats(i).Phasing_Factor = best_params.Phasing_Factor;
+        delta_sats(i).Sats_per_plane = best_params.Sats_per_plane;
+        delta_sats(i).Inclination    = best_params.Inclination;
     else
         fprintf('[!] Optimizer failed to find a valid constellation within bounds for %d km.\n', heights_km(i));
     end
 end
 
 %% --- 3. Plot the Final Master Curve (Star vs Delta) ---
+star_plot_y  = [star_sats.Num_sats];
+delta_plot_y = [delta_sats.Num_sats];
 f1 = figure('Visible', 'off', 'Name', 'Constellation Comparison', 'Color', 'w', 'Position', [100 100 1000 600]); hold on;
 
 % Plot the Analytical Walker Star baseline (Red Line)
-plot(heights_km, star_sats_array, '-ro', 'LineWidth', 2, 'MarkerSize', 6, 'MarkerFaceColor', 'r', 'DisplayName', 'Analytical Walker Star');
+plot(heights_km, star_plot_y, '-ro', 'LineWidth', 2, 'MarkerSize', 6, 'MarkerFaceColor', 'r', 'DisplayName', 'Analytical Walker Star');
 
 % Plot the Optimized Walker Delta results (Blue Line)
 % We only plot valid indices in case one of the heights failed
-valid_idx = ~isnan(delta_sats_array);
-plot(heights_km(valid_idx), delta_sats_array(valid_idx), '-bs', 'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', 'b', 'DisplayName', 'Optimized Walker Delta');
+plot(heights_km, delta_plot_y, '-bs', 'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', 'b', 'DisplayName', 'Optimized Walker Delta');
 
 xlabel('Orbit Height (km)', 'FontWeight', 'bold');
 ylabel('Total Satellites Required', 'FontWeight', 'bold');
@@ -104,7 +118,7 @@ if ~exist(out_dir, 'dir')
 end
 
 % Save the data and the plot
-save(fullfile(out_dir,'Master_Altitude_Sweep_Results.mat'), 'heights_km', 'star_sats_array', 'delta_sats_array');
+save(fullfile(out_dir,'Master_Altitude_Sweep_Results.mat'), 'heights_km', 'star_sats', 'delta_sats');
 exportgraphics(f1, fullfile(out_dir, 'Star_vs_Delta_Comparison.png'), 'Resolution', 300);
 close(f1);
 

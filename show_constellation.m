@@ -8,12 +8,13 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir)
         Cfg.Lon_vec = linspace(-60, 30, 5);
         Cfg.Min_elevation_UE = 20;
 
-        Cfg.Orbit_height = 1200e3;
-        Cfg.Num_planes   = 4;
-        Cfg.Inclination  = 75;
-        Cfg.Total_sats   = 60;
-        Cfg.Phasing      = 3; 
-        Cfg.WalkerStar   = false; 
+        Cfg.Orbit_height = 1000e3;
+        Cfg.Num_planes   = 5;
+        Cfg.Inclination  = 87;
+        Cfg.Total_sats   = 65;
+        Cfg.WalkerStar     = true;  
+        Normal_gap         = 180 / (Cfg.Num_planes - 1/3); % only valid for flattop hexagons
+        Cfg.Seam_gap       = 2/3 * Normal_gap;             % only valid for flattop hexagons
     end
     if nargin < 2, show_interactive = false; end
     if nargin < 3, save_fig = true; end
