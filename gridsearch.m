@@ -3,7 +3,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
     P_vec = 4:15; % Num Planes
     S_vec = 4:15; % Sats per Plane
     Inc_vec = linspace(70, 80, 11);
-    extra_search_percent = 10; % percent extra to look for solutions
+    extra_search_percent = 15; % percent extra to look for solutions
     
     grid_data = [];
     for p = P_vec
@@ -193,10 +193,10 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         scatter(jitter_x(isInvalid), jitter_y(isInvalid), 30, [0.8 0.8 0.8], 'x');
         
         % 2. Candidates (Standard Circles, color-mapped by Num Sats)
-        scatter(jitter_x(isCand), jitter_y(isCand), 60, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jitter_x(isCand), jitter_y(isCand), 40, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
         
         % 3. Global Minima (Large Diamonds, ALSO color-mapped, thicker border)
-        scatter(jitter_x(isBest), jitter_y(isBest), 150, history_Loss(isBest), 'diamond', 'filled', ...
+        scatter(jitter_x(isBest), jitter_y(isBest), 90, history_Loss(isBest), 'diamond', 'filled', ...
             'MarkerEdgeColor', 'k', 'LineWidth', 1.5);
         
         colormap('parula'); 
@@ -209,7 +209,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         grid on; hold off;
         exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', 300);
         close(f4);
-
+        
         % --- PLOT 6: Parallel Coordinates (Candidates Only) ---
         f6 = figure('Visible','off','Name', 'Parallel Coordinates', 'Color', 'w');
         valid_mask = isCand | isBest;
@@ -218,23 +218,34 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         
         if height(valid_data) > 0
             valid_data.Total_Sats = valid_loss;
-            coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_Sats'};
-            p = parallelplot(valid_data, 'CoordinateVariables', coord_vars);
             
-            % Create a base color array (Muted Slate Blue for Candidates)
-            colors = repmat([0.4 0.5 0.6], height(valid_data), 1); 
+            % 1. Create a grouping array for the legend and colors
+            group_labels = repmat({'Candidate'}, height(valid_data), 1);
             
-            % Find all rows that match the absolute minimum satellite count
-            best_local_indices = find(valid_loss == min(valid_loss));
-            
-            % Overwrite the color for the global minimum(s) to a professional Copper/Orange
+            % 2. Find the absolute minimum and overwrite their labels
+            min_sats = min(valid_loss);
+            best_local_indices = find(valid_loss == min_sats);
             for b_idx = 1:length(best_local_indices)
-                colors(best_local_indices(b_idx), :) = [0.85 0.40 0.10]; 
+                group_labels{best_local_indices(b_idx)} = 'Global Minimum';
             end
             
-            p.Color = colors;
+            % 3. Add to the table as a categorical variable
+            valid_data.Status = categorical(group_labels);
+            
+            % Force the order so we know exactly which color goes to which group
+            valid_data.Status = reordercats(valid_data.Status, {'Candidate', 'Global Minimum'});
+            
+            % 4. Plot using the GroupVariable
+            coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_Sats'};
+            p = parallelplot(valid_data, 'CoordinateVariables', coord_vars, 'GroupVariable', 'Status');
+            
+            % 5. Apply the two distinct colors mapping to the two categories
+            % Row 1: Muted Slate Blue (Candidate)
+            % Row 2: Copper/Orange (Global Minimum)
+            p.Color = [0.4 0.5 0.6; 0.85 0.40 0.10]; 
             p.LineWidth = 3; 
             p.LineAlpha = 0.8; 
+            
             title('Optimal Candidates Found (<= 5% of Minimum)');
         else
             text(0.5, 0.5, 'No valid runs to plot.', 'HorizontalAlignment', 'center', 'FontSize', 14);
