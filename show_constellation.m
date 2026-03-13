@@ -12,7 +12,8 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir)
         Cfg.Num_planes   = 5;
         Cfg.Inclination  = 87;
         Cfg.Total_sats   = 65;
-        Cfg.WalkerStar     = true;  
+        Cfg.WalkerStar     = true;
+        Cfg.Phasing        = Cfg.Num_planes/2;
         Normal_gap         = 180 / (Cfg.Num_planes - 1/3); % only valid for flattop hexagons
         Cfg.Seam_gap       = 2/3 * Normal_gap;             % only valid for flattop hexagons
     end
@@ -116,7 +117,8 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir)
         % 3. Position the camera
         target_lat = 57;
         target_lon = -9;
-        target_alt = (r_earth + Cfg.Orbit_height) * 2;
+        % target_alt = (r_earth + Cfg.Orbit_height) * 2;
+        target_alt = (r_earth + 700) * 2; % Same camera height for all runs. Does not change much
         campos(v, target_lat, target_lon, target_alt);
         
         % 4. Force the GPU to draw the cones by nudging the time forward by 1 second

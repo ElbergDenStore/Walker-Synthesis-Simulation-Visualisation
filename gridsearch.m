@@ -1,4 +1,4 @@
-function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
+function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats, max_sats)
     %% 1. Build the Ascending Grid
     P_vec = 4:15; % Num Planes
     S_vec = 4:15; % Sats per Plane
@@ -19,7 +19,6 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Factor', 'Total_Sats'});
     
     %% 2. The Smart Filters
-    % Filter out anything that isn't between min_sats and max_sats satellites
     isValidTarget = search_grid.Total_Sats >= min_sats & search_grid.Total_Sats <= max_sats;
     search_grid = search_grid(isValidTarget, :);
     
@@ -29,39 +28,42 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
     fprintf('\n=== Starting Ascending Grid Search ===\n');
     fprintf('Testing %d valid architectures between %d and %d satellites...\n\n', height(search_grid), min_sats,max_sats);
     
-    %% 3. Simulate until we find the Global Minimum (Batched Parallel)
+    %% 3. Simulate until we find the Global Minimum + 5% Margin (Batched Parallel)
     best_params = [];
+    all_candidates = table(); % NEW: Store all viable options
     
-    % Get the current parallel pool, or create one if it doesn't exist
     pool = gcp('nocreate');
-    if isempty(pool)
-        pool = parpool(); 
-    end
+    if isempty(pool), pool = parpool(); end
     num_workers = pool.NumWorkers;
     total_runs = height(search_grid);
     
     fprintf('Using %d parallel workers for batch processing...\n', num_workers);
-    found_global_minimum = false;
-
-    % Add this right before your "for batch_start = ..." loop
+    
     evaluated_coverage = NaN(total_runs, 1);
-    % Outer loop steps forward by the number of workers
+    status_flags = zeros(total_runs, 1); % 0 = Invalid, 1 = Candidate, 2 = Best
+    
+    min_sats_found = Inf;
+    max_sats_to_check = Inf;
+    
     for batch_start = 1 : num_workers : total_runs
-        % Calculate where this batch ends
+        % --- NEW BREAK CONDITION ---
+        % Because the grid is sorted by Total_Sats, if the current batch starts 
+        % higher than our 5% limit, we know we're done!
+        if search_grid.Total_Sats(batch_start) > max_sats_to_check
+            fprintf('\n--- Exceeded 5%% limit above minimum found (%d sats). Stopping search! ---\n', max_sats_to_check);
+            break;
+        end
+        
         batch_end = min(batch_start + num_workers - 1, total_runs);
         batch_size = batch_end - batch_start + 1;
         
         fprintf('\n--- Simulating Batch: Runs %d to %d ---\n', batch_start, batch_end);
         
-        % Preallocate array to hold coverage results for this batch
         batch_coverage = zeros(batch_size, 1);
-        
-        % Extract just the rows for this batch
         batch_grid = search_grid(batch_start:batch_end, :);
         
         % --- THE PARALLEL LOOP ---
         parfor i = 1:batch_size
-            % Local Cfg for parallel safety
             local_Cfg = Cfg;
             local_Cfg.Num_planes     = batch_grid.Num_planes(i);
             local_Cfg.Sats_per_plane = batch_grid.Sats_per_plane(i);
@@ -69,7 +71,6 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
             local_Cfg.Phasing        = batch_grid.Phasing_Factor(i); 
             local_Cfg.Total_sats     = batch_grid.Total_Sats(i);
             
-            % Run simulator
             metrics = coverage_simulator_function(local_Cfg, false, false, false);
             batch_coverage(i) = metrics.worst_coverage_percent;
             
@@ -77,25 +78,22 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
                 local_Cfg.Num_planes, local_Cfg.Sats_per_plane, local_Cfg.Inclination, local_Cfg.Phasing, batch_coverage(i));
         end
         
-        % Save batch results into the master history array
         evaluated_coverage(batch_start:batch_end) = batch_coverage;
-
-        % Evaluate the batch results
-        % valid_indices = 1; %quickly test plotting
         valid_indices = find(batch_coverage >= 99.9);
+        
         for v = 1:length(valid_indices)
             best_local_idx = valid_indices(v);
             temp_params = batch_grid(best_local_idx, :);
+            global_row_idx = batch_start + best_local_idx - 1;
             
-            % --- CREATE A TEMPORARY CONFIG FOR DETAILED RUN ---
+            % --- DETAILED HIGH FIDELITY RUN ---
             detailed_Cfg = Cfg; 
             detailed_Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
             detailed_Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
-            detailed_Cfg.SampleTime = 20; % seconds
+            detailed_Cfg.SampleTime = 20; 
             detailed_Cfg.Lat_vec = linspace(55, 85, 10); 
             detailed_Cfg.Lon_vec = linspace(-60, 30, 3);
             
-            % Inject final parameters
             detailed_Cfg.Num_planes     = temp_params.Num_planes;
             detailed_Cfg.Sats_per_plane = temp_params.Sats_per_plane;
             detailed_Cfg.Inclination    = temp_params.Inclination;
@@ -105,53 +103,59 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
             fprintf('  -> High-Fidelity Test for %dx%d (Total: %d)...\n', ...
                 detailed_Cfg.Num_planes, detailed_Cfg.Sats_per_plane, detailed_Cfg.Total_sats);
             
-            
             detailed_metrics = coverage_simulator_function(detailed_Cfg, false, true, false); %plot_results = false; use_parallel = true; calc_link = false;
             
             if detailed_metrics.worst_coverage_percent > 99.999
-                fprintf('\n======================================\n');
-                fprintf('====== GLOBAL MINIMUM FOUND ==========\n');
-                fprintf('======================================\n');
-                fprintf('Total Satellites: %d\n', temp_params.Total_Sats);
-                disp(temp_params);
-            
-                best_params = temp_params;
-                found_global_minimum = true;
-                break; 
+                fprintf('  -> [✓] PASSED! Added to Candidates.\n');
+                
+                % Mark as a candidate
+                status_flags(global_row_idx) = 1; 
+                all_candidates = [all_candidates; temp_params];
+                
+                % Is this the new absolute best/cheapest?
+                if temp_params.Total_Sats < min_sats_found
+                    min_sats_found = temp_params.Total_Sats;
+                    best_params = temp_params;
+                    
+                    % Set the new finish line to 5% more than this new minimum
+                    max_sats_to_check = ceil(min_sats_found * 1.05);
+                    fprintf('\n======================================================\n');
+                    fprintf('NEW GLOBAL MINIMUM: %d Sats. Will test up to %d Sats.\n', min_sats_found, max_sats_to_check);
+                    fprintf('======================================================\n');
+                end
             else
-                fprintf('  -> [x] Failed high-fidelity test (Cov: %.4f%%). Moving to next candidate.\n', ...
-                    detailed_metrics.worst_coverage_percent);
+                fprintf('  -> [x] Failed high-fidelity test (Cov: %.4f%%).\n', detailed_metrics.worst_coverage_percent);
             end
         end
-        
-        % If the inner loop found the winner, break the outer batch loop too!
-        if found_global_minimum
-            break;
-        end
     end
+    
     if isempty(best_params)
         fprintf('\n[!] GRID SEARCH EXHAUSTED [!]\n');
-        fprintf('No constellation achieved 99.9%% coverage within the satellite limit.\n');
-        best_params.Num_planes     = NaN;
-        best_params.Sats_per_plane = NaN;
-        best_params.Inclination    = NaN;
-        best_params.Phasing_Factor = NaN;
-        best_params.Total_Sats     = NaN;
+        fprintf('No constellation achieved 99.999%% coverage within limits.\n');
         return;
     end
+    
+    % --- UPGRADE BEST PARAM TO STATUS 2 ---
+    % Find the absolute best one in the grid and mark it so it plots as a star
+    best_idx = find(search_grid.Num_planes == best_params.Num_planes & ...
+                    search_grid.Sats_per_plane == best_params.Sats_per_plane & ...
+                    search_grid.Inclination == best_params.Inclination & ...
+                    search_grid.Phasing_Factor == best_params.Phasing_Factor, 1);
+    status_flags(best_idx) = 2;
+
     %% --- PREPARE DATA FOR PLOTTING ---
     if plot_results
-        % 1. Extract ONLY the rows we actually simulated before breaking
         was_evaluated = ~isnan(evaluated_coverage);
         eval_grid = search_grid(was_evaluated, :);
         eval_cov = evaluated_coverage(was_evaluated);
+        eval_status = status_flags(was_evaluated); % 0=Invalid, 1=Candidate, 2=Best
         
-        % 2. Reconstruct your specific plotting variables
+        isInvalid = eval_status == 0;
+        isCand    = eval_status == 1;
+        isBest    = eval_status == 2;
+        
         history_Loss = eval_grid.Total_Sats;
-        history_Constraints = 99.9 - eval_cov;
-        isValid = history_Constraints <= 0;
         
-        % Rebuild history_X, converting Phasing_Factor back to Degrees
         phasing_deg = (eval_grid.Phasing_Factor ./ eval_grid.Num_planes) .* 360;
         history_X = table(eval_grid.Num_planes, eval_grid.Sats_per_plane, ...
             eval_grid.Inclination, phasing_deg, ...
@@ -161,90 +165,65 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
         folder_name = sprintf('%.0f_%d_%s', Cfg.Orbit_height/1e3, best_params.Total_Sats, date_str);
         out_dir = fullfile('simulation_output/gridsearch_runs', folder_name);
-        
-        if ~exist(out_dir, 'dir')
-            mkdir(out_dir);
-        end
+        if ~exist(out_dir, 'dir'), mkdir(out_dir); end
         
         %% --- POST-RUN VISUALIZATIONS ---
         
         % --- PLOT 1: Loss vs. Inclination ---
         f1 = figure('Visible','off','Name', 'Sats vs Inclination', 'Color', 'w'); hold on;
-        scatter(history_X.Inclination(~isValid), history_Loss(~isValid), 35, [0.6 0.6 0.6], 'x', 'LineWidth', 1);
-        scatter(history_X.Inclination(isValid), history_Loss(isValid), 60, history_Loss(isValid), 'filled', 'MarkerEdgeColor', 'k');
-        colormap('parula'); cb = colorbar; cb.Label.String = 'Total Satellites';
-        xlabel('Inclination (deg)', 'FontWeight', 'bold');
-        ylabel('Num Sats', 'FontWeight', 'bold');
-        title("Num Sats and Inclination @ " + num2str(Cfg.Orbit_height / 1000) + " km");
-        legend('Invalid', 'Valid');
+        scatter(history_X.Inclination(isInvalid), history_Loss(isInvalid), 35, [0.8 0.8 0.8], 'x');
+        scatter(history_X.Inclination(isCand), history_Loss(isCand), 50, [0.2 0.6 0.8], 'filled', 'MarkerEdgeColor', 'k');
+        scatter(history_X.Inclination(isBest), history_Loss(isBest), 200, [1 0.8 0], 'pentagram', 'filled', 'MarkerEdgeColor', 'k');
+        xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Num Sats', 'FontWeight', 'bold');
+        title("Architecture Feasibility @ " + num2str(Cfg.Orbit_height / 1000) + " km");
+        legend('Invalid', 'Candidate', 'Global Minimum', 'Location', 'best');
         grid on; hold off;
         exportgraphics(f1, fullfile(out_dir, 'Inclinations_NumSats.png'), 'Resolution', 300);
         close(f1);
         
-        % --- PLOT 2: The Trade-off (Coverage vs Total Satellites) ---
-        cov_history = eval_cov; 
-        sat_history = history_Loss;
-        
-        f2 = figure('Visible','off','Name', 'Trade-off Analysis', 'Color', 'w'); hold on;
-        scatter(sat_history(~isValid), cov_history(~isValid), 40, [0.8 0.3 0.3], 'x', 'LineWidth', 1.2);
-        scatter(sat_history(isValid), cov_history(isValid), 60, [0.2 0.7 0.2], 'filled', 'MarkerEdgeColor', 'k');
-        xlabel('Num Sats', 'FontWeight', 'bold');
-        ylabel('Worst Coverage (%)', 'FontWeight', 'bold');
-        title("Num Sats and Coverage @ " + num2str(Cfg.Orbit_height / 1000) + " km");
-        legend('Infeasible', 'Feasible', 'Location', 'southeast');
-        grid on; hold off;
-        exportgraphics(f2, fullfile(out_dir, 'NumSats_Coverage.png'), 'Resolution', 300);
-        close(f2);
-        
-        % Extract arrays for easier plotting
+        % --- PLOT 4: Architecture Map (Planes vs Sats per Plane) ---
         planes = history_X.Num_planes;
         sats_pp = history_X.Sats_per_plane;
-        phase = history_X.Phasing_Degrees;
-        inc = history_X.Inclination;
         
-        % --- PLOT 4: Architecture Map (Planes vs Sats per Plane) ---
         f4 = figure('Visible','off','Name', 'Architecture Map', 'Color', 'w'); hold on;
         jitter_x = planes + (rand(size(planes))-0.5)*0.4;
         jitter_y = sats_pp + (rand(size(sats_pp))-0.5)*0.4;
         
-        scatter(jitter_x(~isValid), jitter_y(~isValid), 30, [0.8 0.3 0.3], 'x');
-        scatter(jitter_x(isValid), jitter_y(isValid), 70, history_Loss(isValid), 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jitter_x(isInvalid), jitter_y(isInvalid), 30, [0.8 0.8 0.8], 'x');
+        scatter(jitter_x(isCand), jitter_y(isCand), 60, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jitter_x(isBest), jitter_y(isBest), 250, [1 0.8 0], 'pentagram', 'filled', 'MarkerEdgeColor', 'k');
         
-        colormap('parula'); cb = colorbar; cb.Label.String = 'Num Sats';
-        xlabel('Num Planes', 'FontWeight', 'bold');
-        ylabel('Sats per Plane', 'FontWeight', 'bold');
+        colormap('parula'); 
+        if any(isCand)
+            cb = colorbar; cb.Label.String = 'Num Sats (Candidates)';
+        end
+        xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Sats per Plane', 'FontWeight', 'bold');
         title("Evaluated Architectures @ " + num2str(Cfg.Orbit_height / 1000) + " km");
-        legend('Invalid', 'Valid', 'Location', 'best');
+        legend('Invalid', 'Candidate', 'Global Minimum', 'Location', 'best');
         grid on; hold off;
         exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', 300);
         close(f4);
         
-        % --- PLOT 5: Orbital Mechanics (Phasing vs Inclination) ---
-        f5 = figure('Visible','off','Name', 'Phasing vs Inclination', 'Color', 'w'); hold on;
-        scatter(phase(~isValid), inc(~isValid), 30, [0.8 0.3 0.3], 'x');
-        scatter(phase(isValid), inc(isValid), 70, history_Loss(isValid), 'filled', 'MarkerEdgeColor', 'k');
-        colormap('parula'); cb = colorbar; cb.Label.String = 'Total Satellites';
-        xlabel('Phasing (deg)', 'FontWeight', 'bold');
-        ylabel('Inclination (deg)', 'FontWeight', 'bold');
-        title("Phasing and Inclination @ " + num2str(Cfg.Orbit_height / 1000) + " km");
-        legend('Invalid', 'Valid', 'Location', 'northeast');
-        grid on; hold off;
-        exportgraphics(f5, fullfile(out_dir, 'Phasing_vs_Inclination.png'), 'Resolution', 300);
-        close(f5);
-        
-        % --- PLOT 6: Parallel Coordinates ---
+        % --- PLOT 6: Parallel Coordinates (Candidates Only) ---
         f6 = figure('Visible','off','Name', 'Parallel Coordinates', 'Color', 'w');
-        valid_data = history_X(isValid, :);
-        valid_loss = history_Loss(isValid);
+        valid_mask = isCand | isBest;
+        valid_data = history_X(valid_mask, :);
+        valid_loss = history_Loss(valid_mask);
         
         if height(valid_data) > 0
             valid_data.Total_Sats = valid_loss;
             coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_Sats'};
             p = parallelplot(valid_data, 'CoordinateVariables', coord_vars);
-            p.Color = lines(height(valid_data));
-            p.LineWidth = 4; 
+            
+            % Highlight the Best Solution in Gold, rest in Blue
+            colors = repmat([0.2 0.6 0.8], height(valid_data), 1);
+            best_local_idx = find(valid_loss == best_params.Total_Sats, 1);
+            colors(best_local_idx, :) = [1 0.6 0]; % Deep Gold
+            
+            p.Color = colors;
+            p.LineWidth = 3; 
             p.LineAlpha = 0.8; 
-            title('Optimal Solution(s) Found');
+            title('Optimal Candidates Found (<= 5% of Minimum)');
         else
             text(0.5, 0.5, 'No valid runs to plot.', 'HorizontalAlignment', 'center', 'FontSize', 14);
             axis off;
@@ -253,9 +232,8 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         close(f6);
     
         %% Show high res result of best constellation
-        fprintf('\nRunning detailed simulations for the optimal result...\n');
+        fprintf('\nRunning detailed Link Budget simulations for the BEST result...\n');
         
-        % Downlink Link Budget Config FR2
         Cfg.DL.Direction = "DL";
         Cfg.DL.B         = 2e6;     
         Cfg.DL.f         = 20e9;    
@@ -270,11 +248,10 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         Cfg.Save_dir = out_dir;
         Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
         Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
-        Cfg.SampleTime = 20; % seconds
+        Cfg.SampleTime = 20;
         Cfg.Lat_vec = linspace(55, 85, 10); 
         Cfg.Lon_vec = linspace(-60, 30, 3);
         
-        % Inject final parameters
         Cfg.Num_planes     = best_params.Num_planes;
         Cfg.Sats_per_plane = best_params.Sats_per_plane;
         Cfg.Inclination    = best_params.Inclination;
@@ -284,8 +261,7 @@ function best_params = gridsearch(Cfg,plot_results, min_sats, max_sats)
         % Run the detailed simulator!
         detailed_metrics = coverage_simulator_function(Cfg, true, true, true); %plot_results = true; use_parallel = true; calc_link = true;
         
-        show_interactive = false;
-        save_fig = true;
-        show_constellation(Cfg, show_interactive, save_fig, out_dir)
+        show_constellation(Cfg, false, true, out_dir);%Show interactive = false; savefig = true;
+        
     end
 end

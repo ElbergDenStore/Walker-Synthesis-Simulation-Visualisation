@@ -1,7 +1,18 @@
 % How to run through the night:
-% matlab  -nosplash -nodesktop -batch "run_sweep"
-% 
-% matlab -nodisplay -nosplash -nodesktop -batch "run_sweep"
+% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run_sweep" > sweep_log.txt
+% xvfb is a virtual display to avoid constellation pictures do not crash
+% server
+% one ">" overwrites the file
+% Read log during run using tail -f sweep_log.txt
+
+% Read log afterwards using less
+% How to use it: Type less my_log_file.txt.
+% Pro-tips inside less:% 
+% Press Space to page down, b to page up.
+% Press G to jump immediately to the very bottom (the newest logs).
+% Press g to jump back to the top.
+% Type / followed by a keyword (like /error or /crash) and hit Enter to search. Press n to jump to the next match
+% Press q to quit.
 
 clear; close all; clc;
 
@@ -22,8 +33,8 @@ fprintf('=======================================================\n');
 % delta_sats_array = NaN(size(heights_km));
 
 star_sats = [];
-delta_sats = [];
-
+best_delta_sats = [];
+all_delta_sats = [];
 %% --- 2. The Sweep Loop ---
 for i = 1:length(heights_km)
     current_h_meters = heights_km(i) * 1000;
@@ -63,7 +74,7 @@ for i = 1:length(heights_km)
         case 'grid'
             fprintf('Running Smart Ascending Grid Search...\n');
             % NOTE: Ensure your gridsearch function accepts these inputs!
-            best_params = gridsearch(Cfg, plot_individual_results, min_sats, max_sats);
+            [best_params, all_delta_sats{i}] = gridsearch(Cfg, plot_individual_results, min_sats, max_sats);
             
         case 'surrogate'
             fprintf('Running Surrogate Optimization...\n');
@@ -79,20 +90,22 @@ for i = 1:length(heights_km)
     
     %% Save the Optimized Result
     if ~isempty(best_params)
-        delta_sats(i).Orbit_height = heights_km(i);
-        delta_sats(i).Num_sats       = best_params.Total_Sats;
-        delta_sats(i).Num_planes     = best_params.Num_planes;
-        delta_sats(i).Phasing_Factor = best_params.Phasing_Factor;
-        delta_sats(i).Sats_per_plane = best_params.Sats_per_plane;
-        delta_sats(i).Inclination    = best_params.Inclination;
+        best_delta_sats(i).Orbit_height = heights_km(i);
+        best_delta_sats(i).Num_sats       = best_params.Total_Sats;
+        best_delta_sats(i).Num_planes     = best_params.Num_planes;
+        best_delta_sats(i).Phasing_Factor = best_params.Phasing_Factor;
+        best_delta_sats(i).Sats_per_plane = best_params.Sats_per_plane;
+        best_delta_sats(i).Inclination    = best_params.Inclination;
     else
-        fprintf('[!] Optimizer failed to find a valid constellation within bounds for %d km.\n', heights_km(i));
+        % if no solutions are found, it deserves to crash
+        error_msg = sprintf('FATAL ERROR: Optimizer failed to find a solution at %d km! Halting sweep.', heights_km(i));
+        error(error_msg);
     end
 end
 
 %% --- 3. Plot the Final Master Curve (Star vs Delta) ---
 star_plot_y  = [star_sats.Num_sats];
-delta_plot_y = [delta_sats.Num_sats];
+delta_plot_y = [best_delta_sats.Num_sats];
 f1 = figure('Visible', 'off', 'Name', 'Constellation Comparison', 'Color', 'w', 'Position', [100 100 1000 600]); hold on;
 
 % Plot the Analytical Walker Star baseline (Red Line)
@@ -118,7 +131,7 @@ if ~exist(out_dir, 'dir')
 end
 
 % Save the data and the plot
-save(fullfile(out_dir,'Master_Altitude_Sweep_Results.mat'), 'heights_km', 'star_sats', 'delta_sats');
+save(fullfile(out_dir,'Master_Altitude_Sweep_Results.mat'), 'heights_km', 'star_sats', 'best_delta_sats','all_delta_sats');
 exportgraphics(f1, fullfile(out_dir, 'Star_vs_Delta_Comparison.png'), 'Resolution', 300);
 close(f1);
 
