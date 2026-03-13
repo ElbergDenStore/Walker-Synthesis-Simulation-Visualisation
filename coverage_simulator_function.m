@@ -314,7 +314,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             ['Direction:      ' char(Cfg.DL.Direction)];
             ['Freq / BW:      ' num2str(Cfg.DL.f/1e9, '%.2f') ' GHz / ' num2str(Cfg.DL.B/thpt_scale, '%.1f') sprintf(' %s', b_unit)];
             ['Tx Type/Gain:   ' char(Cfg.DL.Tx_type) '  / ' num2str(Cfg.DL.G_tx, '%.1f') ' dBi'];
-            ['P\_tx / EIRP:    ' num2str(Cfg.DL.P_tx_dBm, '%.1f') ' dBm / ' num2str(Cfg.DL.EIRP_dBm, '%.1f') ' dBm'];
+            ['P\_tx / EIRP:    ' num2str(Cfg.DL.Max_P_tx_dBm, '%.1f') ' dBm / ' num2str(Cfg.DL.Max_EIRP_dBm, '%.1f') ' dBm'];
             ['Rx Type/Gain:   ' char(Cfg.DL.Rx_type) '  / ' num2str(Cfg.DL.G_rx, '%.1f') ' dBi'];
             ['Noise Fig:      ' num2str(Cfg.DL.NF, '%.1f') ' dB'];
         };  
@@ -533,9 +533,9 @@ function Link = link_calc(UE, link_cfg, general_config)
     
     if (isfield(link_cfg, 'Direction') && link_cfg.Direction == "UL")
         Link.T_antenna = zeros(size(Link.T_antenna)) + 290;
-        Link.Adjusted_EIRP_dBm = link_cfg.EIRP_dBm;
+        Link.Adjusted_EIRP_dBm = link_cfg.Max_EIRP_dBm;
     else
-        Link.Adjusted_EIRP_dBm = Adjust_tx_power(el_vec, range_vec, general_config.Min_elevation_UE, general_config.Orbit_height, link_cfg.Tx_type, link_cfg.EIRP_dBm); % only for DL
+        Link.Adjusted_EIRP_dBm = Adjust_tx_power(el_vec, range_vec, general_config.Min_elevation_UE, general_config.Orbit_height, link_cfg.Tx_type, link_cfg.Max_EIRP_dBm); % only for DL
         Link.PFD_W_MHz = pfd_calc(Link.Adjusted_EIRP_dBm, Link.Bandwidth, Link.Tx_steering_loss, range_vec);
     end
 

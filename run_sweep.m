@@ -18,7 +18,7 @@ clear; close all; clc;
 
 %% --- 1. Master Configuration ---
 method = "grid"; % Toggle: 'grid', 'surrogate', or 'bayes'
-heights_km = 700:300:1200; % Iterate over these altitudes (in km)
+heights_km = 700:10:1200; % Iterate over these altitudes (in km)
 target_lat = 55;
 plot_individual_results = true; % Keep false for the sweep to save time
 

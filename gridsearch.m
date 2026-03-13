@@ -238,33 +238,39 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
                 group_labels{best_indices(b_idx)} = 'Minimum';
             end
             
-            % CRITICAL: Put 'Global Minimum' LAST so MATLAB draws it on top!
+            % Put 'Minimum' LAST so MATLAB draws it on top
             plot_data.Status = categorical(group_labels, {'Candidate', 'Minimum'});
             
             % 3. THE INTEGER TRICK: Convert discrete columns to categorical
-            % This forces MATLAB to drop decimals and only show exact values
             plot_data.Num_planes      = categorical(plot_data.Num_planes);
             plot_data.Sats_per_plane  = categorical(plot_data.Sats_per_plane);
             plot_data.Inclination     = categorical(plot_data.Inclination);
             plot_data.Phasing_Degrees = categorical(plot_data.Phasing_Degrees);
             plot_data.Total_Sats      = categorical(plot_data.Total_Sats);
             
-            % 4. OPTIMIZED AXIS ORDER: Keep the physical architecture together
-            coord_vars = {'Num_planes', 'Sats_per_plane', 'Total_Sats', 'Inclination', 'Phasing_Degrees'};
+            % 4. OPTIMIZED AXIS ORDER: Total_Sats at the end!
+            coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_Sats'};
             p = parallelplot(plot_data, 'CoordinateVariables', coord_vars, 'GroupVariable', 'Status');
             
-            % 5. VISUAL HIERARCHY: Faded grey for candidates, bold color for the minimum
-            colors = [];
-            if ismember('Candidate', plot_data.Status)
-                colors = [colors; 0.75 0.75 0.75]; % Light, faded Grey
-            end
-            if ismember('Minimum', plot_data.Status)
-                colors = [colors; 0.85 0.40 0.10]; % Bold Copper
+            % 5. FIX THE JITTER: Turn off MATLAB's automatic spreading
+            p.Jitter = 0;
+            
+            % 6. BULLETPROOF VISUAL HIERARCHY
+            % Dynamically check categories to ensure Grey = Candidate and Copper = Minimum
+            cats = categories(plot_data.Status);
+            colors = zeros(length(cats), 3);
+            for c_idx = 1:length(cats)
+                if strcmp(cats{c_idx}, 'Candidate')
+                    colors(c_idx, :) = [0.75 0.75 0.75]; % Light Grey
+                elseif strcmp(cats{c_idx}, 'Minimum')
+                    colors(c_idx, :) = [0.85 0.40 0.10]; % Bold Copper
+                end
             end
             
             p.Color = colors;
-            p.LineWidth = 5; % Thicker lines to make the discrete nodes connect smoothly
+            p.LineWidth = 5; 
             p.LineAlpha = 0.9; 
+            
             title(sprintf('Optimal Architecture Candidates (Top %d)', num_to_plot));
         else
             text(0.5, 0.5, 'No valid runs to plot.', 'HorizontalAlignment', 'center', 'FontSize', 14);
