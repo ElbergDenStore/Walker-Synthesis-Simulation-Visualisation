@@ -305,6 +305,5 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         detailed_metrics = coverage_simulator_function(Cfg, true, true, true); %plot_results = true; use_parallel = true; calc_link = true;
         
         show_constellation(Cfg, false, true, out_dir);%Show interactive = false; savefig = true;
-        
     end
 end

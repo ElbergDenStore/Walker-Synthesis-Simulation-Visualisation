@@ -267,9 +267,11 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         if Cfg.DL.B < 1e6
             thpt_scale = 1e3;
             thpt_unit = 'kbps';
+            b_unit = 'kHz';
         else
             thpt_scale = 1e6;
             thpt_unit = 'Mbps';
+            b_unit = 'MHz';
         end
         
         % Combined Constellation Stats
@@ -310,7 +312,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         col2_str = {
             '\bfLink Budget Specs\rm';
             ['Direction:      ' char(Cfg.DL.Direction)];
-            ['Freq / BW:      ' num2str(Cfg.DL.f/1e9, '%.2f') ' GHz / ' num2str(Cfg.DL.B/thpt_scale, '%.1f') sprintf(' %s', thpt_unit)];
+            ['Freq / BW:      ' num2str(Cfg.DL.f/1e9, '%.2f') ' GHz / ' num2str(Cfg.DL.B/thpt_scale, '%.1f') sprintf(' %s', b_unit)];
             ['Tx Type/Gain:   ' char(Cfg.DL.Tx_type) '  / ' num2str(Cfg.DL.G_tx, '%.1f') ' dBi'];
             ['P\_tx / EIRP:    ' num2str(Cfg.DL.P_tx_dBm, '%.1f') ' dBm / ' num2str(Cfg.DL.EIRP_dBm, '%.1f') ' dBm'];
             ['Rx Type/Gain:   ' char(Cfg.DL.Rx_type) '  / ' num2str(Cfg.DL.G_rx, '%.1f') ' dBi'];
