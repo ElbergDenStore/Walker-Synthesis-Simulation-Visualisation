@@ -286,7 +286,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         Cfg.DL.Target_PFD_MHz = -108;
         Cfg.DL.B         = 2e6;     
         Cfg.DL.f         = 20e9;    
-        Cfg.DL.G_tx      = 42; 
+        % Cfg.DL.G_tx      = 42; 
         Cfg.DL.Tx_type   = "array";      
         Cfg.DL.G_rx      = 32;      
         Cfg.DL.Rx_type   = "array";
@@ -294,6 +294,9 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
 
         % Normalize tx gain to have same total throughput
         % Calculate Slant Range for the Reference Altitude
+        h_ref = 1200e3; %
+        G_tx_ref = 42;  % need a reference and here it is 42dBi at 1200km
+        Re = 6371e3;    %
         slant_ref = -Re*sind(Cfg.Min_elevation_UE) + sqrt(Re^2*sind(Cfg.Min_elevation_UE)^2 - (Re^2-(Re+h_ref)^2));
         
         % Calculate Slant Range for the CURRENT Altitude in the sweep
