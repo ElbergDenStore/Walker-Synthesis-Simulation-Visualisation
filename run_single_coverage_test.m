@@ -1,11 +1,11 @@
 clear all; close all; clc;
 
 Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
-Cfg.SampleTime = 20; % seconds
+Cfg.StopTime   = datetime('2-Jun-2025 11:59:59', 'TimeZone', 'UTC');
+Cfg.SampleTime = 60; % seconds
 
-Cfg.Lat_vec = linspace(55, 85, 10); 
-Cfg.Lon_vec = linspace(-60, 30, 3);
+Cfg.Lat_vec = linspace(55, 85, 2); 
+Cfg.Lon_vec = linspace(-60, 30, 2);
 
 % Constellation
 Cfg.Min_elevation_UE = 20;
@@ -25,29 +25,36 @@ Cfg.WalkerStar     = false;
 
 
 % Downlink Link Budget Config FR2
+% PFD_regulation = -105;
+Cfg.Target_PFD_MHz = -108;
 Cfg.DL.Direction = "DL";
 Cfg.DL.B         = 2e6;     
 Cfg.DL.f         = 20e9;    
-Cfg.DL.P_tx_dBm  = 20; 
+% Cfg.DL.P_tx_dBm  = 20; 
 Cfg.DL.G_tx      = 42; 
 Cfg.DL.Tx_type   = "array";      
 Cfg.DL.G_rx      = 32;      
 Cfg.DL.Rx_type   = "array";      
 Cfg.DL.NF        = 5;
+
+
+Cfg.DL.P_tx_dBm  = PFD_calc(Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
 Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
 
 % % Downlink Link Budget Config FR1
+% PFD_regulation = -113;
+% Target_PFD = -116;
 % Cfg.DL.Direction = "DL";
 % Cfg.DL.B         = 180e3;
 % Cfg.DL.f         = 2.6e9;
-% Cfg.DL.P_tx_dBm  = 10 + 30 + 10*log10(Cfg.DL.B/1e6); %EIRP 34 dBW /MHz TR 38821 %26.6 dBm @ 180kHz
 % Cfg.DL.G_tx      = 24; %TR 38821
 % Cfg.DL.Tx_type   = "array";      
 % Cfg.DL.G_rx      = 3; % Dipole antenna typically
 % Cfg.DL.Rx_type   = "array";      
 % Cfg.DL.NF        = 7; %  TR 38821
+% Cfg.DL.P_tx_dBm  = 10;
+% Cfg.DL.P_tx_dBm  = PFD_calc(Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
 % Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
-
 
 
 calc_link = true;
@@ -63,4 +70,4 @@ show_interactive = false;
 save_fig = true;
 
 show_constellation(Cfg, show_interactive, save_fig)
-fprintf("Worst Coverage percentage" + metrics.worst_coverage_percent);
+fprintf("Worst Coverage percentage " + metrics.worst_coverage_percent);
