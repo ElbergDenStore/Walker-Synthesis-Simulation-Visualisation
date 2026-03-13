@@ -277,7 +277,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         fprintf('\nRunning detailed Link Budget simulations for the BEST result...\n');
         
         Cfg.DL.Direction = "DL";
-        Cfg.Target_PFD_MHz = -108;
+        Cfg.DL.Target_PFD_MHz = -108;
         Cfg.DL.B         = 2e6;     
         Cfg.DL.f         = 20e9;    
         Cfg.DL.G_tx      = 42; 
@@ -285,7 +285,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         Cfg.DL.G_rx      = 32;      
         Cfg.DL.Rx_type   = "array";
         Cfg.DL.NF        = 5;
-        Cfg.DL.P_tx_dBm  = PFD_calc(Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
+        Cfg.DL.P_tx_dBm  = PFD_calc(Cfg.DL.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
         Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
         
         Cfg.Save_dir = out_dir;
