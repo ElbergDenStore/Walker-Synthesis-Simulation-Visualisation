@@ -112,7 +112,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
             detailed_metrics = coverage_simulator_function(detailed_Cfg, false, true, false); %plot_results = false; use_parallel = true; calc_link = false;
             
             if detailed_metrics.worst_coverage_percent > 99.999
-                fprintf('  -> PASSED. Added to Candidates.\n');
+                fprintf('  -> PASSED. Added to Candidates %d/%d.\n',height(all_candidates), target_num_candidates);
                 
                 % Mark as a candidate
                 status_flags(global_row_idx) = 1; 
