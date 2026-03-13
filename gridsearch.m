@@ -291,8 +291,20 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         Cfg.DL.G_rx      = 32;      
         Cfg.DL.Rx_type   = "array";
         Cfg.DL.NF        = 5;
-        Cfg.DL.P_tx_dBm  = PFD_calc(Cfg.DL.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
-        Cfg.DL.EIRP_dBm  = Cfg.DL.P_tx_dBm + Cfg.DL.G_tx;
+
+        % Normalize tx gain to have same total throughput
+        % Calculate Slant Range for the Reference Altitude
+        slant_ref = -Re*sind(Cfg.Min_elevation_UE) + sqrt(Re^2*sind(Cfg.Min_elevation_UE)^2 - (Re^2-(Re+h_ref)^2));
+        
+        % Calculate Slant Range for the CURRENT Altitude in the sweep
+        current_h = Cfg.Orbit_height;
+        slant_current = -Re*sind(Cfg.Min_elevation_UE) + sqrt(Re^2*sind(Cfg.Min_elevation_UE)^2 - (Re^2-(Re+current_h)^2));
+        
+        % Scale the Antenna Gain to keep the Ground Footprint constant
+        Cfg.DL.G_tx = G_tx_ref + 20 * log10(slant_current / slant_ref);
+
+        Cfg.DL.Max_P_tx_dBm  = PFD_calc(Cfg.DL.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
+        Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
         
         Cfg.Save_dir = out_dir;
         Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');

@@ -64,7 +64,7 @@ for i = 1:length(heights_km)
     fprintf('======================================================\n');
 
     %% Dynamically Bound the Search Space
-    min_sats = floor(star_N * 0.6); 
+    min_sats = floor(star_N * 1); 
     % max_sats = ceil(star_N);          
 
     %% Route to the chosen Optimizer

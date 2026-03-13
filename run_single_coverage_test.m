@@ -55,8 +55,8 @@ slant_current = -Re*sind(Cfg.Min_elevation_UE) + sqrt(Re^2*sind(Cfg.Min_elevatio
 Cfg.DL.G_tx = G_tx_ref + 20 * log10(slant_current / slant_ref);
 
 
-Cfg.DL.max_P_tx_dBm  = PFD_calc(Cfg.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
-Cfg.DL.max_EIRP_dBm  = Cfg.DL.max_P_tx_dBm + Cfg.DL.G_tx;
+Cfg.DL.Max_P_tx_dBm  = PFD_calc(Cfg.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
+Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
 
 % % Downlink Link Budget Config FR1
 % PFD_regulation = -113;
