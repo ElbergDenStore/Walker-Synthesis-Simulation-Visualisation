@@ -124,7 +124,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
                     best_params = temp_params;
                     
                     fprintf('\n======================================================\n');
-                    fprintf('New Global Minimum for %d km Found: %d Sats.\n', (Cfg.Orbit_height / 1000), min_sats_found);
+                    fprintf('New Minimum for %d km Found: %d Sats.\n', (Cfg.Orbit_height / 1000), min_sats_found);
                     fprintf('Current Candidates Pool: %d / %d\n', height(all_candidates), target_num_candidates);
                     fprintf('======================================================\n');
                 end
@@ -181,7 +181,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         scatter(history_X.Inclination(isBest), history_Loss(isBest), 200, [1 0.8 0], 'pentagram', 'filled', 'MarkerEdgeColor', 'k');
         xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Num Sats', 'FontWeight', 'bold');
         title("Architecture Feasibility @ " + num2str(Cfg.Orbit_height / 1000) + " km");
-        legend('Invalid', 'Candidate', 'Global Minimum', 'Location', 'best');
+        legend('Invalid', 'Candidate', 'Minimum', 'Location', 'best');
         grid on; hold off;
         exportgraphics(f1, fullfile(out_dir, 'Inclinations_NumSats.png'), 'Resolution', 300);
         close(f1);
@@ -209,11 +209,10 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         end
         xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Sats per Plane', 'FontWeight', 'bold');
         title("Evaluated Architectures @ " + num2str(Cfg.Orbit_height / 1000) + " km");
-        legend('Invalid', 'Candidate', 'Global Minimum', 'Location', 'best');
+        legend('Invalid', 'Candidate', 'Minimum', 'Location', 'best');
         grid on; hold off;
         exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', 300);
         close(f4);
-        
         % --- PLOT 6: Parallel Coordinates (Candidates Only) ---
         f6 = figure('Visible','off','Name', 'Parallel Coordinates', 'Color', 'w');
         valid_mask = isCand | isBest;
@@ -230,27 +229,31 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
             min_sats = min(valid_loss);
             best_local_indices = find(valid_loss == min_sats);
             for b_idx = 1:length(best_local_indices)
-                group_labels{best_local_indices(b_idx)} = 'Global Minimum';
+                group_labels{best_local_indices(b_idx)} = 'Minimum';
             end
             
-            % 3. Add to the table as a categorical variable
-            valid_data.Status = categorical(group_labels);
-            
-            % Force the order so we know exactly which color goes to which group
-            valid_data.Status = reordercats(valid_data.Status, {'Candidate', 'Global Minimum'});
+            % 3. Create categorical array with EXPLICIT categories
+            % This forces MATLAB to recognize both categories, avoiding the reordercats crash!
+            valid_data.Status = categorical(group_labels, {'Candidate', 'Minimum'});
             
             % 4. Plot using the GroupVariable
             coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_Sats'};
             p = parallelplot(valid_data, 'CoordinateVariables', coord_vars, 'GroupVariable', 'Status');
             
-            % 5. Apply the two distinct colors mapping to the two categories
-            % Row 1: Muted Slate Blue (Candidate)
-            % Row 2: Copper/Orange (Global Minimum)
-            p.Color = [0.4 0.5 0.6; 0.85 0.40 0.10]; 
+            % 5. Build the color array dynamically based on what categories actually exist in this specific run
+            colors = [];
+            if ismember('Candidate', valid_data.Status)
+                colors = [colors; 0.4 0.5 0.6]; % Slate Blue
+            end
+            if ismember('Minimum', valid_data.Status)
+                colors = [colors; 0.85 0.40 0.10]; % Copper
+            end
+            
+            p.Color = colors;
             p.LineWidth = 3; 
             p.LineAlpha = 0.8; 
             
-            title('Optimal Candidates Found (<= 5% of Minimum)');
+            title(sprintf('Optimal Architecture Candidates (Top %d)', height(valid_data)));
         else
             text(0.5, 0.5, 'No valid runs to plot.', 'HorizontalAlignment', 'center', 'FontSize', 14);
             axis off;
