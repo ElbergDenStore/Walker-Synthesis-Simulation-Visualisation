@@ -265,8 +265,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
             p.Color = colors;
             p.LineWidth = 5; % Thicker lines to make the discrete nodes connect smoothly
             p.LineAlpha = 0.9; 
-            
-            title(sprintf('Optimal Architecture Candidates (Top %d)', num_to_plot), 'FontSize', 14);
+            title(sprintf('Optimal Architecture Candidates (Top %d)', num_to_plot));
         else
             text(0.5, 0.5, 'No valid runs to plot.', 'HorizontalAlignment', 'center', 'FontSize', 14);
             axis off;
