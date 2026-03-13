@@ -3,7 +3,8 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
     P_vec = 4:15; % Num Planes
     S_vec = 4:15; % Sats per Plane
     Inc_vec = linspace(70, 80, 11);
-    extra_search_percent = 15; % percent extra to look for solutions
+    target_num_candidates = 10;
+    % extra_search_percent = 15; % percent extra to look for solutions
     
     grid_data = [];
     for p = P_vec
@@ -50,8 +51,12 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         % --- NEW BREAK CONDITION ---
         % Because the grid is sorted by Total_Sats, if the current batch starts 
         % higher than our 5% limit, we know we're done!
-        if search_grid.Total_Sats(batch_start) > max_sats_to_check
-            fprintf('\n--- Exceeded %d\% limit above minimum found (%d sats). Stopping search! ---\n',extra_search_percent, max_sats_to_check);
+        % if search_grid.Total_Sats(batch_start) > max_sats_to_check
+        %     fprintf('\n--- Exceeded %d\% limit above minimum found (%d sats). Stopping search! ---\n',extra_search_percent, max_sats_to_check);
+        %     break;
+        % end
+        if height(all_candidates) >= target_num_candidates
+            fprintf('\n--- Found %d viable candidates. Target reached! Stopping search. ---\n', height(all_candidates));
             break;
         end
         
@@ -107,7 +112,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
             detailed_metrics = coverage_simulator_function(detailed_Cfg, false, true, false); %plot_results = false; use_parallel = true; calc_link = false;
             
             if detailed_metrics.worst_coverage_percent > 99.999
-                fprintf('  -> [✓] PASSED! Added to Candidates.\n');
+                fprintf('  -> PASSED. Added to Candidates.\n');
                 
                 % Mark as a candidate
                 status_flags(global_row_idx) = 1; 
@@ -118,14 +123,13 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
                     min_sats_found = temp_params.Total_Sats;
                     best_params = temp_params;
                     
-                    % Set the new finish line to 5% more than this new minimum
-                    max_sats_to_check = ceil(min_sats_found * (1+extra_search_percent/100));
                     fprintf('\n======================================================\n');
-                    fprintf('Minimum for %d Found: %d Sats. Will test up to %d Sats.\n', (Cfg.Orbit_height / 1000), min_sats_found, max_sats_to_check);
+                    fprintf('New Global Minimum for %d km Found: %d Sats.\n', (Cfg.Orbit_height / 1000), min_sats_found);
+                    fprintf('Current Candidates Pool: %d / %d\n', height(all_candidates), target_num_candidates);
                     fprintf('======================================================\n');
                 end
             else
-                fprintf('  -> [x] Failed high-fidelity test (Cov: %.4f%%).\n', detailed_metrics.worst_coverage_percent);
+                fprintf('  -> Failed high-fidelity test (Cov: %.4f%%).\n', detailed_metrics.worst_coverage_percent);
             end
         end
     end
