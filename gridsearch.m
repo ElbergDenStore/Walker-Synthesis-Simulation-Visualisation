@@ -1,4 +1,4 @@
-function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats, max_sats)
+function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     %% 1. Build the Ascending Grid
     P_vec = 4:15; % Num Planes
     S_vec = 4:15; % Sats per Plane
@@ -21,18 +21,20 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Factor', 'Total_Sats'});
     
     %% 2. The Smart Filters
-    isValidTarget = search_grid.Total_Sats >= min_sats & search_grid.Total_Sats <= max_sats;
+    isValidTarget = search_grid.Total_Sats >= min_sats
+    % isValidTarget = search_grid.Total_Sats >= min_sats & search_grid.Total_Sats <= max_sats;
     search_grid = search_grid(isValidTarget, :);
     
     % Sort from cheapest to most expensive!
     search_grid = sortrows(search_grid, 'Total_Sats', 'ascend');
     
     fprintf('\n=== Starting Ascending Grid Search ===\n');
-    fprintf('Testing %d valid architectures between %d and %d satellites...\n\n', height(search_grid), min_sats,max_sats);
+    % fprintf('Testing %d valid architectures between %d and %d satellites...\n\n', height(search_grid), min_sats,max_sats);
+    fprintf('Testing %d valid architectures from %d satellites...\n\n', height(search_grid), min_sats);
     
-    %% 3. Simulate until we find the Global Minimum + 5% Margin (Batched Parallel)
+    %% 3. Simulate until we find the Global Minimum + N candidates
     best_params = [];
-    all_candidates = table(); % NEW: Store all viable options
+    all_candidates = table();
     
     pool = gcp('nocreate');
     if isempty(pool), pool = parpool(); end
@@ -45,8 +47,8 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
     status_flags = zeros(total_runs, 1); % 0 = Invalid, 1 = Candidate, 2 = Best
     
     min_sats_found = Inf;
-    max_sats_to_check = Inf;
-    
+    % max_sats_to_check = Inf;
+
     for batch_start = 1 : num_workers : total_runs
         % --- NEW BREAK CONDITION ---
         % Because the grid is sorted by Total_Sats, if the current batch starts 
@@ -178,7 +180,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         f1 = figure('Visible','off','Name', 'Sats vs Inclination', 'Color', 'w'); hold on;
         scatter(history_X.Inclination(isInvalid), history_Loss(isInvalid), 35, [0.8 0.8 0.8], 'x');
         scatter(history_X.Inclination(isCand), history_Loss(isCand), 50, [0.2 0.6 0.8], 'filled', 'MarkerEdgeColor', 'k');
-        scatter(history_X.Inclination(isBest), history_Loss(isBest), 200, [1 0.8 0], 'pentagram', 'filled', 'MarkerEdgeColor', 'k');
+        scatter(history_X.Inclination(isBest), history_Loss(isBest), 100, [1 0.8 0], 'diamond', 'filled', 'MarkerEdgeColor', 'k');
         xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Num Sats', 'FontWeight', 'bold');
         title("Architecture Feasibility @ " + num2str(Cfg.Orbit_height / 1000) + " km");
         legend('Invalid', 'Candidate', 'Minimum', 'Location', 'best');
@@ -213,7 +215,8 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         grid on; hold off;
         exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', 300);
         close(f4);
-        % --- PLOT 6: Parallel Coordinates (Candidates Only) ---
+        
+        % --- PLOT 6: Parallel Coordinates (Top 5 Candidates) ---
         f6 = figure('Visible','off','Name', 'Parallel Coordinates', 'Color', 'w');
         valid_mask = isCand | isBest;
         valid_data = history_X(valid_mask, :);
@@ -222,38 +225,48 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         if height(valid_data) > 0
             valid_data.Total_Sats = valid_loss;
             
-            % 1. Create a grouping array for the legend and colors
-            group_labels = repmat({'Candidate'}, height(valid_data), 1);
+            % 1. SORT AND SLICE: Keep only the Top 5 cheapest architectures
+            valid_data = sortrows(valid_data, 'Total_Sats', 'ascend');
+            num_to_plot = min(5, height(valid_data));
+            plot_data = valid_data(1:num_to_plot, :);
             
-            % 2. Find the absolute minimum and overwrite their labels
-            min_sats = min(valid_loss);
-            best_local_indices = find(valid_loss == min_sats);
-            for b_idx = 1:length(best_local_indices)
-                group_labels{best_local_indices(b_idx)} = 'Minimum';
+            % 2. Assign Status Labels for the Legend
+            group_labels = repmat({'Candidate'}, height(plot_data), 1);
+            min_sats = min(plot_data.Total_Sats);
+            best_indices = find(plot_data.Total_Sats == min_sats);
+            for b_idx = 1:length(best_indices)
+                group_labels{best_indices(b_idx)} = 'Minimum';
             end
             
-            % 3. Create categorical array with EXPLICIT categories
-            % This forces MATLAB to recognize both categories, avoiding the reordercats crash!
-            valid_data.Status = categorical(group_labels, {'Candidate', 'Minimum'});
+            % CRITICAL: Put 'Global Minimum' LAST so MATLAB draws it on top!
+            plot_data.Status = categorical(group_labels, {'Candidate', 'Minimum'});
             
-            % 4. Plot using the GroupVariable
-            coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_Sats'};
-            p = parallelplot(valid_data, 'CoordinateVariables', coord_vars, 'GroupVariable', 'Status');
+            % 3. THE INTEGER TRICK: Convert discrete columns to categorical
+            % This forces MATLAB to drop decimals and only show exact values
+            plot_data.Num_planes      = categorical(plot_data.Num_planes);
+            plot_data.Sats_per_plane  = categorical(plot_data.Sats_per_plane);
+            plot_data.Inclination     = categorical(plot_data.Inclination);
+            plot_data.Phasing_Degrees = categorical(plot_data.Phasing_Degrees);
+            plot_data.Total_Sats      = categorical(plot_data.Total_Sats);
             
-            % 5. Build the color array dynamically based on what categories actually exist in this specific run
+            % 4. OPTIMIZED AXIS ORDER: Keep the physical architecture together
+            coord_vars = {'Num_planes', 'Sats_per_plane', 'Total_Sats', 'Inclination', 'Phasing_Degrees'};
+            p = parallelplot(plot_data, 'CoordinateVariables', coord_vars, 'GroupVariable', 'Status');
+            
+            % 5. VISUAL HIERARCHY: Faded grey for candidates, bold color for the minimum
             colors = [];
-            if ismember('Candidate', valid_data.Status)
-                colors = [colors; 0.4 0.5 0.6]; % Slate Blue
+            if ismember('Candidate', plot_data.Status)
+                colors = [colors; 0.75 0.75 0.75]; % Light, faded Grey
             end
-            if ismember('Minimum', valid_data.Status)
-                colors = [colors; 0.85 0.40 0.10]; % Copper
+            if ismember('Minimum', plot_data.Status)
+                colors = [colors; 0.85 0.40 0.10]; % Bold Copper
             end
             
             p.Color = colors;
-            p.LineWidth = 3; 
-            p.LineAlpha = 0.8; 
+            p.LineWidth = 5; % Thicker lines to make the discrete nodes connect smoothly
+            p.LineAlpha = 0.9; 
             
-            title(sprintf('Optimal Architecture Candidates (Top %d)', height(valid_data)));
+            title(sprintf('Optimal Architecture Candidates (Top %d)', num_to_plot), 'FontSize', 14);
         else
             text(0.5, 0.5, 'No valid runs to plot.', 'HorizontalAlignment', 'center', 'FontSize', 14);
             axis off;

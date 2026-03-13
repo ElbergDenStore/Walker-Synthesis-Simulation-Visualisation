@@ -64,9 +64,8 @@ for i = 1:length(heights_km)
     fprintf('======================================================\n');
 
     %% Dynamically Bound the Search Space
-    % We expect the Delta to beat the Star, so we look between 70% and 120% of the Star's sats
     min_sats = floor(star_N * 0.6); 
-    max_sats = ceil(star_N);          
+    % max_sats = ceil(star_N);          
 
     %% Route to the chosen Optimizer
     best_params = [];
@@ -74,7 +73,7 @@ for i = 1:length(heights_km)
         case 'grid'
             fprintf('Running Smart Ascending Grid Search...\n');
             % NOTE: Ensure your gridsearch function accepts these inputs!
-            [best_params, all_delta_sats{i}] = gridsearch(Cfg, plot_individual_results, min_sats, max_sats);
+            [best_params, all_delta_sats{i}] = gridsearch(Cfg, plot_individual_results, min_sats);
             
         case 'surrogate'
             fprintf('Running Surrogate Optimization...\n');
