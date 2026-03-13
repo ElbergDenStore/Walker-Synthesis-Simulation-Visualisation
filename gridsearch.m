@@ -3,11 +3,12 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
     P_vec = 4:15; % Num Planes
     S_vec = 4:15; % Sats per Plane
     Inc_vec = linspace(70, 80, 11);
+    extra_search_percent = 10; % percent extra to look for solutions
     
     grid_data = [];
     for p = P_vec
         for s = S_vec
-            for f = 1:(p-1) % Integer Walker Phase Factor
+            for f = 1:(p-1) % Integer Walker Phase Factor. Zero is always bad so not checked
                 for inc = Inc_vec
                     grid_data = [grid_data; p, s, inc, f, p*s];
                 end
@@ -50,7 +51,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         % Because the grid is sorted by Total_Sats, if the current batch starts 
         % higher than our 5% limit, we know we're done!
         if search_grid.Total_Sats(batch_start) > max_sats_to_check
-            fprintf('\n--- Exceeded 5%% limit above minimum found (%d sats). Stopping search! ---\n', max_sats_to_check);
+            fprintf('\n--- Exceeded %d\% limit above minimum found (%d sats). Stopping search! ---\n',extra_search_percent, max_sats_to_check);
             break;
         end
         
@@ -118,9 +119,9 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
                     best_params = temp_params;
                     
                     % Set the new finish line to 5% more than this new minimum
-                    max_sats_to_check = ceil(min_sats_found * 1.05);
+                    max_sats_to_check = ceil(min_sats_found * (1+extra_search_percent/100));
                     fprintf('\n======================================================\n');
-                    fprintf('NEW GLOBAL MINIMUM: %d Sats. Will test up to %d Sats.\n', min_sats_found, max_sats_to_check);
+                    fprintf('Minimum for %d Found: %d Sats. Will test up to %d Sats.\n', (Cfg.Orbit_height / 1000), min_sats_found, max_sats_to_check);
                     fprintf('======================================================\n');
                 end
             else
@@ -136,12 +137,12 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
     end
     
     % --- UPGRADE BEST PARAM TO STATUS 2 ---
-    % Find the absolute best one in the grid and mark it so it plots as a star
-    best_idx = find(search_grid.Num_planes == best_params.Num_planes & ...
-                    search_grid.Sats_per_plane == best_params.Sats_per_plane & ...
-                    search_grid.Inclination == best_params.Inclination & ...
-                    search_grid.Phasing_Factor == best_params.Phasing_Factor, 1);
-    status_flags(best_idx) = 2;
+    % Find ALL configurations that share the absolute minimum satellite count
+    best_sats_count = min(search_grid.Total_Sats(status_flags == 1 | status_flags == 2));
+    if ~isempty(best_sats_count)
+        best_indices = find(search_grid.Total_Sats == best_sats_count & status_flags > 0);
+        status_flags(best_indices) = 2; % Mark ALL of them as the global minimum
+    end
 
     %% --- PREPARE DATA FOR PLOTTING ---
     if plot_results
@@ -180,7 +181,6 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         grid on; hold off;
         exportgraphics(f1, fullfile(out_dir, 'Inclinations_NumSats.png'), 'Resolution', 300);
         close(f1);
-        
         % --- PLOT 4: Architecture Map (Planes vs Sats per Plane) ---
         planes = history_X.Num_planes;
         sats_pp = history_X.Sats_per_plane;
@@ -189,13 +189,19 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         jitter_x = planes + (rand(size(planes))-0.5)*0.4;
         jitter_y = sats_pp + (rand(size(sats_pp))-0.5)*0.4;
         
+        % 1. Invalid Configurations (Grey Crosses)
         scatter(jitter_x(isInvalid), jitter_y(isInvalid), 30, [0.8 0.8 0.8], 'x');
+        
+        % 2. Candidates (Standard Circles, color-mapped by Num Sats)
         scatter(jitter_x(isCand), jitter_y(isCand), 60, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jitter_x(isBest), jitter_y(isBest), 250, [1 0.8 0], 'pentagram', 'filled', 'MarkerEdgeColor', 'k');
+        
+        % 3. Global Minima (Large Diamonds, ALSO color-mapped, thicker border)
+        scatter(jitter_x(isBest), jitter_y(isBest), 150, history_Loss(isBest), 'diamond', 'filled', ...
+            'MarkerEdgeColor', 'k', 'LineWidth', 1.5);
         
         colormap('parula'); 
-        if any(isCand)
-            cb = colorbar; cb.Label.String = 'Num Sats (Candidates)';
+        if any(isCand) || any(isBest)
+            cb = colorbar; cb.Label.String = 'Total Satellites';
         end
         xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Sats per Plane', 'FontWeight', 'bold');
         title("Evaluated Architectures @ " + num2str(Cfg.Orbit_height / 1000) + " km");
@@ -203,7 +209,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         grid on; hold off;
         exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', 300);
         close(f4);
-        
+
         % --- PLOT 6: Parallel Coordinates (Candidates Only) ---
         f6 = figure('Visible','off','Name', 'Parallel Coordinates', 'Color', 'w');
         valid_mask = isCand | isBest;
@@ -215,10 +221,16 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
             coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_Sats'};
             p = parallelplot(valid_data, 'CoordinateVariables', coord_vars);
             
-            % Highlight the Best Solution in Gold, rest in Blue
-            colors = repmat([0.2 0.6 0.8], height(valid_data), 1);
-            best_local_idx = find(valid_loss == best_params.Total_Sats, 1);
-            colors(best_local_idx, :) = [1 0.6 0]; % Deep Gold
+            % Create a base color array (Muted Slate Blue for Candidates)
+            colors = repmat([0.4 0.5 0.6], height(valid_data), 1); 
+            
+            % Find all rows that match the absolute minimum satellite count
+            best_local_indices = find(valid_loss == min(valid_loss));
+            
+            % Overwrite the color for the global minimum(s) to a professional Copper/Orange
+            for b_idx = 1:length(best_local_indices)
+                colors(best_local_indices(b_idx), :) = [0.85 0.40 0.10]; 
+            end
             
             p.Color = colors;
             p.LineWidth = 3; 
@@ -230,7 +242,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats,
         end
         exportgraphics(f6, fullfile(out_dir, 'Top_Solutions.png'), 'Resolution', 300);
         close(f6);
-    
+
         %% Show high res result of best constellation
         fprintf('\nRunning detailed Link Budget simulations for the BEST result...\n');
         
