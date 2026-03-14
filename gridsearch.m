@@ -18,15 +18,15 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     end
     
     search_grid = array2table(grid_data, 'VariableNames', ...
-        {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Factor', 'Total_Sats'});
+        {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing', 'Total_sats'});
     
     %% 2. The Smart Filters
-    isValidTarget = search_grid.Total_Sats >= min_sats
-    % isValidTarget = search_grid.Total_Sats >= min_sats & search_grid.Total_Sats <= max_sats;
+    isValidTarget = search_grid.Total_sats >= min_sats
+    % isValidTarget = search_grid.Total_sats >= min_sats & search_grid.Total_sats <= max_sats;
     search_grid = search_grid(isValidTarget, :);
     
     % Sort from cheapest to most expensive!
-    search_grid = sortrows(search_grid, 'Total_Sats', 'ascend');
+    search_grid = sortrows(search_grid, 'Total_sats', 'ascend');
     
     fprintf('\n=== Starting Ascending Grid Search ===\n');
     % fprintf('Testing %d valid architectures between %d and %d satellites...\n\n', height(search_grid), min_sats,max_sats);
@@ -51,9 +51,9 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
 
     for batch_start = 1 : num_workers : total_runs
         % --- NEW BREAK CONDITION ---
-        % Because the grid is sorted by Total_Sats, if the current batch starts 
+        % Because the grid is sorted by Total_sats, if the current batch starts 
         % higher than our 5% limit, we know we're done!
-        % if search_grid.Total_Sats(batch_start) > max_sats_to_check
+        % if search_grid.Total_sats(batch_start) > max_sats_to_check
         %     fprintf('\n--- Exceeded %d\% limit above minimum found (%d sats). Stopping search! ---\n',extra_search_percent, max_sats_to_check);
         %     break;
         % end
@@ -76,8 +76,9 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
             local_Cfg.Num_planes     = batch_grid.Num_planes(i);
             local_Cfg.Sats_per_plane = batch_grid.Sats_per_plane(i);
             local_Cfg.Inclination    = batch_grid.Inclination(i);
-            local_Cfg.Phasing        = batch_grid.Phasing_Factor(i); 
-            local_Cfg.Total_sats     = batch_grid.Total_Sats(i);
+            local_Cfg.Phasing        = batch_grid.Phasing(i); 
+            local_Cfg.Total_sats     = batch_grid.Total_sats(i);
+            
             
             metrics = coverage_simulator_function(local_Cfg, false, false, false);
             batch_coverage(i) = metrics.worst_coverage_percent;
@@ -101,12 +102,13 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
             detailed_Cfg.SampleTime = 20; 
             detailed_Cfg.Lat_vec = linspace(55, 85, 10); 
             detailed_Cfg.Lon_vec = linspace(-60, 30, 3);
+            detailed_Cfg.Equal_UE_area = true; % NumUEs ~ lat_vec^2 + lat_vec
             
             detailed_Cfg.Num_planes     = temp_params.Num_planes;
             detailed_Cfg.Sats_per_plane = temp_params.Sats_per_plane;
             detailed_Cfg.Inclination    = temp_params.Inclination;
-            detailed_Cfg.Phasing        = temp_params.Phasing_Factor;
-            detailed_Cfg.Total_sats     = temp_params.Total_Sats;
+            detailed_Cfg.Phasing        = temp_params.Phasing;
+            detailed_Cfg.Total_sats     = temp_params.Total_sats;
             
             fprintf('  -> High-Fidelity Test for %dx%d (Total: %d)...\n', ...
                 detailed_Cfg.Num_planes, detailed_Cfg.Sats_per_plane, detailed_Cfg.Total_sats);
@@ -121,8 +123,8 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
                 all_candidates = [all_candidates; temp_params];
                 
                 % Is this the new absolute best/cheapest?
-                if temp_params.Total_Sats < min_sats_found
-                    min_sats_found = temp_params.Total_Sats;
+                if temp_params.Total_sats < min_sats_found
+                    min_sats_found = temp_params.Total_sats;
                     best_params = temp_params;
                     
                     fprintf('\n======================================================\n');
@@ -144,9 +146,9 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     
     % --- UPGRADE BEST PARAM TO STATUS 2 ---
     % Find ALL configurations that share the absolute minimum satellite count
-    best_sats_count = min(search_grid.Total_Sats(status_flags == 1 | status_flags == 2));
+    best_sats_count = min(search_grid.Total_sats(status_flags == 1 | status_flags == 2));
     if ~isempty(best_sats_count)
-        best_indices = find(search_grid.Total_Sats == best_sats_count & status_flags > 0);
+        best_indices = find(search_grid.Total_sats == best_sats_count & status_flags > 0);
         status_flags(best_indices) = 2; % Mark ALL of them as the global minimum
     end
 
@@ -161,16 +163,16 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         isCand    = eval_status == 1;
         isBest    = eval_status == 2;
         
-        history_Loss = eval_grid.Total_Sats;
+        history_Loss = eval_grid.Total_sats;
         
-        phasing_deg = (eval_grid.Phasing_Factor ./ eval_grid.Num_planes) .* 360;
+        phasing_deg = (eval_grid.Phasing ./ eval_grid.Num_planes) .* 360;
         history_X = table(eval_grid.Num_planes, eval_grid.Sats_per_plane, ...
             eval_grid.Inclination, phasing_deg, ...
             'VariableNames', {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees'});
         
         %% Create Output Directory
         date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-        folder_name = sprintf('%.0f_%d_%s', Cfg.Orbit_height/1e3, best_params.Total_Sats, date_str);
+        folder_name = sprintf('%.0f_%d_%s', Cfg.Orbit_height/1e3, best_params.Total_sats, date_str);
         out_dir = fullfile('simulation_output/gridsearch_runs', folder_name);
         if ~exist(out_dir, 'dir'), mkdir(out_dir); end
         
@@ -223,17 +225,17 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         valid_loss = history_Loss(valid_mask);
         
         if height(valid_data) > 0
-            valid_data.Total_Sats = valid_loss;
+            valid_data.Total_sats = valid_loss;
             
             % 1. SORT AND SLICE: Keep only the Top 5 cheapest architectures
-            valid_data = sortrows(valid_data, 'Total_Sats', 'ascend');
+            valid_data = sortrows(valid_data, 'Total_sats', 'ascend');
             num_to_plot = min(5, height(valid_data));
             plot_data = valid_data(1:num_to_plot, :);
             
             % 2. Assign Status Labels for the Legend
             group_labels = repmat({'Candidate'}, height(plot_data), 1);
-            min_sats = min(plot_data.Total_Sats);
-            best_indices = find(plot_data.Total_Sats == min_sats);
+            min_sats = min(plot_data.Total_sats);
+            best_indices = find(plot_data.Total_sats == min_sats);
             for b_idx = 1:length(best_indices)
                 group_labels{best_indices(b_idx)} = 'Minimum';
             end
@@ -246,10 +248,10 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
             plot_data.Sats_per_plane  = categorical(plot_data.Sats_per_plane);
             plot_data.Inclination     = categorical(plot_data.Inclination);
             plot_data.Phasing_Degrees = categorical(plot_data.Phasing_Degrees);
-            plot_data.Total_Sats      = categorical(plot_data.Total_Sats);
+            plot_data.Total_sats      = categorical(plot_data.Total_sats);
             
-            % 4. OPTIMIZED AXIS ORDER: Total_Sats at the end!
-            coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_Sats'};
+            % 4. OPTIMIZED AXIS ORDER: Total_sats at the end!
+            coord_vars = {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees', 'Total_sats'};
             p = parallelplot(plot_data, 'CoordinateVariables', coord_vars, 'GroupVariable', 'Status');
             
             % 5. FIX THE JITTER: Turn off MATLAB's automatic spreading
@@ -315,12 +317,13 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         Cfg.SampleTime = 20;
         Cfg.Lat_vec = linspace(55, 85, 10); 
         Cfg.Lon_vec = linspace(-60, 30, 3);
+        Cfg.Equal_UE_area = true;
         
         Cfg.Num_planes     = best_params.Num_planes;
         Cfg.Sats_per_plane = best_params.Sats_per_plane;
         Cfg.Inclination    = best_params.Inclination;
-        Cfg.Phasing        = best_params.Phasing_Factor;
-        Cfg.Total_sats     = best_params.Total_Sats;
+        Cfg.Phasing        = best_params.Phasing;
+        Cfg.Total_sats     = best_params.Total_sats;
         
         % Run the detailed simulator!
         detailed_metrics = coverage_simulator_function(Cfg, true, true, true); %plot_results = true; use_parallel = true; calc_link = true;

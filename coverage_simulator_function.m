@@ -20,46 +20,9 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
 
     r_earth = 6378.14e3;
     if Cfg.WalkerStar == true
-        % CUSTOM ASYMMETRICAL WALKER STAR
-        a = r_earth + Cfg.Orbit_height;
-        e = 0; % Circular orbit
-        inc = Cfg.Inclination;
-        argPer = 0; 
-        
-        S = Cfg.Total_sats / Cfg.Num_planes; % Sats per plane
-        P = Cfg.Num_planes; % Keep as total planes over 180 degrees
-        
-
-        corotating_gap = (180 - Cfg.Seam_gap) / (P - 1);
-        
-        % Calculate the Walker Phasing offset
-        phase_shift = (Cfg.Phasing * 360) / Cfg.Total_sats;
-        
-        sat_array = []; % Temporary array to hold satellites
-        
-        for p = 1:P
-            % Calculate asymmetrical RAAN
-            raan = (p - 1) * corotating_gap;
-            
-            for s = 1:S
-                % Calculate True Anomaly (position in the orbit + staggering)
-                nu = (s - 1) * (360 / S) + (p - 1) * phase_shift;
-                nu = mod(nu, 360); % Keep it cleanly within 0-360 degrees
-                
-                % Must match your existing "S4D_X" naming convention
-                sat_num = (p - 1) * S + s;
-                name = sprintf("S4D_%d", sat_num);
-                
-                % Create satellite and add to scenario
-                new_sat = satellite(sc, a, e, inc, raan, argPer, nu, ...
-                    "Name", name, "OrbitPropagator", "sgp4");
-                
-                sat_array = [sat_array, new_sat]; 
-            end
-        end
-        sat = sat_array; % Assign array to the expected variable
+        sats = asymmetrical_walker_star_generation(Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane)
     else
-        sat = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
+        sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
         Cfg.Inclination, ...
         Cfg.Total_sats, ...
         Cfg.Num_planes, ...
@@ -67,14 +30,19 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         Name="S4D", OrbitPropagator="sgp4");
     end
 
-    %% UE Grid Setup
-    [LonGrid, LatGrid] = meshgrid(Cfg.Lon_vec, Cfg.Lat_vec);
-    NumUEs = numel(LonGrid);
+    %% Create the UEs Array
+    if Cfg.Equal_UE_area == true
+        [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Cfg.Lat_vec, Cfg.Lon_vec);
+    else
+        [UE_lats, UE_lons] = meshgrid(Cfg.Lat_vec, Cfg.Lon_vec);
+    end
+    NumUEs = length(UE_lats);
     UEs = cell(NumUEs, 1);
+    
     for idx = 1:NumUEs
-        UEs{idx}.Lat = LatGrid(idx);
-        UEs{idx}.Lon = LonGrid(idx);
-        UEs{idx}.Name = sprintf('UE%dLat%.0f', idx, UEs{idx}.Lat);
+        UEs{idx}.Lat = UE_lats(idx);
+        UEs{idx}.Lon = UE_lons(idx);
+        UEs{idx}.Name = sprintf('UE%d', idx);
     end
 
     %% Coverage Simulation
@@ -90,17 +58,17 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         num_workers = 0;   % acts exactly like a 'for' loop
     end
 
-
+    min_elevation_UE = Cfg.Min_elevation_UE;
     tic
     parfor (idx = 1:NumUEs,num_workers)
         current_UE = UEs{idx};
         ue = groundStation(sc, current_UE.Lat, current_UE.Lon, ...
-            'Name', current_UE.Name, 'MinElevationAngle', Cfg.Min_elevation_UE);
+            'Name', current_UE.Name, 'MinElevationAngle', min_elevation_UE);
         
-        ac = access(sat, ue);
+        ac = access(sats, ue);
         intvls = accessIntervals(ac);
         
-        [~, el_mat, r_mat, sim_Times] = aer(ue, sat);
+        [~, el_mat, r_mat, sim_Times] = aer(ue, sats);
         sim_Times = sim_Times'; 
         nT = length(sim_Times);
         
@@ -195,6 +163,10 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
     metrics.worst_coverage_percent = min(prob_coverage);
     metrics.worst_gap_minutes      = max(maxGapMinutes);
     metrics.Num_visible = counts; % returns num visible timeseries
+    
+    % Grabs 'SimData' from each cell and stores it in a new cell array
+    metrics.SimData = cellfun(@(x) x.SimData, UEs, 'UniformOutput', false);
+    % metrics.SimData = UEs.SimData;
 
     metrics.throughput_10pct  = 69;
     metrics.throughput_mean   = 420;

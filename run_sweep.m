@@ -43,8 +43,9 @@ for i = 1:length(heights_km)
     Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
     Cfg.StopTime   = datetime('1-Jun-2025 01:59:59', 'TimeZone', 'UTC'); 
     Cfg.SampleTime = 60; 
-    Cfg.Lat_vec = linspace(55, 85, 4); 
-    Cfg.Lon_vec = linspace(-60, 30, 1);
+    Cfg.Lat_vec = linspace(55, 85, 2); 
+    Cfg.Lon_vec = linspace(-60, 30, 2);
+    Cfg.Equal_UE_area  = true; % 6 ues for 2 lats
     Cfg.Min_elevation_UE = 20;
     Cfg.WalkerStar     = false; % We are optimizing Walker Deltas
     Cfg.Orbit_height = current_h_meters;
@@ -52,7 +53,7 @@ for i = 1:length(heights_km)
     %% The Analytical "Seed" (Walker Star Baseline)
     [star_P, star_S, star_N] = get_analytical_star(heights_km(i), target_lat, Cfg.Min_elevation_UE);
     star_sats(i).Orbit_height = heights_km(i);
-    star_sats(i).Num_sats = star_N;
+    star_sats(i).Total_sats = star_N;
     star_sats(i).Num_planes = star_P;
     star_sats(i).Phasing = star_P/2;
     star_sats(i).Inclination = 87;
@@ -90,7 +91,7 @@ for i = 1:length(heights_km)
     %% Save the Optimized Result
     if ~isempty(best_params)
         best_delta_sats(i).Orbit_height = heights_km(i);
-        best_delta_sats(i).Num_sats       = best_params.Total_Sats;
+        best_delta_sats(i).Total_sats       = best_params.Total_Sats;
         best_delta_sats(i).Num_planes     = best_params.Num_planes;
         best_delta_sats(i).Phasing_Factor = best_params.Phasing_Factor;
         best_delta_sats(i).Sats_per_plane = best_params.Sats_per_plane;
@@ -103,8 +104,8 @@ for i = 1:length(heights_km)
 end
 
 %% --- 3. Plot the Final Master Curve (Star vs Delta) ---
-star_plot_y  = [star_sats.Num_sats];
-delta_plot_y = [best_delta_sats.Num_sats];
+star_plot_y  = [star_sats.Total_sats];
+delta_plot_y = [best_delta_sats.Total_sats];
 f1 = figure('Visible', 'off', 'Name', 'Constellation Comparison', 'Color', 'w', 'Position', [100 100 1000 600]); hold on;
 
 % Plot the Analytical Walker Star baseline (Red Line)
