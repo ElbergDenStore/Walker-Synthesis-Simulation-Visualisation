@@ -35,7 +35,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
             Cfg.Lat_vec = linspace(55, 85, 2); % 6
         case 'medium'
             Cfg.Lat_vec = linspace(55, 85, 4); % 20
-        case 'big'
+        case 'large'
             Cfg.Lat_vec = linspace(55, 85, 8); % 73
         otherwise
             error('Invalid ue_grid_size');

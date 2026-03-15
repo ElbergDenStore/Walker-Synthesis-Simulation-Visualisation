@@ -230,7 +230,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
 
 
 
-        num_plots = 8; %plot progress bar
+        num_plots = 10; %plot progress bar
         plot_dq = parallel.pool.DataQueue;
         updateLiveScriptProgress(num_plots, true); 
         afterEach(plot_dq, @(~) updateLiveScriptProgress(num_plots, false));
@@ -391,23 +391,23 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             send(plot_dq, []);
 
 
-            %% Figure 5: Adjusted Power vs Elevation
-            f5 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
-            
-            % 15 is the marker size. 'filled' and FaceAlpha=0.05 makes high-density areas pop out
-            scatter(all_adjusted_power_dBm - Cfg.DL.G_tx, all_el_deg, 15, 'filled', ...
-                'MarkerFaceColor', '#0072BD', 'MarkerFaceAlpha', 0.1);
-            
-            grid on; box on;
-            title('Elevation Angle vs. Adjusted Power', 'FontSize', 22, 'FontWeight', 'bold');
-            xlabel('Adjusted Power (dBm)', 'FontSize', 18);
-            ylabel('Elevation Angle (deg)', 'FontSize', 18);
-            
-            % Thicken the axes and set font size
-            set(gca, 'FontSize', 14, 'LineWidth', 1.5);
-            exportgraphics(f5, fullfile(out_dir, 'adjusted_power.png'), 'Resolution', 300);
-            close(f5);
-            send(plot_dq, []);
+            % %% Figure 5: Adjusted Power vs Elevation
+            % f5 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
+            % 
+            % % 15 is the marker size. 'filled' and FaceAlpha=0.05 makes high-density areas pop out
+            % scatter(all_adjusted_power_dBm - Cfg.DL.G_tx, all_el_deg, 15, 'filled', ...
+            %     'MarkerFaceColor', '#0072BD', 'MarkerFaceAlpha', 0.1);
+            % 
+            % grid on; box on;
+            % title('Elevation Angle vs. Adjusted Power', 'FontSize', 22, 'FontWeight', 'bold');
+            % xlabel('Adjusted Power (dBm)', 'FontSize', 18);
+            % ylabel('Elevation Angle (deg)', 'FontSize', 18);
+            % 
+            % % Thicken the axes and set font size
+            % set(gca, 'FontSize', 14, 'LineWidth', 1.5);
+            % exportgraphics(f5, fullfile(out_dir, 'adjusted_power.png'), 'Resolution', 300);
+            % close(f5);
+            % send(plot_dq, []);
             
             %% Figure 6: Adjusted Power vs SNR
             f6 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
@@ -475,6 +475,38 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             exportgraphics(f8, fullfile(out_dir, 'Map_Mean_Throughput.png'), 'Resolution', 300);
             close(f8);
             send(plot_dq, []);
+
+            
+            %% MAP 9: Elevation distribution
+            f9 = figure('Visible', 'off', 'Color', 'w');
+            histogram(all_el_deg);
+            grid on; box on;
+            xlabel('Elevation Angle (deg)', 'FontWeight', 'bold');
+            ylabel('Number of Occurences', 'FontWeight', 'bold');
+            title('Distribution of Elevation Angles', 'FontSize', 14);
+
+            exportgraphics(f9, fullfile(out_dir, 'Elevation_distribution.png'), 'Resolution', 300);
+            close(f9);
+            send(plot_dq, []);
+
+            %% MAP 10: Elevation distribution
+            % Calculate nadir steering angles
+            Re = 6378.14e3;
+            r = Re + Cfg.Orbit_height; % Orbit radius
+            % Nadir Angle (eta) - The tilt of the satellite antenna
+            eta = asin((Re/r) * cos(all_el_deg));
+
+            f10 = figure('Visible', 'off', 'Color', 'w');
+            histogram(eta);
+            grid on; box on;
+            xlabel('Nadir Steering Angle (deg)', 'FontWeight', 'bold');
+            ylabel('Number of Occurences', 'FontWeight', 'bold');
+            title('Distribution of Nadir Angles', 'FontSize', 14);
+
+            exportgraphics(f10, fullfile(out_dir, 'nadir_steering_distribution.png'), 'Resolution', 300);
+            close(f10);
+            send(plot_dq, []);
+
 
             
         catch ME

@@ -1,10 +1,10 @@
 clear all; close all; clc;
 
-Cfg = get_cfg(800);
+Cfg = get_cfg(1000);
 
 
-calc_link = false;
-plot_results = false;
+calc_link = true;
+plot_results = true;
 if length(Cfg.Lat_vec)*length(Cfg.Lon_vec) > 8 % automate le decision
     use_parallel = true;
 else
