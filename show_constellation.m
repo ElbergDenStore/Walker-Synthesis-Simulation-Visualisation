@@ -28,16 +28,23 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
         Cfg.Phasing, ...
         Name="S4D", OrbitPropagator="sgp4");
     end
-
-    [UE_lats_flat, UE_lons_flat] = generate_equal_ish_area_UEs(Cfg.Lat_vec, Cfg.Lon_vec);
-    
     %% Create the UEs Array
-    NumUEs = length(UE_lats_flat);
+    if Cfg.Equal_UE_area == true
+        [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Cfg.Lat_vec, Cfg.Lon_vec);
+    elseif Cfg.Accept_Flat_UE_array == true
+        UE_lats = Cfg.Flat_UE_array.Lats;
+        UE_lons = Cfg.Flat_UE_array.Lons;
+    else
+        [UE_lats, UE_lons] = meshgrid(Cfg.Lat_vec, Cfg.Lon_vec);
+    end
+
+    %% Create the UEs Array
+    NumUEs = length(UE_lats);
     UEs = cell(NumUEs, 1);
     
     for idx = 1:NumUEs
-        UEs{idx}.Lat = UE_lats_flat(idx);
-        UEs{idx}.Lon = UE_lons_flat(idx);
+        UEs{idx}.Lat = UE_lats(idx);
+        UEs{idx}.Lon = UE_lons(idx);
         UEs{idx}.Name = sprintf('UE%d', idx);
         
         % Add to scenario
