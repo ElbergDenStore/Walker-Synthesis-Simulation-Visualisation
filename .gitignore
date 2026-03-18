@@ -2,6 +2,7 @@
 *.mlx
 *.mlsx
 *.asv
+*.tif
 
 # Large Data files (Keep these local!)
 *.mat

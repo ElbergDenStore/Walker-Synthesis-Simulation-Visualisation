@@ -33,7 +33,11 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
     %% Create the UEs Array
     if Cfg.Equal_UE_area == true
         [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Cfg.Lat_vec, Cfg.Lon_vec);
+    elseif Cfg.Accept_Flat_UE_array == true
+        UE_lats = Cfg.Flat_UE_array.Lats;
+        UE_lons = Cfg.Flat_UE_array.Lons;
     else
+
         [UE_lats, UE_lons] = meshgrid(Cfg.Lat_vec, Cfg.Lon_vec);
     end
     NumUEs = length(UE_lats);
