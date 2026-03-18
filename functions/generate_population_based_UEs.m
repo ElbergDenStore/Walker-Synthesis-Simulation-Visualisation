@@ -1,6 +1,6 @@
 function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_based_UEs(lat_vec, lon_vec, people_per_ue)
     % 1. Load the population data
-    filename = 'world_population_density.tif';
+    filename = 'ppp_2020_1km_Aggregated.tif';
     fprintf('Loading GeoTIFF for UE generation...\n');
     [pop_data, R] = readgeoraster(filename);
     
@@ -14,6 +14,24 @@ function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_based_UEs
     % 4. Clean the data (Remove negative NoData values/oceans)
     local_data = double(local_data);
     local_data(local_data < 0 | isnan(local_data)) = 0;
+
+    
+    % ---------------------------------------------------------
+    % 5. THE EXCLUSION MASK: Remove Canada
+    % We create a 2D grid of the latitudes and longitudes for every pixel
+    [cols, rows] = meshgrid(1:size(local_data,2), 1:size(local_data,1));
+    [lats_grid, lons_grid] = intrinsicToGeographic(local_R, cols, rows);
+    
+    % Exclude Iceland (Everything south of 67.5N and east of 25W)
+    % iceland_mask = (lats_grid < 67.5) & (lons_grid > -25.0);
+    % local_data(iceland_mask) = 0;
+    
+    % Exclude Canada (Using a rough staircase cut along the western border)
+    canada_mask1 = (lats_grid < 75.0) & (lons_grid < -55.0);
+    canada_mask2 = (lats_grid >= 75.0) & (lons_grid < -75.0);
+    local_data(canada_mask1 | canada_mask2) = 0;
+    % ---------------------------------------------------------
+
     
     % 5. Calculate Total Population and Target Number of UEs
     Total_Pop = sum(local_data, 'all');
