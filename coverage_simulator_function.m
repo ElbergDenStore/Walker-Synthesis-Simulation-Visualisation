@@ -20,7 +20,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
 
     r_earth = 6378.14e3;
     if Cfg.WalkerStar == true
-        sats = asymmetrical_walker_star_generation(Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane)
+        sats = asymmetrical_walker_star_generation(Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
     else
         sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
         Cfg.Inclination, ...
@@ -72,7 +72,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         ac = access(sats, ue);
         intvls = accessIntervals(ac);
         
-        [~, el_mat, r_mat, sim_Times] = aer(ue, sats);
+        [az_mat, el_mat, r_mat, sim_Times] = aer(ue, sats);
         sim_Times = sim_Times'; 
         nT = length(sim_Times);
         
@@ -99,6 +99,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         
         final_Range = nan(1, nT);
         final_El    = nan(1, nT);
+        final_Az    = nan(1, nT);
         final_SatID = nan(1, nT);
         
         if any(has_service)
@@ -110,13 +111,15 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             num_rows = size(el_mat, 1);
             lin_idxs = best_sats_valid + (valid_cols - 1) * num_rows;
             final_El(has_service) = el_mat(lin_idxs); % linear index needed for a 1d output
+            final_Az(has_service) = az_mat(lin_idxs);
         end
         
         current_UE.SimData = struct(... 
             'Time',          sim_Times', ...            
             'SatID',         final_SatID, ...          
             'Range',         final_Range, ...          
-            'Elevation_deg', final_El, ...             
+            'Elevation_deg', final_El, ...
+            'Azimuth_deg',   final_Az, ...
             'Num_visible',   Num_visible ...           
         );
         
