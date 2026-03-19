@@ -4,7 +4,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
         constellation_type (1,1) string = "walkerdelta"
         ue_grid_size (1,1) string = "small"
         duration (1,1) string = "short"
-        frequency (1,1) string = "fr2"
+        frequency (1,1) string = "ku"
     end
 
     %%%%% CONSTELLATION %%%%
@@ -67,12 +67,20 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
             Cfg.DL.G_rx      = 3; % Dipole antenna typically
             Cfg.DL.Rx_type   = "array";      
             Cfg.DL.NF        = 7; %  TR 38821
-        case 'fr2'
-            Cfg.Target_PFD_MHz = -108;
+        case 'ka'
+            Cfg.Target_PFD_MHz = -115;
             Cfg.DL.B         = 2e6;     
             Cfg.DL.f         = 20e9;
             Cfg.DL.Tx_type   = "array";      
-            Cfg.DL.G_rx      = 32;      
+            Cfg.DL.G_rx      = 36;      
+            Cfg.DL.Rx_type   = "array";      
+            Cfg.DL.NF        = 5;
+        case 'ku'
+            Cfg.Target_PFD_MHz = -115;
+            Cfg.DL.B         = 2e6;     
+            Cfg.DL.f         = 12e9;
+            Cfg.DL.Tx_type   = "array";      
+            Cfg.DL.G_rx      = 33;      
             Cfg.DL.Rx_type   = "array";      
             Cfg.DL.NF        = 5;
         otherwise
