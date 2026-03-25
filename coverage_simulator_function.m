@@ -10,7 +10,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     
     simTimes = sc.StartTime:seconds(sc.SampleTime):sc.StopTime;
     simTimes.TimeZone = 'UTC';
-    nT = length(simTimes); % Calculate nT early for memory allocation
+    nT = length(simTimes)+1; % Calculate nT early for memory allocation
     
     r_earth = 6378.14e3;
     if Cfg.WalkerStar == true
@@ -30,7 +30,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     else
         [UE_lats, UE_lons] = meshgrid(Cfg.Lat_vec, Cfg.Lon_vec);
     end
-    NumUEs = length(UE_lats);
+    Cfg.NumUEs = length(UE_lats);
     
     % 1. Define the perfectly sized SimData template
     empty_SimData = struct(...
@@ -65,8 +65,8 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     end
     
     % 3. Lock in memory for the Struct Array
-    UEs(NumUEs).Lat = []; 
-    for idx = 1:NumUEs
+    UEs(Cfg.NumUEs).Lat = []; 
+    for idx = 1:Cfg.NumUEs
         UEs(idx).Lat = UE_lats(idx);
         UEs(idx).Lon = UE_lons(idx);
         UEs(idx).Name = sprintf('UE%d', idx);
@@ -88,8 +88,8 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     
     %% Coverage Simulation
     dq = parallel.pool.DataQueue;
-    updateLiveScriptProgress(NumUEs, true); 
-    afterEach(dq, @(~) updateLiveScriptProgress(NumUEs, false));
+    updateLiveScriptProgress(Cfg.NumUEs, true); 
+    afterEach(dq, @(~) updateLiveScriptProgress(Cfg.NumUEs, false));
     if use_parallel
         num_workers = Inf; 
     else
@@ -97,9 +97,11 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     end
     
     min_elevation_UE = Cfg.Min_elevation_UE;
+
+    Cfg.Num_workers = num_workers; % Will be used in link calculation
     
     tic
-    parfor (idx = 1:NumUEs, num_workers)
+    parfor (idx = 1:Cfg.NumUEs, num_workers)
         ue = groundStation(sc, UEs(idx).Lat, UEs(idx).Lon, ...
             'Name', UEs(idx).Name, 'MinElevationAngle', min_elevation_UE);
         
@@ -143,8 +145,8 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     minNumberSatellites = min(counts, [], 2);
     meanNumberSatellites = mean(counts, 2);
     
-    maxGapMinutes = zeros(NumUEs,1);
-    for idx = 1:NumUEs
+    maxGapMinutes = zeros(Cfg.NumUEs,1);
+    for idx = 1:Cfg.NumUEs
         row = (counts(idx,:) == 0);  
         maxZeroStreak = 0; currentStreak = 0;
         for k = 1:length(row)
@@ -168,15 +170,15 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     % Fallbacks if Link Calc is off
     metrics.throughput_10pct  = NaN;
     metrics.throughput_mean   = NaN;
-    meanThroughput = NaN(NumUEs, 1);
+    meanThroughput = NaN(Cfg.NumUEs, 1);
     
     %% Link Budget Calculation (2D Vectorized)
     if calc_link
         tic
         % 1. Extract massive 2D matrices from the struct array
         SimDataArray = [UEs.SimData];
-        el_mat = vertcat(SimDataArray.Elevation_deg); % Size: NumUEs x nT
-        range_mat = vertcat(SimDataArray.Range);      % Size: NumUEs x nT
+        el_mat = vertcat(SimDataArray.Elevation_deg); % Size: Cfg.NumUEs x nT
+        range_mat = vertcat(SimDataArray.Range);      % Size: Cfg.NumUEs x nT
         lat_vec = [UEs.Lat]';
         lon_vec = [UEs.Lon]';
         
@@ -185,7 +187,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             DL_Result = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, Cfg.DL, Cfg);
             
             % Distribute results back into the UEs struct (takes fractions of a second)
-            for idx = 1:NumUEs
+            for idx = 1:Cfg.NumUEs
                 UEs(idx).DL.Frequency         = DL_Result.Frequency;
                 UEs(idx).DL.Bandwidth         = DL_Result.Bandwidth;
                 UEs(idx).DL.FSPL              = DL_Result.FSPL(idx, :);
@@ -212,7 +214,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         % Repeat exactly the same for UL if it exists
         if isfield(Cfg, 'UL')
             UL_Result = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, Cfg.UL, Cfg);
-            for idx = 1:NumUEs
+            for idx = 1:Cfg.NumUEs
                 UEs(idx).UL.SNR        = UL_Result.SNR(idx, :);
                 UEs(idx).UL.Throughput = UL_Result.Throughput(idx, :);
                 % ... map other fields as needed ...
@@ -267,7 +269,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         grid on; title('Global Throughput PDF (DL)'); xlabel(sprintf('Throughput (%s)', thpt_unit)); ylabel('Probability Density');
         
         % Tile 2: Throughput CDF
-        nexttile; [f_thpt, x_thpt] = ecdf(all_thpt./thpt_scale); plot(x_thpt, f_thpt, 'LineWidth', 2, 'Color', '#7E2F8E');
+        nexttile; [f_thpt, x_thpt] = ecdf(all_thpt(:)./thpt_scale); plot(x_thpt, f_thpt, 'LineWidth', 2, 'Color', '#7E2F8E');
         grid on; title('Throughput CDF (DL)'); xlabel(sprintf('Throughput (%s)', thpt_unit)); ylabel('Probability \leq x'); xlim([0 max(x_thpt)]);
         
         % Tile 3 & 4 (Merged to span the whole bottom row for our text)
@@ -326,8 +328,8 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         updateLiveScriptProgress(num_plots, false);
     
         % Mapping (Probability of Service)
-        lat_vector = cellfun(@(x) x.Lat, UEs)';
-        lon_vector = cellfun(@(x) x.Lon, UEs)';
+        lat_vector = [UEs.Lat]';
+        lon_vector = [UEs.Lon]';
         
         % 1) Geographical Grid (Calculated once for all maps)
         lat_lim = [min(Cfg.Lat_vec) max(Cfg.Lat_vec)];
@@ -347,7 +349,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
             surfm(LatG, LonG, ValG_min, 'FaceAlpha', 0.5);
             
-            for i = 1:NumUEs
+            for i = 1:Cfg.NumUEs
                 textm(lat_vector(i), lon_vector(i), sprintf('%d', minNumberSatellites(i)), ...
                       'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
                       'FontSize', 14, 'FontWeight', 'bold', 'Color', 'k'); 
@@ -369,7 +371,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
             surfm(LatG, LonG, ValG_mean, 'FaceAlpha', 0.5);
             
-            for i = 1:NumUEs
+            for i = 1:Cfg.NumUEs
                 textm(lat_vector(i), lon_vector(i), sprintf('%.1f', meanNumberSatellites(i)), ...
                       'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
                       'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k');
@@ -391,7 +393,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
             surfm(LatG, LonG, ValG_prob, 'FaceAlpha', 0.5);
             
-            for i = 1:NumUEs
+            for i = 1:Cfg.NumUEs
                 textm(lat_vector(i), lon_vector(i), sprintf('%.0f', prob_coverage(i)), ...
                       'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
                       'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k'); 
@@ -507,7 +509,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             Re = 6378.14e3;
             r = Re + Cfg.Orbit_height; % Orbit radius
             % Nadir Angle (eta) - The tilt of the satellite antenna
-            eta = asin((Re/r) * cos(all_el_deg));
+            eta = rad2deg(asin((Re/r) * cosd(all_el_deg)));
 
             f10 = figure('Visible', 'off', 'Color', 'w');
             histogram(eta);

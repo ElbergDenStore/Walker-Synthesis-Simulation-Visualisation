@@ -93,54 +93,23 @@ function [At_mat, Tsky_mat] = Absorption_calc_2D(f, el_mat, lat_vec, lon_vec, Cf
     At_mat = zeros(size(el_mat));
     Tsky_mat = zeros(size(el_mat));
     el_grid = 20:10:90; 
+
+    dq = parallel.pool.DataQueue;
+    updateLiveScriptProgress(Cfg.NumUEs, true); 
+    afterEach(dq, @(~) updateLiveScriptProgress(Cfg.NumUEs, false));
     
-    num_pts = length(lat_vec);
-    
-    use_par = false;
-    if isfield(Cfg, 'use_parallel') && Cfg.use_parallel
-        use_par = true;
-    end
-    
-    if ~isempty(getCurrentTask())
-        use_par = false; % Cannot use DataQueue/parfor on a worker
-    end
-    
-    if use_par
-        updateLiveScriptProgress(num_pts, true);
-        dq = parallel.pool.DataQueue;
-        afterEach(dq, @(~) updateLiveScriptProgress(num_pts, false));
-        
-        parfor u = 1:num_pts
-            grid_At = zeros(1, length(el_grid)); grid_Tsky = zeros(1, length(el_grid));
-            ws = warning('off', 'all'); 
-            for i = 1:length(el_grid)
-                link_cfg = p618Config('Frequency',f,'ElevationAngle',el_grid(i),'Latitude',lat_vec(u),'Longitude',lon_vec(u),'TotalAnnualExceedance',1);      
-                [pl, ~, tsky] = p618PropagationLosses(link_cfg, 'StationHeight', 0);
-                grid_At(i) = pl.At; grid_Tsky(i) = tsky;
-            end
-            warning(ws); 
-            
-            At_mat(u, :) = interp1(el_grid, grid_At, el_mat(u,:), 'linear');
-            Tsky_mat(u, :) = interp1(el_grid, grid_Tsky, el_mat(u,:), 'linear');
-            
-            send(dq, []);
+    old_warn = warning('off', 'all'); 
+    parfor (idx = 1:Cfg.NumUEs, Cfg.Num_workers)
+        grid_At = zeros(1, length(el_grid)); grid_Tsky = zeros(1, length(el_grid));
+        for i = 1:length(el_grid)
+            link_cfg = p618Config('Frequency',f,'ElevationAngle',el_grid(i),'Latitude',lat_vec(idx),'Longitude',lon_vec(idx),'TotalAnnualExceedance',1);      
+            [pl, ~, tsky] = p618PropagationLosses(link_cfg, 'StationHeight', 0);
+            grid_At(i) = pl.At; grid_Tsky(i) = tsky;
         end
-    else
-        old_warn = warning('off', 'all'); 
-        for u = 1:num_pts
-            grid_At = zeros(1, length(el_grid)); grid_Tsky = zeros(1, length(el_grid));
-            for i = 1:length(el_grid)
-                link_cfg = p618Config('Frequency',f,'ElevationAngle',el_grid(i),'Latitude',lat_vec(u),'Longitude',lon_vec(u),'TotalAnnualExceedance',1);      
-                [pl, ~, tsky] = p618PropagationLosses(link_cfg, 'StationHeight', 0);
-                grid_At(i) = pl.At; grid_Tsky(i) = tsky;
-            end
-            At_mat(u, :) = interp1(el_grid, grid_At, el_mat(u,:), 'linear');
-            Tsky_mat(u, :) = interp1(el_grid, grid_Tsky, el_mat(u,:), 'linear');
-            
-            if ~use_par && isempty(getCurrentTask())
-                updateLiveScriptProgress(num_pts, false);
-            end
-        end
-        warning(old_warn); 
+        % Interpolate for this specific UE's time series
+        At_mat(idx, :) = interp1(el_grid, grid_At, el_mat(idx,:), 'linear');
+        Tsky_mat(idx, :) = interp1(el_grid, grid_Tsky, el_mat(idx,:), 'linear');
+        send(dq, []);
     end
+    warning(old_warn); 
 end
