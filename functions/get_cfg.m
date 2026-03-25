@@ -8,7 +8,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     end
 
     %%%%% CONSTELLATION %%%%
-    optimal_constellation = load("optimal_constellations.mat")
+    optimal_constellation = load("optimal_constellations.mat");
 
     constellation_idx = find(optimal_constellation.heights_km >= height_km, 1, 'first');
     switch lower(constellation_type)

@@ -15,5 +15,5 @@ function max_P_tx_dBm = PFD_calc(target_PFD_MHz, g_tx, bandwidth, orbit_height, 
     
     % Calculate tx power
     % PFD_1MHz = g_tx + P_tx_dBm - loss_steer - 10*log10(area_m2) - 10*log10(B/1e6);
-    max_P_tx_dBm = target_PFD_MHz + 30 - g_tx + loss_steer + 10*log10(area_m2) + 10*log10(bandwidth/1e6)
+    max_P_tx_dBm = target_PFD_MHz + 30 - g_tx + loss_steer + 10*log10(area_m2) + 10*log10(bandwidth/1e6);
 end
