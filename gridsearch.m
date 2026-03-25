@@ -21,15 +21,13 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing', 'Total_sats'});
     
     %% 2. The Smart Filters
-    isValidTarget = search_grid.Total_sats >= min_sats
-    % isValidTarget = search_grid.Total_sats >= min_sats & search_grid.Total_sats <= max_sats;
+    isValidTarget = search_grid.Total_sats >= min_sats;
     search_grid = search_grid(isValidTarget, :);
     
     % Sort from cheapest to most expensive!
     search_grid = sortrows(search_grid, 'Total_sats', 'ascend');
     
     fprintf('\n=== Starting Ascending Grid Search ===\n');
-    % fprintf('Testing %d valid architectures between %d and %d satellites...\n\n', height(search_grid), min_sats,max_sats);
     fprintf('Testing %d valid architectures from %d satellites...\n\n', height(search_grid), min_sats);
     
     %% 3. Simulate until we find the Global Minimum + N candidates
@@ -50,13 +48,6 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     % max_sats_to_check = Inf;
 
     for batch_start = 1 : num_workers : total_runs
-        % --- NEW BREAK CONDITION ---
-        % Because the grid is sorted by Total_sats, if the current batch starts 
-        % higher than our 5% limit, we know we're done!
-        % if search_grid.Total_sats(batch_start) > max_sats_to_check
-        %     fprintf('\n--- Exceeded %d\% limit above minimum found (%d sats). Stopping search! ---\n',extra_search_percent, max_sats_to_check);
-        %     break;
-        % end
         if height(all_candidates) >= target_num_candidates
             fprintf('\n--- Found %d viable candidates. Target reached! Stopping search. ---\n', height(all_candidates));
             break;

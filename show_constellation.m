@@ -1,7 +1,7 @@
 function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_details)
     % Set default behaviors if you don't provide all inputs
     if nargin < 1
-        Cfg = get_cfg(1000,"walkerdelta","large","short")
+        Cfg = get_cfg(1000,"walkerdelta","big","short")
     end
     if nargin < 2, show_interactive = true; end
     if nargin < 3, save_fig = false; end
