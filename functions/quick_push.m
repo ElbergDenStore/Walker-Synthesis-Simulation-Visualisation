@@ -13,6 +13,9 @@ function quick_push()
     fprintf('\n--- Staging changes (git add .) ---\n');
     [status_add, out_add] = system('git add .');
     disp(out_add);
+    fprintf('\n--- Staging changes (git add functions/.) ---\n');
+    [status_add, out_add] = system('git add functions/.');
+    disp(out_add);
     
     fprintf('--- Committing changes ---\n');
     % Safely format the commit command with the user's message
