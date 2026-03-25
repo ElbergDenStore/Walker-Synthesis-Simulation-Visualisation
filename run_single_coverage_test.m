@@ -1,16 +1,15 @@
 clear all; close all; clc;
 
-Cfg = get_cfg(1000,"walkerdelta","big","medium");
+Cfg = get_cfg(1000,"walkerdelta","small","medium");
 
-
-calc_link = false;
-plot_results = false;
+Cfg.Use_P618 = false;
+calc_link = true;
+plot_results = true;
 if length(Cfg.Lat_vec)*length(Cfg.Lon_vec) > 8 % automate le decision
     use_parallel = true;
 else
     use_parallel = false;
 end
-use_parallel = false;
 
 metrics = coverage_simulator_function(Cfg, plot_results,use_parallel,calc_link);
 show_interactive = true;

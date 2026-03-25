@@ -1,15 +1,8 @@
-function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, calc_link)
+function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link)
 % RUN_SATELLITE_SIM Simulates satellite coverage and link budget.
-% Inputs: Cfg - Struct containing all configuration parameters
-% Outputs: metrics - Struct containing key performance indicators for optimization
-
-    % fprintf('\n======================================================\n');
     fprintf('\n Starting Simulation: %d Sats, %.1f deg Inclination\n', Cfg.Total_sats, Cfg.Inclination);
-    % fprintf('======================================================\n');
     
-
     %% Scenario & Constellation Setup
-    % fprintf('Defining constellation...\n');
     sc = satelliteScenario;
     sc.StartTime  = Cfg.StartTime;
     sc.StopTime   = Cfg.StopTime;
@@ -17,20 +10,18 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
     
     simTimes = sc.StartTime:seconds(sc.SampleTime):sc.StopTime;
     simTimes.TimeZone = 'UTC';
-
+    nT = length(simTimes); % Calculate nT early for memory allocation
+    
     r_earth = 6378.14e3;
     if Cfg.WalkerStar == true
         sats = asymmetrical_walker_star_generation(Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
     else
         sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
-        Cfg.Inclination, ...
-        Cfg.Total_sats, ...
-        Cfg.Num_planes, ...
-        Cfg.Phasing, ...
+        Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
         Name="S4D", OrbitPropagator="sgp4");
     end
-
-    %% Create the UEs Array
+    
+    %% Create the UEs Struct Array (Pre-allocated)
     if Cfg.Equal_UE_area == true
         [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Cfg.Lat_vec, Cfg.Lon_vec);
     elseif Cfg.Accept_Flat_UE_array == true
@@ -40,119 +31,117 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         [UE_lats, UE_lons] = meshgrid(Cfg.Lat_vec, Cfg.Lon_vec);
     end
     NumUEs = length(UE_lats);
-    UEs = cell(NumUEs, 1);
     
-    for idx = 1:NumUEs
-        UEs{idx}.Lat = UE_lats(idx);
-        UEs{idx}.Lon = UE_lons(idx);
-        UEs{idx}.Name = sprintf('UE%d', idx);
-    end
+    % 1. Define the perfectly sized SimData template
+    empty_SimData = struct(...
+        'Time',          simTimes', ... 
+        'SatID',         NaN(1, nT), ...
+        'Range',         NaN(1, nT), ...
+        'Elevation_deg', NaN(1, nT), ...
+        'Azimuth_deg',   NaN(1, nT), ...
+        'Num_visible',   zeros(1, nT) ...
+    );
 
-    %% Coverage Simulation
-    % fprintf('Defining UEs and calculating links...\n');
+    % 2. Conditionally define the Link template
+    if calc_link
+        empty_Absorption = struct('Ag', NaN(1, nT), 'Ac', NaN(1, nT), ...
+                                  'Ar', NaN(1, nT), 'As', NaN(1, nT), 'At', NaN(1, nT));
+        empty_link = struct(...
+            'Frequency',         NaN, ...
+            'Bandwidth',         NaN, ...
+            'FSPL',              NaN(1, nT), ...
+            'Absorption',        empty_Absorption, ...
+            'T_antenna',         NaN(1, nT), ...
+            'Rx_steering_loss',  NaN(1, nT), ...
+            'Tx_steering_loss',  NaN(1, nT), ...
+            'Total_loss',        NaN(1, nT), ...
+            'Adjusted_EIRP_dBm', NaN(1, nT), ...
+            'PFD_W_MHz',         NaN(1, nT), ...
+            'P_noise',           NaN(1, nT), ...
+            'Rx_Power',          NaN(1, nT), ...
+            'SNR',               NaN(1, nT), ...
+            'Throughput',        NaN(1, nT) ...
+        );
+    end
     
+    % 3. Lock in memory for the Struct Array
+    UEs(NumUEs).Lat = []; 
+    for idx = 1:NumUEs
+        UEs(idx).Lat = UE_lats(idx);
+        UEs(idx).Lon = UE_lons(idx);
+        UEs(idx).Name = sprintf('UE%d', idx);
+        UEs(idx).SimData = empty_SimData;
+        
+        if calc_link
+            if isfield(Cfg, 'DL')
+                UEs(idx).DL = empty_link;
+                UEs(idx).DL.Frequency = Cfg.DL.f;
+                UEs(idx).DL.Bandwidth = Cfg.DL.B;
+            end
+            if isfield(Cfg, 'UL')
+                UEs(idx).UL = empty_link;
+                UEs(idx).UL.Frequency = Cfg.UL.f;
+                UEs(idx).UL.Bandwidth = Cfg.UL.B;
+            end
+        end
+    end
+    
+    %% Coverage Simulation
     dq = parallel.pool.DataQueue;
     updateLiveScriptProgress(NumUEs, true); 
     afterEach(dq, @(~) updateLiveScriptProgress(NumUEs, false));
-
     if use_parallel
-        num_workers = Inf; % Use the active parallel pool
+        num_workers = Inf; 
     else
-        num_workers = 0;   % acts exactly like a 'for' loop
+        num_workers = 0;   
     end
-
+    
     min_elevation_UE = Cfg.Min_elevation_UE;
+    
     tic
-    parfor (idx = 1:NumUEs,num_workers)
-        current_UE = UEs{idx};
-        ue = groundStation(sc, current_UE.Lat, current_UE.Lon, ...
-            'Name', current_UE.Name, 'MinElevationAngle', min_elevation_UE);
+    parfor (idx = 1:NumUEs, num_workers)
+        ue = groundStation(sc, UEs(idx).Lat, UEs(idx).Lon, ...
+            'Name', UEs(idx).Name, 'MinElevationAngle', min_elevation_UE);
         
-        
-        
-        [az_mat, el_mat, r_mat, sim_Times] = aer(ue, sats);
-        sim_Times = sim_Times'; 
-        nT = length(sim_Times);
+        [az_mat, el_mat, r_mat, ~] = aer(ue, sats);
         
         valid_mask = el_mat >= min_elevation_UE;
-
-
-        % ac = access(sats, ue);
-        % intvls = accessIntervals(ac);
-        % valid_mask = false(size(el_mat));
-        % 
-        % for row = 1:height(intvls)
-        %     sourceName = string(intvls.Source(row));
-        %     sat_idx = sscanf(sourceName, "S4D_%d");
-        % 
-        %     delta_start = seconds(intvls.StartTime(row) - sc.StartTime);
-        %     delta_end   = seconds(intvls.EndTime(row)   - sc.StartTime);
-        % 
-        %     idx_start = round(delta_start / sc.SampleTime) + 1;
-        %     idx_end   = round(delta_end   / sc.SampleTime) + 1;
-        %     valid_mask(sat_idx, idx_start:idx_end) = true;
-        % end
-
         Num_visible = sum(valid_mask,1); 
         has_service = Num_visible > 0;
-
+        
         r_temp = r_mat;
         r_temp(~valid_mask) = Inf; 
         [best_ranges, best_sat_idx] = min(r_temp, [], 1); 
-
-        final_Range = nan(1, nT);
-        final_El    = nan(1, nT);
-        final_Az    = nan(1, nT);
-        final_SatID = nan(1, nT);
-
+        
+        % Write directly to pre-allocated slice
+        UEs(idx).SimData.Num_visible = Num_visible;
+        
         if any(has_service)
-            final_Range(has_service) = best_ranges(has_service);
+            UEs(idx).SimData.Range(has_service) = best_ranges(has_service);
+            
             best_sats_valid = best_sat_idx(has_service);
-            final_SatID(has_service) = best_sats_valid;
-
+            UEs(idx).SimData.SatID(has_service) = best_sats_valid;
+            
             valid_cols = find(has_service);
             num_rows = size(el_mat, 1);
             lin_idxs = best_sats_valid + (valid_cols - 1) * num_rows;
-            final_El(has_service) = el_mat(lin_idxs); % linear index needed for a 1d output
-            final_Az(has_service) = az_mat(lin_idxs);
+            
+            UEs(idx).SimData.Elevation_deg(has_service) = el_mat(lin_idxs);
+            UEs(idx).SimData.Azimuth_deg(has_service)   = az_mat(lin_idxs);
         end
         
-        current_UE.SimData = struct(... 
-            'Time',          sim_Times', ...            
-            'SatID',         final_SatID, ...          
-            'Range',         final_Range, ...          
-            'Elevation_deg', final_El, ...
-            'Azimuth_deg',   final_Az, ...
-            'Num_visible',   Num_visible ...           
-        );
-        
-        % durations = seconds(intvls.EndTime - intvls.StartTime);
-        % current_UE.SimData.TimeStats = struct(...
-        %     'Mean',   mean(durations), ...
-        %     'Max',    max(durations), ...
-        %     'Min',    min(durations), ...
-        %     'Total',  sum(durations), ...
-        %     'Num_Passes', numel(durations) ... 
-        % );
-        
-        UEs{idx} = current_UE;
         send(dq, []);
     end
     fprintf('\nGeometry calculation complete (%.1f sec).\n', toc);
     
-    % Coverage Stats
-    nT = length(UEs{1}.SimData.Time);
-    counts = zeros(NumUEs, nT);
-
-    for idx = 1:NumUEs
-        counts(idx,:) = UEs{idx}.SimData.Num_visible;
-    end
-
+    %% Coverage Stats (Fully Vectorized)
+    SimDataArray = [UEs.SimData];
+    counts = vertcat(SimDataArray.Num_visible);
+    
     more_1_satellites = (counts >= 1);
-    prob_coverage = 100 * sum(more_1_satellites, 2) ./ nT; % Array per UE
+    prob_coverage = 100 * sum(more_1_satellites, 2) ./ nT; 
     minNumberSatellites = min(counts, [], 2);
     meanNumberSatellites = mean(counts, 2);
-    
     
     maxGapMinutes = zeros(NumUEs,1);
     for idx = 1:NumUEs
@@ -168,55 +157,70 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         end
         maxGapMinutes(idx) = maxZeroStreak * Cfg.SampleTime / 60;
     end
-
-    % Compile specific return metrics for the search algorithm
+    
     metrics.worst_coverage_percent = min(prob_coverage);
     metrics.worst_gap_minutes      = max(maxGapMinutes);
-    metrics.Num_visible = counts; % returns num visible timeseries
+    metrics.Num_visible            = counts; 
     
-    % Grabs 'SimData' from each cell and stores it in a new cell array
-    metrics.SimData = cellfun(@(x) x.SimData, UEs, 'UniformOutput', false);
-    % metrics.SimData = UEs.SimData;
-
-    metrics.throughput_10pct  = 69;
-    metrics.throughput_mean   = 420;
-
-
-    %% Link Budget Calculation
+    % Store the final struct array in metrics
+    metrics.SimData = SimDataArray;
+    
+    % Fallbacks if Link Calc is off
+    metrics.throughput_10pct  = NaN;
+    metrics.throughput_mean   = NaN;
+    meanThroughput = NaN(NumUEs, 1);
+    
+    %% Link Budget Calculation (2D Vectorized)
     if calc_link
         tic
-        parfor (idx = 1:NumUEs,num_workers)
-            UEs{idx}.DL = link_calc(UEs{idx}, Cfg.DL, Cfg);
-            send(dq, []);
+        % 1. Extract massive 2D matrices from the struct array
+        SimDataArray = [UEs.SimData];
+        el_mat = vertcat(SimDataArray.Elevation_deg); % Size: NumUEs x nT
+        range_mat = vertcat(SimDataArray.Range);      % Size: NumUEs x nT
+        lat_vec = [UEs.Lat]';
+        lon_vec = [UEs.Lon]';
+        
+        % 2. Run the calculation ONCE for all UEs simultaneously
+        if isfield(Cfg, 'DL')
+            DL_Result = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, Cfg.DL, Cfg);
+            
+            % Distribute results back into the UEs struct (takes fractions of a second)
+            for idx = 1:NumUEs
+                UEs(idx).DL.Frequency         = DL_Result.Frequency;
+                UEs(idx).DL.Bandwidth         = DL_Result.Bandwidth;
+                UEs(idx).DL.FSPL              = DL_Result.FSPL(idx, :);
+                UEs(idx).DL.Total_loss        = DL_Result.Total_loss(idx, :);
+                UEs(idx).DL.Adjusted_EIRP_dBm = DL_Result.Adjusted_EIRP_dBm(idx, :);
+                UEs(idx).DL.PFD_W_MHz         = DL_Result.PFD_W_MHz(idx, :);
+                UEs(idx).DL.SNR               = DL_Result.SNR(idx, :);
+                UEs(idx).DL.Throughput        = DL_Result.Throughput(idx, :);
+                UEs(idx).DL.Absorption.At     = DL_Result.Absorption_At(idx, :);
+            end
+            
+            % Plotting Metrics Extraction is incredibly fast because it's already a matrix
+            all_snr                = DL_Result.SNR;
+            all_thpt               = DL_Result.Throughput;
+            all_adjusted_power_dBm = DL_Result.Adjusted_EIRP_dBm;
+            all_pfd_W_MHz          = DL_Result.PFD_W_MHz;
+            all_el_deg             = el_mat;
+            
+            metrics.throughput_10pct = prctile(all_thpt(:), 10);
+            metrics.throughput_mean  = mean(all_thpt(:), 'omitnan');
+            meanThroughput = mean(all_thpt, 2, 'omitnan');
+        end
+        
+        % Repeat exactly the same for UL if it exists
+        if isfield(Cfg, 'UL')
+            UL_Result = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, Cfg.UL, Cfg);
+            for idx = 1:NumUEs
+                UEs(idx).UL.SNR        = UL_Result.SNR(idx, :);
+                UEs(idx).UL.Throughput = UL_Result.Throughput(idx, :);
+                % ... map other fields as needed ...
+            end
         end
         fprintf('\nLoss calculation complete (%.1f sec).\n', toc);
-    
-        %% Data Aggregation & Metrics
-        all_snr  = [];
-        all_thpt = [];
-        all_loss = [];
-        all_adjusted_power_dBm = [];
-        all_el_deg = [];
-        all_pfd_W_MHz = [];
-        
-        
-    
-        meanThroughput = zeros(1,NumUEs);
-        
-        for idx = 1:NumUEs
-            all_snr  = [all_snr, [UEs{idx}.DL.SNR]];
-            all_thpt = [all_thpt, [UEs{idx}.DL.Throughput]];
-            meanThroughput(idx) = mean(UEs{idx}.DL.Throughput);
-            all_loss = [all_loss, [UEs{idx}.DL.Total_loss]];
-            all_adjusted_power_dBm = [all_adjusted_power_dBm, [UEs{idx}.DL.Adjusted_EIRP_dBm]];
-            all_el_deg =  [all_el_deg, [UEs{idx}.SimData.Elevation_deg]];
-            all_pfd_W_MHz = [all_pfd_W_MHz, [UEs{idx}.DL.PFD_W_MHz]];
-        end
-    
-
-        metrics.throughput_10pct  = prctile(all_thpt, 10);
-        metrics.throughput_mean   = mean(all_thpt);
     end
+    
 
     %% Plot Generation & Saving
     if plot_results
@@ -241,9 +245,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
 
 
         num_plots = 10; %plot progress bar
-        plot_dq = parallel.pool.DataQueue;
-        updateLiveScriptProgress(num_plots, true); 
-        afterEach(plot_dq, @(~) updateLiveScriptProgress(num_plots, false));
+        updateLiveScriptProgress(num_plots, true);
         tic
 
         if Cfg.DL.B < 1e6
@@ -271,7 +273,8 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         % Tile 3 & 4 (Merged to span the whole bottom row for our text)
         nexttile(3, [1 2]); axis off; 
         
-        % Determine Walker string
+        % Extraneous UL block removed
+        
         if Cfg.WalkerStar
             walker_str = 'Walker Star';
         else
@@ -320,7 +323,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
         
         exportgraphics(f1, fullfile(out_dir, 'Global_Stats.png'), 'Resolution', 300);
         close(f1);
-        send(plot_dq, []);
+        updateLiveScriptProgress(num_plots, false);
     
         % Mapping (Probability of Service)
         lat_vector = cellfun(@(x) x.Lat, UEs)';
@@ -354,7 +357,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             set(gca, 'FontSize', 14);
             exportgraphics(f2, fullfile(out_dir, 'Map_Min_Sats.png'), 'Resolution', 300);
             close(f2);
-            send(plot_dq, []);
+        updateLiveScriptProgress(num_plots, false);
             
             %% MAP 2: Mean Number of Satellites
             ValG_mean = griddata(lon_vector, lat_vector, meanNumberSatellites, LonG, LatG, 'cubic');
@@ -376,7 +379,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             set(gca, 'FontSize', 14);
             exportgraphics(f3, fullfile(out_dir, 'Map_Mean_Sats.png'), 'Resolution', 300);
             close(f3);
-            send(plot_dq, []);
+        updateLiveScriptProgress(num_plots, false);
             
             %% MAP 3: Probability of Coverage (>= 1 Satellite)
             ValG_prob = griddata(lon_vector, lat_vector, prob_coverage, LonG, LatG, 'cubic');
@@ -398,7 +401,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             set(gca, 'FontSize', 14);
             exportgraphics(f4, fullfile(out_dir, 'Map_Coverage_Prob.png'), 'Resolution', 300);
             close(f4);
-            send(plot_dq, []);
+        updateLiveScriptProgress(num_plots, false);
 
 
             % %% Figure 5: Adjusted Power vs Elevation
@@ -434,7 +437,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             set(gca, 'FontSize', 14, 'LineWidth', 1.5);
             exportgraphics(f6, fullfile(out_dir, 'adjusted_power_but_snr.png'), 'Resolution', 300);
             close(f6);
-            send(plot_dq, []);
+        updateLiveScriptProgress(num_plots, false);
 
             %% Figure 7: PFD regulation
             f7 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
@@ -451,7 +454,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             set(gca, 'FontSize', 14, 'LineWidth', 1.5);
             exportgraphics(f7, fullfile(out_dir, 'pfd_regulation.png'), 'Resolution', 300);
             close(f7);
-            send(plot_dq, []);
+        updateLiveScriptProgress(num_plots, false);
 
             %% MAP 8: Mean Throughput
             % 1. Force everything to be a column vector (using :) to prevent mismatches
@@ -484,7 +487,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
             set(gca, 'FontSize', 14);
             exportgraphics(f8, fullfile(out_dir, 'Map_Mean_Throughput.png'), 'Resolution', 300);
             close(f8);
-            send(plot_dq, []);
+        updateLiveScriptProgress(num_plots, false);
 
             
             %% MAP 9: Elevation distribution
@@ -497,7 +500,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
 
             exportgraphics(f9, fullfile(out_dir, 'Elevation_distribution.png'), 'Resolution', 300);
             close(f9);
-            send(plot_dq, []);
+        updateLiveScriptProgress(num_plots, false);
 
             %% MAP 10: Elevation distribution
             % Calculate nadir steering angles
@@ -515,7 +518,7 @@ function metrics = coverage_simulator_function(Cfg,plot_results, use_parallel, c
 
             exportgraphics(f10, fullfile(out_dir, 'nadir_steering_distribution.png'), 'Resolution', 300);
             close(f10);
-            send(plot_dq, []);
+        updateLiveScriptProgress(num_plots, false);
 
 
             

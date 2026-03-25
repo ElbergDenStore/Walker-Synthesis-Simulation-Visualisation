@@ -41,8 +41,8 @@ for i = 1:length(heights_km)
     
     %% Base Cfg for this iteration
     Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-    Cfg.StopTime   = datetime('1-Jun-2025 01:59:59', 'TimeZone', 'UTC'); 
-    Cfg.SampleTime = 60; 
+    Cfg.StopTime   = datetime('1-Jun-2025 23:59:59', 'TimeZone', 'UTC'); 
+    Cfg.SampleTime = 240; % New mask allows for more "random sampling" instead of contiguous communications
     Cfg.Lat_vec = linspace(55, 85, 2); 
     Cfg.Lon_vec = linspace(-60, 30, 2);
     Cfg.Equal_UE_area  = true; % 6 ues for 2 lats
