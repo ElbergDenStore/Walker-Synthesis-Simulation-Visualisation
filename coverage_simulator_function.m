@@ -105,8 +105,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     
     tic
     parfor (idx = 1:Cfg.NumUEs, num_workers)
-        ue = groundStation(sc, UEs(idx).Lat, UEs(idx).Lon, ...
-            'Name', UEs(idx).Name, 'MinElevationAngle', min_elevation_UE);
+        ue = groundStation(sc, UEs(idx).Lat, UEs(idx).Lon);
         
         [az_mat, el_mat, r_mat, simTimes] = aer(ue, sats);
         
@@ -138,6 +137,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         end
         
         send(dq, []);
+        delete(ue); % Delete the groundStation so it does not accumulate
     end
     fprintf('\nGeometry calculation complete (%.1f sec).\n', toc);
     
