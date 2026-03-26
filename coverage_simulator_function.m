@@ -61,6 +61,8 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             'P_noise',           NaN(1, nT), ...
             'Rx_Power',          NaN(1, nT), ...
             'SNR',               NaN(1, nT), ...
+            'SIR',               NaN(1, nT), ...
+            'SINR',              NaN(1, nT), ...
             'Throughput',        NaN(1, nT) ...
         );
     end
@@ -181,13 +183,14 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         % 1. Extract massive 2D matrices from the struct array
         SimDataArray = [UEs.SimData];
         el_mat = vertcat(SimDataArray.Elevation_deg); % Size: Cfg.NumUEs x nT
+        az_mat = vertcat(SimDataArray.Azimuth_deg);   % Size: Cfg.NumUEs x nT
         range_mat = vertcat(SimDataArray.Range);      % Size: Cfg.NumUEs x nT
         lat_vec = [UEs.Lat]';
         lon_vec = [UEs.Lon]';
         
         % 2. Run the calculation ONCE for all UEs simultaneously
         if isfield(Cfg, 'DL')
-            DL_Result = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, Cfg.DL, Cfg);
+            DL_Result = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec, Cfg.DL, Cfg);
             
             % Distribute results back into the UEs struct (takes fractions of a second)
             for idx = 1:Cfg.NumUEs
@@ -204,13 +207,18 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             
             % Plotting Metrics Extraction is incredibly fast because it's already a matrix
             all_snr                = DL_Result.SNR;
+            all_sinr               = DL_Result.SINR;
             all_thpt               = DL_Result.Throughput;
             all_adjusted_power_dBm = DL_Result.Adjusted_EIRP_dBm;
             all_pfd_W_MHz          = DL_Result.PFD_W_MHz;
             all_el_deg             = el_mat;
+
+            valid_thpt = all_thpt(~isnan(all_thpt));
+            valid_snr  = all_snr(~isnan(all_snr));
+            valid_sinr = all_sinr(~isnan(all_sinr));
             
-            metrics.throughput_10pct = prctile(all_thpt(:), 10);
-            metrics.throughput_mean  = mean(all_thpt(:), 'omitnan');
+            metrics.throughput_10pct = prctile(valid_thpt, 10);
+            metrics.throughput_mean  = mean(valid_thpt);
             meanThroughput = mean(all_thpt, 2, 'omitnan');
         end
         
@@ -249,7 +257,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
 
 
 
-        num_plots = 10; %plot progress bar
+        num_plots = 9; %plot progress bar
         updateLiveScriptProgress(num_plots, true);
         tic
 
@@ -273,7 +281,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         
         % Tile 2: Throughput CDF
         nexttile; [f_thpt, x_thpt] = ecdf(all_thpt(:)./thpt_scale); plot(x_thpt, f_thpt, 'LineWidth', 2, 'Color', '#7E2F8E');
-        grid on; title('Throughput CDF (DL)'); xlabel(sprintf('Throughput (%s)', thpt_unit)); ylabel('Probability \leq x'); xlim([0 max(x_thpt)]);
+        grid on; title('Throughput CDF (DL)'); xlabel(sprintf('Throughput (%s)', thpt_unit)); ylabel('Probability \leq x'); %xlim([0 max(x_thpt)]);
         
         % Tile 3 & 4 (Merged to span the whole bottom row for our text)
         nexttile(3, [1 2]); axis off; 
@@ -298,7 +306,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             ['Min Elev:        ' num2str(Cfg.Min_elevation_UE, '%.1f') '\circ'];
         };
         
-        % Column 2: Link Budget / RF Data
+        % Column 2: Link Budget / RF Data (ADDED RU AND FRF HERE)
         col2_str = {
             '\bfLink Budget Specs\rm';
             ['Direction:      ' char(Cfg.DL.Direction)];
@@ -307,18 +315,19 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             ['P\_tx / EIRP:    ' num2str(Cfg.DL.Max_P_tx_dBm, '%.1f') ' dBm / ' num2str(Cfg.DL.Max_EIRP_dBm, '%.1f') ' dBm'];
             ['Rx Type/Gain:   ' char(Cfg.DL.Rx_type) '  / ' num2str(Cfg.DL.G_rx, '%.1f') ' dBi'];
             ['Noise Fig:      ' num2str(Cfg.DL.NF, '%.1f') ' dB'];
+            ['RU / FRF:       ' num2str(Cfg.RU*100, '%.0f') '% / ' num2str(Cfg.FRF)];
         };  
         
-        % Column 3: Performance Results
+        % Column 3: Performance Results (UPDATED FOR SCALAR SINR/SNR)
         col3_str = {
             '\bfPerformance Results\rm';
             ['  10% Throughput:   ' num2str(metrics.throughput_10pct / thpt_scale, '%.2f') sprintf(' %s', thpt_unit)];
             ['  Mean Throughput:  ' num2str(metrics.throughput_mean / thpt_scale, '%.2f') sprintf(' %s', thpt_unit)];
             ['  Worst Coverage:   ' num2str(metrics.worst_coverage_percent, '%.2f') ' %'];
-            ['\bfSNR (dB)\rm'];
-            ['  Mean: ' num2str(mean(all_snr,'omitnan'), '%.2f')];
-            ['  Min:  ' num2str(min(all_snr), '%.2f')];
-            ['  Max:  ' num2str(max(all_snr), '%.2f')];
+            ['\bfSNR / SINR (dB)\rm'];
+            ['  Mean: ' num2str(mean(valid_snr), '%.2f') '  /  ' num2str(mean(valid_sinr), '%.2f')];
+            ['  Min:  ' num2str(min(valid_snr), '%.2f') '  /  ' num2str(min(valid_sinr), '%.2f')];
+            ['  Max:  ' num2str(max(valid_snr), '%.2f') '  /  ' num2str(max(valid_sinr), '%.2f')];
         };
         
         % Plot text in 3 evenly spaced columns

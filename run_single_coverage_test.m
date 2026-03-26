@@ -1,8 +1,10 @@
 clear all; close all; clc;
 
-Cfg = get_cfg(1000,"walkerdelta","big","medium");
+Cfg = get_cfg(1000,"walkerdelta","small","short");
+Cfg.FRF = 3;
+Cfg.RU = 1;
 
-Cfg.Use_P618 = true;
+Cfg.Use_P618 = false;
 calc_link = true;
 plot_results = true;
 if length(Cfg.Lat_vec)*length(Cfg.Lon_vec) > 8 % automate le decision

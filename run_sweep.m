@@ -91,7 +91,7 @@ for i = 1:length(heights_km)
     %% Save the Optimized Result
     if ~isempty(best_params)
         best_delta_sats(i).Orbit_height = heights_km(i);
-        best_delta_sats(i).Total_sats       = best_params.Total_Sats;
+        best_delta_sats(i).Total_sats       = best_params.Total_sats;
         best_delta_sats(i).Num_planes     = best_params.Num_planes;
         best_delta_sats(i).Phasing_Factor = best_params.Phasing_Factor;
         best_delta_sats(i).Sats_per_plane = best_params.Sats_per_plane;

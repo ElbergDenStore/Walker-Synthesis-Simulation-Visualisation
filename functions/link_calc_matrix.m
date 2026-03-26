@@ -1,4 +1,4 @@
-function Link_2D = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, link_cfg, general_config)
+function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec, link_cfg, general_config)
     % Inputs are now NumUEs x nT matrices
     Link_2D.Frequency = link_cfg.f;
     Link_2D.Bandwidth = link_cfg.B;
@@ -27,6 +27,9 @@ function Link_2D = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, link_cf
         
         area = 10*log10(4*pi.*range_mat.^2); 
         Link_2D.PFD_W_MHz = Link_2D.Adjusted_EIRP_dBm - 30 - area - Link_2D.Tx_steering_loss - 10*log10(link_cfg.B/1e6);
+
+        
+
     end
     
     % 6. SNR & Throughput (Matrix Math)
@@ -37,14 +40,34 @@ function Link_2D = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, link_cf
     
     Link_2D.Rx_Power = Link_2D.Adjusted_EIRP_dBm + link_cfg.G_rx - Link_2D.Total_loss;
     Link_2D.SNR = Link_2D.Rx_Power - Link_2D.P_noise;
+
+    if (isfield(link_cfg, 'Direction') && link_cfg.Direction == "UL")
+        BeamGrid = calculate_Beams(link_cfg.f, link_cfg.G_rx, general_config.Orbit_height, general_config.Min_elevation_UE, general_config.FRF);
+    else
+        BeamGrid = calculate_Beams(link_cfg.f, link_cfg.G_tx, general_config.Orbit_height, general_config.Min_elevation_UE, general_config.FRF);
+    end
+
+    Link_2D.SIR = 10 * log10(Interference_calc_2D(el_mat, az_mat, BeamGrid, general_config));
     
+    % Convert signal and noise back to linear milliwatts
+    S_mW = 10.^(Link_2D.Rx_Power / 10);
+    N_mW = 10.^(Link_2D.P_noise / 10);
+    SIR_lin = 10.^(Link_2D.SIR / 10);
+    
+    % Calculate exact Interference power
+    I_mW = S_mW ./ SIR_lin;
+    
+    % Final SINR
+    SINR_lin = S_mW ./ (I_mW + N_mW);
+    Link_2D.SINR = 10 * log10(SINR_lin);
+
     % Throughput calculation
     Link_2D.Throughput = zeros(size(Link_2D.SNR));
     valid_idx = ~isnan(Link_2D.SNR);
     
-    SNR_lin = 10.^(Link_2D.SNR(valid_idx)/10);
+    SINR_lin = 10.^(Link_2D.SINR(valid_idx)/10);
     SNR_eff = 10^(2/10); % 2dB effective SNR assumed from your original code
-    Link_2D.Throughput(valid_idx) = link_cfg.B * 0.56 * 1 .* log2(1 + SNR_lin ./ SNR_eff);
+    Link_2D.Throughput(valid_idx) = link_cfg.B * 0.56 * 1 .* log2(1 + SINR_lin ./ SNR_eff);
 end
 
 % --- Subfunctions adjusted for matrices ---

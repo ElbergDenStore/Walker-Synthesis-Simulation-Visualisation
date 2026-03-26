@@ -25,6 +25,10 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     Cfg.SampleTime = 60; % seconds
     Cfg.Min_elevation_UE = 20;
     Cfg.Orbit_height = height_km*1e3;
+    Cfg.FRF = 3;
+    Cfg.RU = 1;
+    Cfg.Use_P618 = false;
+    Cfg.Simple_Atmospheric_Loss_dB = 1;
 
 
     %%%%% UE GRID SIZE %%%%
@@ -69,7 +73,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
             Cfg.DL.NF        = 7; %  TR 38821
         case 'ka'
             Cfg.Target_PFD_MHz = -115;
-            Cfg.DL.B         = 2e6;     
+            Cfg.DL.B         = 4e6;     
             Cfg.DL.f         = 20e9;
             Cfg.DL.Tx_type   = "array";      
             Cfg.DL.G_rx      = 36;      
@@ -77,7 +81,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
             Cfg.DL.NF        = 5;
         case 'ku'
             Cfg.Target_PFD_MHz = -115;
-            Cfg.DL.B         = 2e6;     
+            Cfg.DL.B         = 4e6;     
             Cfg.DL.f         = 12e9;
             Cfg.DL.Tx_type   = "array";      
             Cfg.DL.G_rx      = 33;      
