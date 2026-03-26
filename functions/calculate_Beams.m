@@ -17,25 +17,22 @@ function BeamGrid = calculate_Beams(f, G_tx, orbit_height, Min_Elev_deg, FRF)
     rings = ceil(sind(eta_max) / du) + 2;
     
     % 3. Hex Grid Generation
-    % Preallocating to the maximum possible size and trimming is faster, 
-    % but for a few hundred elements, dynamic growth is fine and clean.
-    b_u = []; b_v = [];
-    b_q = []; b_r = [];
+    [Q, R] = meshgrid(-rings:rings, -rings:rings);
+    Q = Q(:); 
+    R = R(:);
     
-    for q = -rings:rings
-        for r = -rings:rings
-            u_val = du * sqrt(3) * (q + r/2); 
-            v_val = du * 1.5 * r;
-            
-            % Only keep beams that fall within the satellite's maximum field of view
-            if (u_val^2 + v_val^2) <= sind(eta_max)^2
-                b_u = [b_u; u_val]; 
-                b_v = [b_v; v_val]; 
-                b_q = [b_q; q];     
-                b_r = [b_r; r];     
-            end
-        end
-    end
+    % Calculate u and v for the entire grid simultaneously
+    U = du * sqrt(3) * (Q + R/2); 
+    V = du * 1.5 * R;
+    
+    % Create a logical mask for beams inside the field of view
+    valid_mask = (U.^2 + V.^2) <= sind(eta_max)^2;
+    
+    % Filter down to only the valid beams
+    b_u = U(valid_mask);
+    b_v = V(valid_mask);
+    b_q = Q(valid_mask);
+    b_r = R(valid_mask);
     
     num_beams = length(b_u);
     
@@ -51,25 +48,22 @@ function BeamGrid = calculate_Beams(f, G_tx, orbit_height, Min_Elev_deg, FRF)
             error('Unsupported FRF. Please use 1, 3, or 4.');
     end
     
-    % Create a hashmap to instantly look up beam indices by their q,r coordinates
-    beam_key_to_idx = containers.Map('KeyType', 'char', 'ValueType', 'double');
-    for b = 1:num_beams
-        beam_key_to_idx(sprintf('%d_%d', b_q(b), b_r(b))) = b;
-    end
-    
-    % Find the indices of all 6 neighbors for every beam
+    valid_coords = [b_q, b_r];
     neighbor_idx = nan(num_beams, 6);
-    for b = 1:num_beams
-        q0 = b_q(b);
-        r0 = b_r(b);
-        for k = 1:6
-            qn = q0 + neighbor_offsets(k,1);
-            rn = r0 + neighbor_offsets(k,2);
-            key = sprintf('%d_%d', qn, rn);
-            if isKey(beam_key_to_idx, key)
-                neighbor_idx(b, k) = beam_key_to_idx(key);
-            end
-        end
+    
+    % Instead of looping over every beam, loop over the 6 offsets
+    for k = 1:6
+        % Shift EVERY beam by the current offset simultaneously
+        target_coords = valid_coords + neighbor_offsets(k, :);
+        
+        % ismember instantly finds which of our target coords actually exist in our grid
+        % 'found' is a logical array, 'loc' is the exact row index of the neighbor
+        [found, loc] = ismember(target_coords, valid_coords, 'rows');
+        
+        % Assign the found locations directly into our neighbor matrix
+        temp_idx = nan(num_beams, 1);
+        temp_idx(found) = loc(found);
+        neighbor_idx(:, k) = temp_idx;
     end
     
     % 5. Bundle everything into the output struct

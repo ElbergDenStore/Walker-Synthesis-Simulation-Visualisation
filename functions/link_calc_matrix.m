@@ -48,7 +48,7 @@ function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec,
     end
 
     Link_2D.SIR = 10 * log10(Interference_calc_2D(el_mat, az_mat, BeamGrid, general_config));
-    
+
     % Convert signal and noise back to linear milliwatts
     S_mW = 10.^(Link_2D.Rx_Power / 10);
     N_mW = 10.^(Link_2D.P_noise / 10);
