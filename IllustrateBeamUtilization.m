@@ -2,7 +2,7 @@ clearvars; close all; clc;
 
 %% 1. Configuration & Region Selection
 % Toggle between 'Nordjylland', 'Denmark', or 'Full'
-REGION = 'Full3000'; 
+REGION = 'Denmark'; 
 
 switch REGION
     case 'Nordjylland'
@@ -27,7 +27,7 @@ switch REGION
         dataFile = 'Full30000.mat';
 end
 
-FORCE_RERUN = false; 
+FORCE_RERUN = true; 
 
 if exist(dataFile, 'file') && ~FORCE_RERUN 
     fprintf('Loading %s data from %s...\n', REGION, dataFile);
@@ -74,15 +74,15 @@ exportgraphics(gcf, 'screenshots/UEDistribution.png', 'Resolution', 300);
 
 
 %% 2. System-Wide Utilization Analysis
-nT = length(metrics.SimData{1}.Time);
+nT = length(metrics.SimData(1).Time);
 TotalSats = Cfg.Total_sats;
-time_vec = metrics.SimData{1}.Time;
+time_vec = metrics.SimData(1).Time;
 time_mins = minutes(time_vec - time_vec(1));
 
 % Map which Sat each UE is using at each second
 all_SatIDs = nan(Cfg.NumUEs, nT);
 for i = 1:Cfg.NumUEs
-    all_SatIDs(i, :) = metrics.SimData{i}.SatID;
+    all_SatIDs(i, :) = metrics.SimData(i).SatID;
 end
 
 % Calculate SatUtilization [TotalSats x nT]
@@ -208,8 +208,8 @@ for i = 1:Cfg.NumUEs
     is_connected = (all_SatIDs(i, :) == peakSat);
     
     if any(is_connected)
-        el = metrics.SimData{i}.Elevation_deg(is_connected);
-        az = metrics.SimData{i}.Azimuth_deg(is_connected);
+        el = metrics.SimData(i).Elevation_deg(is_connected);
+        az = metrics.SimData(i).Azimuth_deg(is_connected);
         eta_vec = asind((Re / (Re + h)) * cosd(el));
         
         u_ues_peak(i, is_connected) = sind(eta_vec) .* cosd(az + 180);

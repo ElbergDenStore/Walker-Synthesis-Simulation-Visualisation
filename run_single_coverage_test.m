@@ -1,6 +1,6 @@
 clear all; close all; clc;
 
-Cfg = get_cfg(1000,"walkerdelta","small","medium");
+Cfg = get_cfg(1000,"walkerdelta","big","medium");
 
 Cfg.Use_P618 = true;
 calc_link = true;
