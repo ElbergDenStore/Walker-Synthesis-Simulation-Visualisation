@@ -309,6 +309,8 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         Cfg.Lat_vec = linspace(55, 85, 10); 
         Cfg.Lon_vec = linspace(-60, 30, 3);
         Cfg.Equal_UE_area = true;
+        Cfg.FRF = 3;
+        Cfg.RU = 1;
         
         Cfg.Num_planes     = best_params.Num_planes;
         Cfg.Sats_per_plane = best_params.Sats_per_plane;
