@@ -3,7 +3,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     P_vec = 4:15; % Num Planes
     S_vec = 4:15; % Sats per Plane
     Inc_vec = linspace(70, 80, 11);
-    target_num_candidates = 10;
+    target_num_candidates = 1;
     % extra_search_percent = 15; % percent extra to look for solutions
     
     grid_data = [];

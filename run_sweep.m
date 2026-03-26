@@ -39,13 +39,13 @@ all_delta_sats = [];
 for i = 1:length(heights_km)
     current_h_meters = heights_km(i) * 1000;
     
-    %% Base Cfg for this iteration
+    %% Base Cfg for simple test -> goal of running super fast, but avoid too many false positives
     Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
     Cfg.StopTime   = datetime('1-Jun-2025 23:59:59', 'TimeZone', 'UTC'); 
-    Cfg.SampleTime = 240; % New mask allows for more "random sampling" instead of contiguous communications
-    Cfg.Lat_vec = linspace(55, 85, 2); 
+    Cfg.SampleTime = 480; % New valid mask allows for more "random sampling" instead of contiguous communications
+    Cfg.Lat_vec = linspace(55, 85, 3); 
     Cfg.Lon_vec = linspace(-60, 30, 2);
-    Cfg.Equal_UE_area  = true; % 6 ues for 2 lats
+    Cfg.Equal_UE_area  = true; % 6 ues for 2 lats, 3^2 + 3 for 3 
     Cfg.Min_elevation_UE = 20;
     Cfg.WalkerStar     = false; % We are optimizing Walker Deltas
     Cfg.Orbit_height = current_h_meters;
@@ -65,7 +65,7 @@ for i = 1:length(heights_km)
     fprintf('======================================================\n');
 
     %% Dynamically Bound the Search Space
-    min_sats = floor(star_N * 0.6); 
+    min_sats = floor(star_N * 1); %0.6 is smart
     % max_sats = ceil(star_N);          
 
     %% Route to the chosen Optimizer
@@ -91,9 +91,9 @@ for i = 1:length(heights_km)
     %% Save the Optimized Result
     if ~isempty(best_params)
         best_delta_sats(i).Orbit_height = heights_km(i);
-        best_delta_sats(i).Total_sats       = best_params.Total_sats;
+        best_delta_sats(i).Total_sats     = best_params.Total_sats;
         best_delta_sats(i).Num_planes     = best_params.Num_planes;
-        best_delta_sats(i).Phasing_Factor = best_params.Phasing_Factor;
+        best_delta_sats(i).Phasing        = best_params.Phasing;
         best_delta_sats(i).Sats_per_plane = best_params.Sats_per_plane;
         best_delta_sats(i).Inclination    = best_params.Inclination;
     else
