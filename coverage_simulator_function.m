@@ -7,11 +7,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     sc.StartTime  = Cfg.StartTime;
     sc.StopTime   = Cfg.StopTime;
     sc.SampleTime = Cfg.SampleTime;
-    
-    simTimes = sc.StartTime:seconds(sc.SampleTime):sc.StopTime;
-    simTimes.TimeZone = 'UTC';
-    nT = length(simTimes)+1; % Calculate nT early for memory allocation
-    
+
     r_earth = 6378.14e3;
     if Cfg.WalkerStar == true
         sats = asymmetrical_walker_star_generation(Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
@@ -20,6 +16,11 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
         Name="S4D", OrbitPropagator="sgp4");
     end
+
+    dummy_ue = groundStation(sc, 0, 0); 
+    [~, ~, ~, authoritative_simTimes] = aer(dummy_ue, sats);
+    
+    nT = length(authoritative_simTimes);
     
     %% Create the UEs Struct Array (Pre-allocated)
     if Cfg.Equal_UE_area == true
@@ -34,7 +35,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     
     % 1. Define the perfectly sized SimData template
     empty_SimData = struct(...
-        'Time',          simTimes', ... 
+        'Time',          NaN(1, nT), ... 
         'SatID',         NaN(1, nT), ...
         'Range',         NaN(1, nT), ...
         'Elevation_deg', NaN(1, nT), ...
@@ -105,7 +106,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         ue = groundStation(sc, UEs(idx).Lat, UEs(idx).Lon, ...
             'Name', UEs(idx).Name, 'MinElevationAngle', min_elevation_UE);
         
-        [az_mat, el_mat, r_mat, ~] = aer(ue, sats);
+        [az_mat, el_mat, r_mat, simTimes] = aer(ue, sats);
         
         valid_mask = el_mat >= min_elevation_UE;
         Num_visible = sum(valid_mask,1); 
@@ -117,6 +118,8 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         
         % Write directly to pre-allocated slice
         UEs(idx).SimData.Num_visible = Num_visible;
+        UEs(idx).SimData.Time = simTimes;
+        
         
         if any(has_service)
             UEs(idx).SimData.Range(has_service) = best_ranges(has_service);

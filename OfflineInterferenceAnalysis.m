@@ -91,7 +91,8 @@ duration = "short";
 frequency = "fr1";
 height_km = 1000;
 Cfg = get_cfg(height_km);
-
+Cfg.SampleTime = 1; % seconds
+Cfg.StopTime   = datetime('1-Jun-2025 12:09:59', 'TimeZone', 'UTC'); % 1 hour
 
 calc_link = true; 
 Cfg.Use_P618 = false; %simple atmospheric loss
@@ -100,8 +101,8 @@ plot_results = false;
 use_parallel = false;
 metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
 Cfg.NumUEs = size(metrics.Num_visible,1);
-
-
+Cfg.RU = 1; % changeable Resource Utilization
+Cfg.FRF = 3;  % Set to 1 or 3
 
 
 %% 3. Geometry & Beam Grid %%%%%%%%%%%% THESE ARE ALWAYS THE EXACT SAME %%%%%%%%%%%% IMAGINE THE SATELLITE ALWAYS ORIENTED THE SAME WAY
@@ -149,7 +150,18 @@ for i = 1:Cfg.NumUEs % make parfor soon or vector
 end
 
 %% 5. Interference Model (Main Beam + 6 Hex Neighbors)
-neighbor_offsets = [1 0; -1 0; 0 1; 0 -1; 1 -1; -1 1];
+% Dynamically assign neighbor offsets based on Frequency Reuse Factor
+switch Cfg.FRF
+    case 1
+        % Immediate touching neighbors
+        neighbor_offsets = [1 0; -1 0; 0 1; 0 -1; 1 -1; -1 1];
+    case 3
+        % The "Knight's Move" jump (FRF = 3)
+        neighbor_offsets = [2 -1; 1 1; -1 2; -2 1; -1 -1; 1 -2];
+    otherwise
+        error('Unsupported FRF. Please use 1 or 3.');
+end
+
 beam_key_to_idx = containers.Map('KeyType', 'char', 'ValueType', 'double');
 for b = 1:num_beams
     beam_key_to_idx(sprintf('%d_%d', b_q(b), b_r(b))) = b;
@@ -169,10 +181,26 @@ for b = 1:num_beams
     end
 end
 
-gain_exp = 1.5;
-% gain_from_dist2 = @(d2) max(cosd(asind(min(1, sqrt(max(0, d2))))), 0).^gain_exp; Complicated but safe version of the next one
-gain_from_dist2 = @(d2) cosd(sqrt(d2)).^gain_exp;
+% --- Phased Array Antenna Model ---
+d_spacing = lambda / 2; % Standard lambda/2 element spacing
+
+% Dynamically calculate the number of elements to perfectly match your target grid!
+% Formula for HPBW of uniform broadside array: HPBW ≈ 101.2 / N
+N_elements = round(101.2 / Beamwidth_deg); % For 1.8 deg, this calculates N = 56
+
+% Calculate the phase term: (pi * d / lambda) * [sin(theta) - sin(theta_0)]
+phase_term = @(d2) (pi * d_spacing / lambda) * max(sqrt(max(0, d2)), eps);
+
+% The exact Array Factor (AF) equation
+array_factor = @(d2) sin(N_elements * phase_term(d2)) ./ (N_elements * sin(phase_term(d2)));
+
+% Linear Power Gain is the magnitude squared of the Array Factor
+gain_from_dist2 = @(d2) array_factor(d2).^2;
+
+% Convert to dB for plotting
 gain_from_dist2_dB = @(d2) 10*log10(gain_from_dist2(d2));
+
+
 
 angle_from_dist2_deg = @(d2) asind(min(1, sqrt(max(0, d2))));
 
@@ -240,8 +268,8 @@ for i = 1:Cfg.NumUEs
     % Zero out the gains for the "fake" neighbors we mapped to index 1 earlier
     int_gains(~valid_nbs_mask) = 0;
     
-    % Sum horizontally across the 6 columns to get total interference per timestep
-    int_lin = sum(int_gains, 2);
+    % Sum horizontally across the 6 columns AND MULTIPLY BY RU
+    int_lin = sum(int_gains, 2) * Cfg.RU; % multiply the neighbours with Resource utilization
     
     % ===============================================================
 
@@ -284,74 +312,74 @@ end
 fprintf('Interference model complete. Global mean SIR = %.2f dB, p10 SIR = %.2f dB\n', ...
     Interference.global_mean_SIR_dB, Interference.global_p10_SIR_dB);
 
-%% 6. Diagnostic Plots to Validate Interference Calculation
-% Pick one UE/time sample where the serving beam has all 6 neighbors
-candidate_u = [];
-candidate_t = [];
-candidate_main_dist2 = [];
-
-for i = 1:Cfg.NumUEs
-    valid_t = find(isfinite(main_beam_idx(i,:)));
-    if isempty(valid_t)
-        continue;
-    end
-
-    for tt = valid_t
-        mb = main_beam_idx(i, tt);
-        if ~isfinite(mb)
-            continue;
-        end
-        nbs = neighbor_idx(mb, :);
-        if sum(isfinite(nbs)) ~= 6
-            continue;
-        end
-
-        d2_main = (u_ues(i,tt) - b_u(mb)).^2 + (v_ues(i,tt) - b_v(mb)).^2;
-        candidate_u(end+1,1) = i; %#ok<SAGROW>
-        candidate_t(end+1,1) = tt; %#ok<SAGROW>
-        candidate_main_dist2(end+1,1) = d2_main; %#ok<SAGROW>
-    end
+%% 6. Diagnostic Plots: Best and Worst Case Analysis for UE 1
+out_dir = fullfile('screenshots', 'interference_debug');
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
 end
 
-if isempty(candidate_u)
-    % Fallback: any valid sample
-    [u_idx, t_idx] = find(isfinite(main_beam_idx), 1, 'first');
-else
-    [~, best_idx] = min(candidate_main_dist2);
-    u_idx = candidate_u(best_idx);
-    t_idx = candidate_t(best_idx);
+% 1. Select the Target UE (Default to UE 1, fallback if no service)
+u_idx = 1;
+if ~any(isfinite(sir_dB(u_idx, :)))
+    [u_idx, ~] = find(isfinite(sir_dB), 1, 'first');
 end
 
-if ~isempty(u_idx)
+if isempty(u_idx)
+    warning('No valid UE/time sample found for diagnostic plotting.');
+    return;
+end
+
+% 2. Find the Best and Worst moments in time for this UE
+sir_series = sir_dB(u_idx, :);
+valid_times = find(isfinite(sir_series));
+
+[max_sir, best_idx] = max(sir_series(valid_times));
+t_best = valid_times(best_idx);
+
+[min_sir, worst_idx] = min(sir_series(valid_times));
+t_worst = valid_times(worst_idx);
+
+time_cases = [t_best, t_worst];
+case_names = {"Best Case (Max SIR)", "Worst Case (Min SIR)"};
+file_names = {"Beam_Snapshot_BEST.png", "Beam_Snapshot_WORST.png"};
+
+% 3. Generate the Beam Snapshots
+for c = 1:2
+    t_idx = time_cases(c);
+    
     mb = main_beam_idx(u_idx, t_idx);
     nbs = neighbor_idx(mb, :);
     nbs = nbs(isfinite(nbs));
     beam_set = [mb, nbs];
-
+    
     u0 = u_ues(u_idx, t_idx);
     v0 = v_ues(u_idx, t_idx);
+    
     d2_set = (u0 - b_u(beam_set)).^2 + (v0 - b_v(beam_set)).^2;
     gain_set_lin = gain_from_dist2(d2_set);
     gain_set_dB = gain_from_dist2_dB(d2_set);
     theta_set_deg = angle_from_dist2_deg(d2_set);
-
+    
     sig_snap = gain_set_lin(1);
-    int_snap = sum(gain_set_lin(2:end));
+    
+    % Scale the neighbor linear gains by RU
+    gain_set_lin(2:end) = gain_set_lin(2:end) * Cfg.RU; 
+    
+    % Recalculate the dB values for the bar chart so it reflects the RU drop
+    gain_set_dB(2:end) = 10*log10(gain_set_lin(2:end)); 
+    
+    % Sum the newly scaled interference
+    int_snap = sum(gain_set_lin(2:end)); 
     sir_snap_dB = 10*log10(sig_snap / max(int_snap, eps));
-    sir_stored_dB = sir_dB(u_idx, t_idx);
 
-    out_dir = fullfile('screenshots', 'interference_debug');
-    if ~exist(out_dir, 'dir')
-        mkdir(out_dir);
-    end
-
-    % Plot A: Beam geometry + gains at one instant
+    
     f_diag1 = figure('Color', 'w', 'Position', [80 80 1300 520]);
     tlo = tiledlayout(f_diag1, 1, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-
+    
+    % --- Map Tile ---
     nexttile(tlo, 1); hold on; grid on; box on; axis equal;
     theta = linspace(0, 2*pi, 200);
-
+    
     for k = 1:numel(beam_set)
         bi = beam_set(k);
         x = b_u(bi) + r_beam*cos(theta);
@@ -363,23 +391,24 @@ if ~isempty(u_idx)
             plot(x, y, '-', 'Color', [0.85 0.2 0.2], 'LineWidth', 1.5);
             scatter(b_u(bi), b_v(bi), 50, [0.85 0.2 0.2], 'filled');
         end
-
-        txt = sprintf('G=%.2f dB | %.2f deg', gain_set_dB(k), theta_set_deg(k));
+        
+        txt = sprintf('G=%.2f dB', gain_set_dB(k));
         text(b_u(bi), b_v(bi) + 0.01, txt, 'HorizontalAlignment', 'center', ...
             'FontSize', 9, 'FontWeight', 'bold');
         plot([u0 b_u(bi)], [v0 b_v(bi)], ':', 'Color', [0.45 0.45 0.45]);
     end
-
+    
     scatter(u0, v0, 120, 'k', 'filled');
     text(u0, v0 - 0.012, sprintf('UE %d', u_idx), 'HorizontalAlignment', 'center', ...
         'FontWeight', 'bold', 'FontSize', 10);
-
-    title(sprintf('7-Beam Snapshot (UE %d, t=%d)', u_idx, t_idx), 'FontWeight', 'bold');
+    
+    title(sprintf('%s (UE%d, t=%d, RU=%.1f, FRF=%d)', case_names{c}, u_idx, t_idx, Cfg.RU, Cfg.FRF), 'FontWeight', 'bold');
     xlabel('u = sin(\eta)cos(\phi)');
     ylabel('v = sin(\eta)sin(\phi)');
     legend({'Main beam','Main center','Neighbor beam','Neighbor center','Link to UE','UE'}, ...
-        'Location', 'southoutside');
-
+        'Location', 'southoutside', 'NumColumns', 3);
+    
+    % --- Bar Chart Tile ---
     nexttile(tlo, 2); hold on; grid on; box on;
     labels = strings(1, numel(beam_set));
     labels(1) = "Main";
@@ -388,82 +417,104 @@ if ~isempty(u_idx)
     end
     bar(categorical(labels), gain_set_dB, 'FaceColor', [0.2 0.5 0.85]);
     ylabel('Gain (dB, relative)');
-    title(sprintf('Main/Neighbor Gains | SIR_{snap}=%.2f dB (stored %.2f dB)', ...
-        sir_snap_dB, sir_stored_dB), 'FontWeight', 'bold');
-
-    exportgraphics(f_diag1, fullfile(out_dir, 'Beam_Gain_Snapshot.png'), 'Resolution', 300);
-
-    % Plot B: SIR across time for the selected UE
-    f_diag2 = figure('Color', 'w', 'Position', [120 120 1200 420]);
-    sir_series = sir_dB(u_idx, :);
-    % time_vec = metrics.SimData(u_idx).Time;
-    time_vec = minutes(metrics.SimData(u_idx).Time - metrics.SimData(u_idx).Time(1));
-
-    if numel(time_vec) == nT
-        plot(time_vec, sir_series, 'LineWidth', 1.3, 'Color', [0 0.45 0.74]);
-        xlabel('Time');
-    else
-        plot(1:nT, sir_series, 'LineWidth', 1.3, 'Color', [0 0.45 0.74]);
-        xlabel('Time index');
-    end
-
-    grid on; box on;
-    ylabel('SIR (dB)');
-    title(sprintf('SIR Over Time for UE %d | Mean=%.2f dB, P10=%.2f dB', ...
-        u_idx, Interference.mean_SIR_dB(u_idx), Interference.p10_SIR_dB(u_idx)), ...
-        'FontWeight', 'bold');
-
-    exportgraphics(f_diag2, fullfile(out_dir, 'SIR_Time_Series_UE.png'), 'Resolution', 300);
-
-    % Plot C: Main signal, neighbor interference, and SIR consistency over time
-    f_diag3 = figure('Color', 'w', 'Position', [130 130 1300 650]);
-    t3 = tiledlayout(f_diag3, 2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-
-    sig_lin_series = main_beam_signal_lin(u_idx, :);
-    int_lin_series = interference_lin(u_idx, :);
-    sir_recomputed_dB = 10*log10(sig_lin_series ./ max(int_lin_series, eps));
-    valid_series = isfinite(sir_dB(u_idx, :)) & isfinite(sir_recomputed_dB);
-
-    sig_dB_series = 10*log10(max(sig_lin_series, eps));
-    int_dB_series = 10*log10(max(int_lin_series, eps));
-
-    if numel(time_vec) == nT
-        xvals = time_vec;
-        xlab = 'Time';
-    else
-        xvals = 1:nT;
-        xlab = 'Time index';
-    end
-
-    nexttile(t3, 1); hold on; grid on; box on;
-    plot(xvals, sig_dB_series, 'LineWidth', 1.2, 'Color', [0 0.45 0.74]);
-    plot(xvals, int_dB_series, 'LineWidth', 1.2, 'Color', [0.85 0.33 0.1]);
-    ylabel('Relative Gain (dB)');
-    xlabel(xlab);
-    title(sprintf('UE %d: Main Signal vs Neighbor Interference', u_idx), 'FontWeight', 'bold');
-    legend({'Main signal', 'Sum neighbor interference'}, 'Location', 'best');
-
-    nexttile(t3, 2); hold on; grid on; box on;
-    plot(xvals, sir_dB(u_idx, :), 'LineWidth', 1.3, 'Color', [0.49 0.18 0.56]);
-    plot(xvals, sir_recomputed_dB, '--', 'LineWidth', 1.1, 'Color', [0.1 0.1 0.1]);
-    ylabel('SIR (dB)');
-    xlabel(xlab);
-
-    if any(valid_series)
-        max_abs_err = max(abs(sir_dB(u_idx, valid_series) - sir_recomputed_dB(valid_series)));
-    else
-        max_abs_err = NaN;
-    end
-
-    title(sprintf('SIR Consistency Check (max |Delta| = %.3e dB)', max_abs_err), 'FontWeight', 'bold');
-    legend({'Stored SIR', 'Recomputed SIR'}, 'Location', 'best');
-
-    exportgraphics(f_diag3, fullfile(out_dir, 'Signal_Interference_SIR_Consistency.png'), 'Resolution', 300);
-
-    fprintf('Saved diagnostic plots to: %s\n', out_dir);
-    fprintf('Snapshot consistency check: recomputed SIR = %.3f dB, stored SIR = %.3f dB\n', ...
-        sir_snap_dB, sir_stored_dB);
-    fprintf('Time-series consistency check for UE %d: max abs error = %.3e dB\n', u_idx, max_abs_err);
-else
-    warning('No valid UE/time sample found for diagnostic plotting.');
+    title(sprintf('Main/Neighbor Gains | SIR = %.2f dB, RU=%.1f, FRF=%d', sir_snap_dB, Cfg.RU, Cfg.FRF), 'FontWeight', 'bold');
+    
+    exportgraphics(f_diag1, fullfile(out_dir, file_names{c}), 'Resolution', 300);
+    close(f_diag1); % Close to prevent screen clutter
 end
+
+% 4. Time Series Plots (Cleaned up)
+time_vec = metrics.SimData(u_idx).Time;
+
+% Plot A: SIR Over Time
+f_diag2 = figure('Color', 'w', 'Position', [120 120 1200 420]);
+hold on; grid on; box on;
+plot(time_vec, sir_series, 'LineWidth', 1.5, 'Color', [0.49 0.18 0.56]);
+
+% Mark Best and Worst times on the plot
+scatter(time_vec(t_best), max_sir, 100, 'g', 'filled', 'MarkerEdgeColor', 'k');
+scatter(time_vec(t_worst), min_sir, 100, 'r', 'filled', 'MarkerEdgeColor', 'k');
+
+xlabel('Time');
+ylabel('SIR (dB)');
+title(sprintf('SIR Over Time for UE %d | Mean = %.2f dB, P10 = %.2f dB, RU=%.1f, FRF=%d', ...
+    u_idx, Interference.mean_SIR_dB(u_idx), Interference.p10_SIR_dB(u_idx), Cfg.RU, Cfg.FRF), ...
+    'FontWeight', 'bold');
+legend({'SIR', 'Best Case Snapshot', 'Worst Case Snapshot'}, 'Location', 'best');
+exportgraphics(f_diag2, fullfile(out_dir, 'SIR_Time_Series_UE.png'), 'Resolution', 300);
+
+% Plot B: Main Signal vs Sum Interference Over Time
+sig_lin_series = main_beam_signal_lin(u_idx, :);
+int_lin_series = interference_lin(u_idx, :);
+
+sig_dB_series = 10*log10(max(sig_lin_series, eps));
+int_dB_series = 10*log10(max(int_lin_series, eps));
+
+f_diag3 = figure('Color', 'w', 'Position', [130 130 1200 420]);
+hold on; grid on; box on;
+plot(time_vec, sig_dB_series, 'LineWidth', 1.5, 'Color', [0 0.45 0.74]);
+plot(time_vec, int_dB_series, 'LineWidth', 1.5, 'Color', [0.85 0.33 0.1]);
+
+xlabel('Time');
+ylabel('Relative Gain (dB)');
+title(sprintf('UE %d: Main Signal vs. Sum Neighbor Interference, RU=%.1f, FRF=%d', u_idx, Cfg.RU, Cfg.FRF), 'FontWeight', 'bold');
+legend({'Main Signal', 'Total Interference'}, 'Location', 'best');
+exportgraphics(f_diag3, fullfile(out_dir, 'Signal_vs_Interference.png'), 'Resolution', 300);
+
+
+%% Plotting the 1D Antenna Gain Pattern (-10 to 10 degrees)
+% 1. Recreate the exact antenna parameters from your simulation
+f = 20e9; c = 3e8; lambda = c/f; G = 40;
+Beamwidth_deg = sqrt(32400./(10.^(G/10))); % ~1.8 degrees
+N_elements = round(101.2 / Beamwidth_deg); % 56 elements
+d_spacing = lambda / 2;
+
+% 2. Define the anonymous functions for the Phased Array
+phase_term = @(d2) (pi * d_spacing / lambda) * max(sqrt(max(0, d2)), eps);
+array_factor = @(d2) sin(N_elements * phase_term(d2)) ./ (N_elements * sin(phase_term(d2)));
+gain_from_dist2_dB = @(d2) 10*log10(array_factor(d2).^2);
+
+% 3. Create a high-resolution array of physical angles from -10 to 10 degrees
+theta_deg = linspace(-10, 10, 2000);
+
+% Convert physical angle to directional cosine distance squared (d^2)
+% For a 1D slice along the principal axis, d^2 is just sin^2(theta)
+d2_1D = sind(theta_deg).^2;
+
+% Calculate the gain in dB
+beam_pattern_dB = gain_from_dist2_dB(d2_1D);
+
+% 4. Calculate exactly where the neighbors sit
+du = sind(Beamwidth_deg) / 2;
+% FRF = 1 Neighbor is sqrt(3)*du away in u-space
+angle_frf1 = asind(sqrt(3) * du); 
+% FRF = 3 Neighbor is 3*du away in u-space
+angle_frf3 = asind(3 * du);       
+
+% 5. Plot it beautifully
+figure('Name', 'Phased Array Beam Pattern', 'Color', 'w', 'Position', [150 150 900 500]);
+hold on; grid on; box on;
+
+% Plot the main pattern
+plot(theta_deg, beam_pattern_dB, 'LineWidth', 2, 'Color', '#0072BD');
+
+% Mark the -3 dB crossover point
+yline(-3, '--', '-3 dB HPBW Crossover', 'Color', '#777777', 'LineWidth', 1.5, 'LabelHorizontalAlignment', 'left');
+
+% Mark FRF=1 Neighbors
+xline(angle_frf1, '-.', 'FRF=1 Neighbor beam center', 'Color', '#D95319', 'LineWidth', 1.5, 'LabelVerticalAlignment', 'bottom');
+xline(-angle_frf1, '-.', 'Color', '#D95319', 'LineWidth', 1.5);
+
+% Mark FRF=3 Neighbors
+xline(angle_frf3, '-.', 'FRF=3 Neighbor beam center', 'Color', '#EDB120', 'LineWidth', 1.5, 'LabelVerticalAlignment', 'bottom');
+xline(-angle_frf3, '-.', 'Color', '#EDB120', 'LineWidth', 1.5);
+
+% Formatting
+ylim([-45 5]); % Cap the bottom at -45 dB so the nulls don't stretch the chart to infinity
+xlim([-10 10]);
+xlabel('Off-Axis Angle (\theta) [Degrees]', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Relative Gain [dB]', 'FontSize', 12, 'FontWeight', 'bold');
+title(sprintf('Phased Array Radiation Pattern (%d Elements)\nMain Lobe vs. Neighboring Beam Locations', N_elements), 'FontSize', 14);
+
+
+fprintf('Saved clean diagnostic plots to: %s\n', out_dir);
