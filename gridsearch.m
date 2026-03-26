@@ -3,8 +3,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     P_vec = 4:15; % Num Planes
     S_vec = 4:15; % Sats per Plane
     Inc_vec = linspace(70, 80, 11);
-    target_num_candidates = 1;
-    % extra_search_percent = 15; % percent extra to look for solutions
+    target_num_candidates = 10;
     
     grid_data = [];
     for p = P_vec
@@ -277,27 +276,16 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         
         Cfg.DL.Direction = "DL";
         Cfg.DL.Target_PFD_MHz = -108;
-        Cfg.DL.B         = 2e6;     
-        Cfg.DL.f         = 20e9;    
+        Cfg.DL.B         = 4e6;     
+        Cfg.DL.f         = 12e9;    
         % Cfg.DL.G_tx      = 42; 
         Cfg.DL.Tx_type   = "array";      
-        Cfg.DL.G_rx      = 32;      
+        Cfg.DL.G_rx      = 30;      
         Cfg.DL.Rx_type   = "array";
         Cfg.DL.NF        = 5;
 
-        % Normalize tx gain to have same total throughput
-        % Calculate Slant Range for the Reference Altitude
-        h_ref = 1200e3; %
-        G_tx_ref = 42;  % need a reference and here it is 42dBi at 1200km
-        Re = 6371e3;    %
-        slant_ref = -Re*sind(Cfg.Min_elevation_UE) + sqrt(Re^2*sind(Cfg.Min_elevation_UE)^2 - (Re^2-(Re+h_ref)^2));
         
-        % Calculate Slant Range for the CURRENT Altitude in the sweep
-        current_h = Cfg.Orbit_height;
-        slant_current = -Re*sind(Cfg.Min_elevation_UE) + sqrt(Re^2*sind(Cfg.Min_elevation_UE)^2 - (Re^2-(Re+current_h)^2));
-        
-        % Scale the Antenna Gain to keep the Ground Footprint constant
-        Cfg.DL.G_tx = G_tx_ref + 20 * log10(slant_current / slant_ref);
+        Cfg.DL.G_tx = get_adjusted_tx_gain(Cfg.Orbit_height, Cfg.Min_elevation_UE, Cfg.DL.f );
 
         Cfg.DL.Max_P_tx_dBm  = PFD_calc(Cfg.DL.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
         Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
