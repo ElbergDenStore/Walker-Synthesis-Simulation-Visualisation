@@ -1,6 +1,9 @@
 function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
+    %% 1. Force kill the current pool
+    % delete(gcp('nocreate')); % necessary or it will get stuck
+
     %% 1. Build the Ascending Grid
-    P_vec = 4:15; % Num Planes
+    P_vec = 4:15; % Num Planes % 15 both places makes sense to me
     S_vec = 4:15; % Sats per Plane
     Inc_vec = linspace(70, 80, 11);
     target_num_candidates = 10;
@@ -44,87 +47,74 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     status_flags = zeros(total_runs, 1); % 0 = Invalid, 1 = Candidate, 2 = Best
     
     min_sats_found = Inf;
-    % max_sats_to_check = Inf;
-
-    for batch_start = 1 : num_workers : total_runs
-        if height(all_candidates) >= target_num_candidates
-            fprintf('\n--- Found %d viable candidates. Target reached! Stopping search. ---\n', height(all_candidates));
-            break;
-        end
+    % --- SUBMIT ALL RUNS TO THE BACKGROUND ---
+    fprintf('\nSubmitting %d runs to the background cluster...\n', total_runs);
+    
+    % Preallocate futures exactly as the documentation recommends
+    futures(1:total_runs) = parallel.FevalFuture;
+    
+    % Add this safety net
+    cleanupObj = onCleanup(@() cancel(futures));
+    
+    for i = 1:total_runs
+        local_Cfg = Cfg;
+        local_Cfg.Num_planes     = search_grid.Num_planes(i);
+        local_Cfg.Sats_per_plane = search_grid.Sats_per_plane(i);
+        local_Cfg.Inclination    = search_grid.Inclination(i);
+        local_Cfg.Phasing        = search_grid.Phasing(i); 
+        local_Cfg.Total_sats     = search_grid.Total_sats(i);
         
-        batch_end = min(batch_start + num_workers - 1, total_runs);
-        batch_size = batch_end - batch_start + 1;
+        % Notice: We deleted the 'dq' input!
+        futures(i) = parfeval(pool, @evaluate_architecture, 1, local_Cfg, i);
         
-        fprintf('\n--- Simulating Batch: Runs %d to %d ---\n', batch_start, batch_end);
-        
-        batch_coverage = zeros(batch_size, 1);
-        batch_grid = search_grid(batch_start:batch_end, :);
-        
-        % --- THE PARALLEL LOOP ---
-        parfor i = 1:batch_size
-            local_Cfg = Cfg;
-            local_Cfg.Num_planes     = batch_grid.Num_planes(i);
-            local_Cfg.Sats_per_plane = batch_grid.Sats_per_plane(i);
-            local_Cfg.Inclination    = batch_grid.Inclination(i);
-            local_Cfg.Phasing        = batch_grid.Phasing(i); 
-            local_Cfg.Total_sats     = batch_grid.Total_sats(i);
+        % Keep the UI alive during submission
+        % if mod(i, 50) == 0
+        %     pause(0.01);
+        %     fprintf(sprintf("%d \n",i))
+        % end
+    end
+    % fprintf("done with le futures")
+    
+    % --- FETCH RESULTS LIVE AS THEY FINISH ---
+    candidates_found = 0;
+    
+    % fetchNext waits until ANY worker finishes, then hands us the result instantly!
+    for i = 1:total_runs
+        fprintf(sprintf("run %d",i))
+        try
+            [completedIdx, result] = fetchNext(futures);
             
+            % 1. PRINT THE WORKER's MESSAGE LIVE!
+            fprintf('%s\n', result.msg);
             
-            metrics = fast_coverage_simulator_function(local_Cfg, false, false, false);
-            batch_coverage(i) = metrics.worst_coverage_percent;
+            % 2. Store the data
+            evaluated_coverage(completedIdx) = result.fast_cov;
             
-            fprintf('Finished %dx%d (Inc: %.1f, Phase: %d) -> Cov: %.2f%%\n', ...
-                local_Cfg.Num_planes, local_Cfg.Sats_per_plane, local_Cfg.Inclination, local_Cfg.Phasing, batch_coverage(i));
-        end
-        
-        evaluated_coverage(batch_start:batch_end) = batch_coverage;
-        valid_indices = find(batch_coverage >= 99.9);
-        
-        for v = 1:length(valid_indices)
-            best_local_idx = valid_indices(v);
-            temp_params = batch_grid(best_local_idx, :);
-            global_row_idx = batch_start + best_local_idx - 1;
-            
-            % --- DETAILED HIGH FIDELITY RUN ---
-            detailed_Cfg = Cfg; 
-            detailed_Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-            detailed_Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
-            detailed_Cfg.SampleTime = 20; 
-            detailed_Cfg.Lat_vec = linspace(55, 85, 10); 
-            detailed_Cfg.Lon_vec = linspace(-60, 30, 3);
-            detailed_Cfg.Equal_UE_area = true; % NumUEs ~ lat_vec^2 + lat_vec
-            
-            detailed_Cfg.Num_planes     = temp_params.Num_planes;
-            detailed_Cfg.Sats_per_plane = temp_params.Sats_per_plane;
-            detailed_Cfg.Inclination    = temp_params.Inclination;
-            detailed_Cfg.Phasing        = temp_params.Phasing;
-            detailed_Cfg.Total_sats     = temp_params.Total_sats;
-            
-            fprintf('  -> High-Fidelity Test for %dx%d (Total: %d)...\n', ...
-                detailed_Cfg.Num_planes, detailed_Cfg.Sats_per_plane, detailed_Cfg.Total_sats);
-            
-            detailed_metrics = coverage_simulator_function(detailed_Cfg, false, true, false); %plot_results = false; use_parallel = true; calc_link = false;
-            
-            if detailed_metrics.worst_coverage_percent > 99.999
-                fprintf('  -> PASSED. Added to Candidates %d/%d.\n',height(all_candidates), target_num_candidates);
-                
-                % Mark as a candidate
-                status_flags(global_row_idx) = 1; 
+            if result.is_candidate
+                candidates_found = candidates_found + 1;
+                temp_params = search_grid(completedIdx, :);
+                status_flags(completedIdx) = 1; 
                 all_candidates = [all_candidates; temp_params];
                 
-                % Is this the new absolute best/cheapest?
+                % Update absolute minimum
                 if temp_params.Total_sats < min_sats_found
                     min_sats_found = temp_params.Total_sats;
                     best_params = temp_params;
-                    
-                    fprintf('\n======================================================\n');
-                    fprintf('New Minimum for %d km Found: %d Sats.\n', (Cfg.Orbit_height / 1000), min_sats_found);
-                    fprintf('Current Candidates Pool: %d / %d\n', height(all_candidates), target_num_candidates);
-                    fprintf('======================================================\n');
                 end
-            else
-                fprintf('  -> Failed high-fidelity test (Cov: %.4f%%).\n', detailed_metrics.worst_coverage_percent);
+                
+                fprintf('*** Added to Candidates %d/%d ***\n\n', candidates_found, target_num_candidates);
+                
+                % 3. ABORT IF WE HIT THE TARGET
+                if candidates_found >= target_num_candidates
+                    fprintf('\n--- Target of %d candidates reached! Canceling remaining runs. ---\n', target_num_candidates);
+                    cancel(futures);
+                    break;
+                end
             end
+            
+        catch ME
+            % If a worker crashes inside, fetchNext throws an error. Catch and print it live!
+            fprintf('\n[!] CRASH IN BACKGROUND RUN: %s\n', ME.message);
         end
     end
     
@@ -310,5 +300,46 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         detailed_metrics = coverage_simulator_function(Cfg, true, true, true); %plot_results = true; use_parallel = true; calc_link = true;
         
         show_constellation(Cfg, false, true, out_dir);%Show interactive = false; savefig = true;
+    end
+end
+% =========================================================================
+% WORKER FUNCTION (Executes invisibly, returns a single result struct)
+% =========================================================================
+function result = evaluate_architecture(Cfg, run_idx)
+    result.run_idx = run_idx;
+    result.is_candidate = false;
+
+    p = Cfg.Num_planes; s = Cfg.Sats_per_plane;
+    inc = Cfg.Inclination; phase = Cfg.Phasing;
+
+    % 1. Run the ultra-fast low-fidelity check
+    fast_metrics = fast_coverage_simulator_function(Cfg, false, false, false);
+    fast_cov = fast_metrics.worst_coverage_percent;
+    result.fast_cov = fast_cov;
+
+    % If it fails, write the failure message and return immediately
+    if fast_cov < 99.9
+        result.msg = sprintf('[-] %dx%d (Inc: %.1f, Phase: %d) -> Failed Fast (Cov: %.2f%%)', p, s, inc, phase, fast_cov);
+        return;
+    end
+
+    % 2. FAST CHECK PASSED! Run the Detailed High-Fidelity Test
+    detailed_Cfg = Cfg; 
+    detailed_Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
+    detailed_Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
+    detailed_Cfg.SampleTime = 20; 
+    detailed_Cfg.Lat_vec = linspace(55, 85, 10); 
+    detailed_Cfg.Lon_vec = linspace(-60, 30, 3);
+    detailed_Cfg.Equal_UE_area = true; 
+
+    detailed_metrics = coverage_simulator_function(detailed_Cfg, false, false, false); 
+    detailed_cov = detailed_metrics.worst_coverage_percent;
+
+    % Check the final result and generate the appropriate message
+    if detailed_cov > 99.999
+        result.is_candidate = true;
+        result.msg = sprintf('[+] %dx%d (Inc: %.1f, Phase: %d) -> PASSED BOTH! (Detailed Cov: %.4f%%)', p, s, inc, phase, detailed_cov);
+    else
+        result.msg = sprintf('[-] %dx%d (Inc: %.1f, Phase: %d) -> Passed Fast (%.2f%%), Failed Detailed (%.4f%%)', p, s, inc, phase, fast_cov, detailed_cov);
     end
 end
