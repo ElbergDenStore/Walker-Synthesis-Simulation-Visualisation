@@ -261,45 +261,45 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
         exportgraphics(f6, fullfile(out_dir, 'Top_Solutions.png'), 'Resolution', 300);
         close(f6);
 
-        %% Show high res result of best constellation
-        fprintf('\nRunning detailed Link Budget simulations for the BEST result...\n');
-        
-        Cfg.DL.Direction = "DL";
-        Cfg.DL.Target_PFD_MHz = -108;
-        Cfg.DL.B         = 4e6;     
-        Cfg.DL.f         = 12e9;    
-        % Cfg.DL.G_tx      = 42; 
-        Cfg.DL.Tx_type   = "array";      
-        Cfg.DL.G_rx      = 30;      
-        Cfg.DL.Rx_type   = "array";
-        Cfg.DL.NF        = 5;
-
-        
-        Cfg.DL.G_tx = get_adjusted_tx_gain(Cfg.Orbit_height, Cfg.Min_elevation_UE, Cfg.DL.f );
-
-        Cfg.DL.Max_P_tx_dBm  = PFD_calc(Cfg.DL.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
-        Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
-        
-        Cfg.Save_dir = out_dir;
-        Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-        Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
-        Cfg.SampleTime = 20;
-        Cfg.Lat_vec = linspace(55, 85, 10); 
-        Cfg.Lon_vec = linspace(-60, 30, 3);
-        Cfg.Equal_UE_area = true;
-        Cfg.FRF = 3;
-        Cfg.RU = 1;
-        
-        Cfg.Num_planes     = best_params.Num_planes;
-        Cfg.Sats_per_plane = best_params.Sats_per_plane;
-        Cfg.Inclination    = best_params.Inclination;
-        Cfg.Phasing        = best_params.Phasing;
-        Cfg.Total_sats     = best_params.Total_sats;
-        
-        % Run the detailed simulator!
-        detailed_metrics = coverage_simulator_function(Cfg, true, true, true); %plot_results = true; use_parallel = true; calc_link = true;
-        
-        show_constellation(Cfg, false, true, out_dir);%Show interactive = false; savefig = true;
+        % %% Show high res result of best constellation
+        % fprintf('\nRunning detailed Link Budget simulations for the BEST result...\n');
+        % 
+        % Cfg.DL.Direction = "DL";
+        % Cfg.DL.Target_PFD_MHz = -115;
+        % Cfg.DL.B         = 4e6;     
+        % Cfg.DL.f         = 12e9;    
+        % % Cfg.DL.G_tx      = 42; 
+        % Cfg.DL.Tx_type   = "array";      
+        % Cfg.DL.G_rx      = 30;      
+        % Cfg.DL.Rx_type   = "array";
+        % Cfg.DL.NF        = 5;
+        % 
+        % 
+        % Cfg.DL.G_tx = get_adjusted_tx_gain(Cfg.Orbit_height, Cfg.Min_elevation_UE, Cfg.DL.f );
+        % 
+        % Cfg.DL.Max_P_tx_dBm  = PFD_calc(Cfg.DL.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
+        % Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
+        % 
+        % Cfg.Save_dir = out_dir;
+        % Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
+        % Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
+        % Cfg.SampleTime = 20;
+        % Cfg.Lat_vec = linspace(55, 85, 10); 
+        % Cfg.Lon_vec = linspace(-60, 30, 3);
+        % Cfg.Equal_UE_area = true;
+        % Cfg.FRF = 3;
+        % Cfg.RU = 1;
+        % 
+        % Cfg.Num_planes     = best_params.Num_planes;
+        % Cfg.Sats_per_plane = best_params.Sats_per_plane;
+        % Cfg.Inclination    = best_params.Inclination;
+        % Cfg.Phasing        = best_params.Phasing;
+        % Cfg.Total_sats     = best_params.Total_sats;
+        % 
+        % % Run the detailed simulator!
+        % detailed_metrics = coverage_simulator_function(Cfg, true, true, true); %plot_results = true; use_parallel = true; calc_link = true;
+        % 
+        % show_constellation(Cfg, false, true, out_dir);%Show interactive = false; savefig = true;
     end
 end
 % =========================================================================
