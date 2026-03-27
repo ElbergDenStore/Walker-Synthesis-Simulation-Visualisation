@@ -29,6 +29,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     Cfg.RU = 1;
     Cfg.Use_P618 = false;
     Cfg.Simple_Atmospheric_Loss_dB = 1;
+    
 
 
     %%%%% UE GRID SIZE %%%%
@@ -73,7 +74,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
             Cfg.DL.NF        = 7; %  TR 38821
         case 'ka'
             Cfg.Target_PFD_MHz = -115;
-            Cfg.DL.B         = 4e6;     
+            Cfg.DL.B         = 50e6;     
             Cfg.DL.f         = 20e9;
             Cfg.DL.Tx_type   = "array";      
             Cfg.DL.G_rx      = 36;      
@@ -81,7 +82,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
             Cfg.DL.NF        = 5;
         case 'ku'
             Cfg.Target_PFD_MHz = -115;
-            Cfg.DL.B         = 4e6;     
+            Cfg.DL.B         = 50e6;     
             Cfg.DL.f         = 12e9;
             Cfg.DL.Tx_type   = "array";      
             Cfg.DL.G_rx      = 33;      
@@ -90,7 +91,8 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
         otherwise
             error('Invalid frequency');
     end
-    Cfg.DL.Direction = "DL";
+    Cfg.DL.Direction     = "DL";
+    Cfg.Share_bandwidth  = true; % All the bandwidth is shared per beam
     Cfg.DL.G_tx          = get_adjusted_tx_gain(Cfg.Orbit_height, Cfg.Min_elevation_UE, Cfg.DL.f); 
     Cfg.DL.Max_P_tx_dBm  = PFD_calc(Cfg.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
     Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;

@@ -1,11 +1,11 @@
 clear all; close all; clc;
 
-Cfg = get_cfg(1000,"walkerdelta","big","medium");
+Cfg = get_cfg(1000,"walkerdelta","medium","medium");
 Cfg.FRF = 3;
 Cfg.RU = 1;
 
 calc_link = true;
-plot_results = false;
+plot_results = true;
 use_parallel = false;
 metrics = coverage_simulator_function(Cfg, plot_results,use_parallel,calc_link);
 

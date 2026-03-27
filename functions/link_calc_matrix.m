@@ -46,9 +46,10 @@ function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec,
     else
         BeamGrid = calculate_Beams(link_cfg.f, link_cfg.G_tx, general_config.Orbit_height, general_config.Min_elevation_UE, general_config.FRF);
     end
-
-    Link_2D.SIR = 10 * log10(Interference_calc_2D(el_mat, az_mat, BeamGrid, general_config));
-
+    
+    [sir_lin_mat, mb_idx_mat] = Interference_calc_2D(el_mat, az_mat, BeamGrid, general_config);
+    Link_2D.SIR = 10 * log10(sir_lin_mat);
+    
     % Convert signal and noise back to linear milliwatts
     S_mW = 10.^(Link_2D.Rx_Power / 10);
     N_mW = 10.^(Link_2D.P_noise / 10);
@@ -65,9 +66,47 @@ function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec,
     Link_2D.Throughput = zeros(size(Link_2D.SNR));
     valid_idx = ~isnan(Link_2D.SNR);
     
-    SINR_lin = 10.^(Link_2D.SINR(valid_idx)/10);
-    SNR_eff = 10^(2/10); % 2dB effective SNR assumed from your original code
-    Link_2D.Throughput(valid_idx) = link_cfg.B * 0.56 * 1 .* log2(1 + SINR_lin ./ SNR_eff);
+    SINR_lin_valid = 10.^(Link_2D.SINR(valid_idx)/10);
+    %%%% modified shannon %%%
+    BW_eff = 0.56;
+    eta = 1;
+    SNR_eff_dB = 2;
+    SNR_eff = 10^(SNR_eff_dB/10);
+
+    % Calculate the raw capacity of the beam
+    raw_throughput = link_cfg.B * BW_eff * eta .* log2(1 + SINR_lin_valid ./ SNR_eff);
+    %%%% modified shannon end %%%
+    
+    % Check if the Bandwidth Sharing flag is turned on
+    if isfield(general_config, 'Share_bandwidth') && general_config.Share_bandwidth
+        NumUEs = size(mb_idx_mat, 1);
+        nT = size(mb_idx_mat, 2);
+        
+        % Create a time index matrix the exact same size as the UEs
+        time_matrix = repmat(1:nT, NumUEs, 1);
+        
+        valid_mask = ~isnan(mb_idx_mat);
+        mb_valid = mb_idx_mat(valid_mask);
+        time_valid = time_matrix(valid_mask);
+        
+        % Create a unique ID for every single "Beam at Time T" combination
+        unique_beam_time_ids = mb_valid + (time_valid * BeamGrid.num_beams);
+        
+        % Vectorized counting: How many UEs share the exact same Beam-Time ID?
+        [~, ~, ic] = unique(unique_beam_time_ids);
+        counts = accumarray(ic, 1);
+        users_sharing_beam = counts(ic);
+        
+        % Re-inflate the counts back into a 2D matrix
+        users_per_beam_mat = ones(NumUEs, nT);
+        users_per_beam_mat(valid_mask) = users_sharing_beam;
+        
+        % Divide the throughput by the number of users sharing the beam!
+        Link_2D.Throughput(valid_idx) = raw_throughput ./ users_per_beam_mat(valid_idx);
+    else
+        % No sharing, every user gets 100% of the beam's capacity
+        Link_2D.Throughput(valid_idx) = raw_throughput;
+    end
 end
 
 % --- Subfunctions adjusted for matrices ---

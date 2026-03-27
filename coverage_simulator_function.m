@@ -3,7 +3,21 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     fprintf('\n Starting Simulation: %d Sats, %.1f deg Inclination\n', Cfg.Total_sats, Cfg.Inclination);
     
     %% Scenario & Constellation Setup
-    sc = satelliteScenario;
+    persistent cached_sc
+    
+    if isempty(cached_sc) || ~isvalid(cached_sc)
+        cached_sc = satelliteScenario;
+    else
+        % Clear previous objects to reuse the scenario container safely
+        if ~isempty(cached_sc.Satellites)
+            delete(cached_sc.Satellites);
+        end
+        if ~isempty(cached_sc.GroundStations)
+            delete(cached_sc.GroundStations);
+        end
+    end
+    
+    sc = cached_sc;
     sc.StartTime  = Cfg.StartTime;
     sc.StopTime   = Cfg.StopTime;
     sc.SampleTime = Cfg.SampleTime;
@@ -223,14 +237,14 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         end
         
         % Repeat exactly the same for UL if it exists
-        if isfield(Cfg, 'UL')
-            UL_Result = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, Cfg.UL, Cfg);
-            for idx = 1:Cfg.NumUEs
-                UEs(idx).UL.SNR        = UL_Result.SNR(idx, :);
-                UEs(idx).UL.Throughput = UL_Result.Throughput(idx, :);
-                % ... map other fields as needed ...
-            end
-        end
+        % if isfield(Cfg, 'UL')
+        %     UL_Result = link_calc_matrix(el_mat, range_mat, lat_vec, lon_vec, Cfg.UL, Cfg);
+        %     for idx = 1:Cfg.NumUEs
+        %         UEs(idx).UL.SNR        = UL_Result.SNR(idx, :);
+        %         UEs(idx).UL.Throughput = UL_Result.Throughput(idx, :);
+        %         % ... map other fields as needed ...
+        %     end
+        % end
         fprintf('\nLoss calculation complete (%.1f sec).\n', toc);
     end
     
