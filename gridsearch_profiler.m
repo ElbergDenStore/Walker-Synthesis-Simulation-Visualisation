@@ -73,7 +73,8 @@ function [best_params, all_candidates] = gridsearch_profiler(Cfg, plot_results, 
             
             % We will also force use_parallel=false so coverage_simulator_function runs sequentially
             metrics = coverage_simulator_function(local_Cfg, false, false, false);
-            metrics = fast_coverage_simulator_function(local_Cfg, false, false, false);
+            metrics = fast_coverage_simulator_function(local_Cfg, true, false, false); %reset cache to make sure new UES are correct
+            metrics = fast_coverage_simulator_function(local_Cfg, false, false, false); %dont reset cache as UEs are exactly the same
             batch_coverage(i) = metrics.worst_coverage_percent;
             
             fprintf('Finished %dx%d (Inc: %.1f, Phase: %d) -> Cov: %.2f%%\n', ...

@@ -1,9 +1,18 @@
-function metrics = fast_coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link)
+function metrics = fast_coverage_simulator_function(Cfg, reset_cache, use_parallel, calc_link)
 % FAST_COVERAGE_SIMULATOR_FUNCTION Optmized simulator strictly using ECEF math.
     fprintf('\n Starting Fast Simulation: %d Sats, %.1f deg Inclination\n', Cfg.Total_sats, Cfg.Inclination);
-    
+    tic
     %% 2. Constellation Setup (Cached)
-    persistent cached_sc
+    persistent cached_sc cached_UE_lats cached_UE_lons cached_ue_pos_ecef last_Cfg
+    
+    if reset_cache
+        cached_sc = [];
+        cached_UE_lats = [];
+        cached_UE_lons = [];
+        cached_ue_pos_ecef = [];
+        last_Cfg = [];
+        fprintf(' [!] Cache manually reset for fresh initialization.\n');
+    end
     
     if isempty(cached_sc) || ~isvalid(cached_sc)
         cached_sc = satelliteScenario;
@@ -41,7 +50,6 @@ function metrics = fast_coverage_simulator_function(Cfg, plot_results, use_paral
     nT = size(sat_pos_ecef, 3);
     
     %% 3. Create UEs Struct Array
-    persistent cached_UE_lats cached_UE_lons cached_ue_pos_ecef last_Cfg
     
     recon_UEs = false;
     if isempty(cached_UE_lats)
@@ -111,53 +119,71 @@ function metrics = fast_coverage_simulator_function(Cfg, plot_results, use_paral
     end
     
     %% Fast Coverage Simulation using pure ECEF math
-    % if use_parallel, num_workers = Inf; else, num_workers = 0; end
-    min_elevation_UE = Cfg.Min_elevation_UE;
-    % Cfg.Num_workers = num_workers;
     
-    tic
-    for idx = 1:Cfg.NumUEs
-        ue_xyz = ue_pos_ecef(idx, :)'; % 3x1 vector
-        lat = UE_lats(idx);
-        lon = UE_lons(idx);
+    
+    % Reshape Satellites to [3 x NumSats x nT x 1]
+    sat_pos_4d = reshape(sat_pos_ecef, 3, num_sats, nT, 1);
+    
+    % Reshape UEs to [3 x 1 x 1 x NumUEs]
+    ue_pos_4d = reshape(ue_pos_ecef', 3, 1, 1, Cfg.NumUEs);
+    
+    % Subtract instantly! Result is [3 x NumSats x nT x NumUEs]
+    vec_ecef_4d = sat_pos_4d - ue_pos_4d;
+    
+    % ===============================================================
+    % 2. 4D ROTATION (ECEF TO ENU) via pagemtimes
+    % ===============================================================
+    % Calculate sines and cosines for all UEs simultaneously [1 x NumUEs]
+    slat = sind(UE_lats'); clat = cosd(UE_lats');
+    slon = sind(UE_lons'); clon = cosd(UE_lons');
+    
+    % Build a 3D array of rotation matrices [3 x 3 x NumUEs]
+    R_ecef_to_enu = zeros(3, 3, Cfg.NumUEs);
+    R_ecef_to_enu(1,1,:) = -slon;           R_ecef_to_enu(1,2,:) = clon;            R_ecef_to_enu(1,3,:) = 0;
+    R_ecef_to_enu(2,1,:) = -slat.*clon;     R_ecef_to_enu(2,2,:) = -slat.*slon;     R_ecef_to_enu(2,3,:) = clat;
+    R_ecef_to_enu(3,1,:) = clat.*clon;      R_ecef_to_enu(3,2,:) = clat.*slon;      R_ecef_to_enu(3,3,:) = slat;
+    
+    % Reshape vec_ecef so we can multiply it: [3 x (NumSats*nT) x NumUEs]
+    vec_ecef_pages = reshape(vec_ecef_4d, 3, num_sats * nT, Cfg.NumUEs);
+    
+    % Multiply all 12 rotation matrices by their respective coordinate blocks instantly!
+    vec_enu_pages = pagemtimes(R_ecef_to_enu, vec_ecef_pages);
+    
+    % Reshape back to our beautiful 4D Tensor: [3 x NumSats x nT x NumUEs]
+    vec_enu_4d = reshape(vec_enu_pages, 3, num_sats, nT, Cfg.NumUEs);
+    
+    % ===============================================================
+    % 3. EXTRACT AER (Vectorized across all 4 Dimensions)
+    % ===============================================================
+    E = vec_enu_4d(1, :, :, :);
+    N = vec_enu_4d(2, :, :, :);
+    U = vec_enu_4d(3, :, :, :);
+    
+    r_4d = sqrt(E.^2 + N.^2 + U.^2);
+    el_4d = asind(U ./ r_4d);
+    
+    az_4d = atan2d(E, N);
+    az_4d(az_4d < 0) = az_4d(az_4d < 0) + 360;
+    
+    % Squeeze down to 3D matrices: [NumSats x nT x NumUEs]
+    r_mat_all = reshape(r_4d, num_sats, nT, Cfg.NumUEs);
+    el_mat_all = reshape(el_4d, num_sats, nT, Cfg.NumUEs);
+    az_mat_all = reshape(az_4d, num_sats, nT, Cfg.NumUEs);
+
+    % ===============================================================
+    % 4. ASSIGN TO STRUCT (Fast slicing loop)
+    % ===============================================================
+    % We still use a loop to pack the struct array, but NO math happens here.
+    min_el = Cfg.Min_elevation_UE;
         
-        % 2. Vector from UE to ALL satellites at ALL times [3 x NumSats x nT]
-        vec_ecef = sat_pos_ecef - ue_xyz;
+   for idx = 1:Cfg.NumUEs
+        % Slice out this UE's completed matrices
+        r_mat  = r_mat_all(:, :, idx);
+        el_mat = el_mat_all(:, :, idx);
+        az_mat = az_mat_all(:, :, idx);
         
-        % ===============================================================
-        % 3. ECEF TO ENU ROTATION (To get perfect Azimuth and Elevation)
-        % ===============================================================
-        slat = sind(lat); clat = cosd(lat);
-        slon = sind(lon); clon = cosd(lon);
-        
-        % Standard transformation matrix from Earth-Centered to Local East-North-Up
-        R_ecef_to_enu = [
-            -slon,           clon,          0;
-            -slat*clon,     -slat*slon,     clat;
-             clat*clon,      clat*slon,     slat
-        ];
-        
-        % Flatten the vectors, rotate them all instantly, and re-fold the matrix
-        vec_ecef_flat = reshape(vec_ecef, 3, []);
-        vec_enu_flat = R_ecef_to_enu * vec_ecef_flat;
-        vec_enu = reshape(vec_enu_flat, 3, num_sats, nT);
-        
-        % Extract East, North, and Up components (Safely reshaping to preserve dimensions)
-        E = reshape(vec_enu(1, :, :), num_sats, nT);
-        N = reshape(vec_enu(2, :, :), num_sats, nT);
-        U = reshape(vec_enu(3, :, :), num_sats, nT);
-        
-        % ===============================================================
-        % 4. EXTRACT AER (Azimuth, Elevation, Range)
-        % ===============================================================
-        r_mat = sqrt(E.^2 + N.^2 + U.^2);
-        el_mat = asind(U ./ r_mat);
-        
-        az_mat = atan2d(E, N);
-        az_mat(az_mat < 0) = az_mat(az_mat < 0) + 360;
-        
-        valid_mask = el_mat >= min_elevation_UE;
-        Num_visible = sum(valid_mask,1); 
+        valid_mask = el_mat >= min_el;
+        Num_visible = sum(valid_mask, 1); 
         has_service = Num_visible > 0;
         
         r_temp = r_mat;

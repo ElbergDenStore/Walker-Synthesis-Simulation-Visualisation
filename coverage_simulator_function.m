@@ -1,23 +1,10 @@
 function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link)
 % RUN_SATELLITE_SIM Simulates satellite coverage and link budget.
     fprintf('\n Starting Simulation: %d Sats, %.1f deg Inclination\n', Cfg.Total_sats, Cfg.Inclination);
+    tic
     
     %% Scenario & Constellation Setup
-    persistent cached_sc
-    
-    if isempty(cached_sc) || ~isvalid(cached_sc)
-        cached_sc = satelliteScenario;
-    else
-        % Clear previous objects to reuse the scenario container safely
-        if ~isempty(cached_sc.Satellites)
-            delete(cached_sc.Satellites);
-        end
-        if ~isempty(cached_sc.GroundStations)
-            delete(cached_sc.GroundStations);
-        end
-    end
-    
-    sc = cached_sc;
+    sc = satelliteScenario;
     sc.StartTime  = Cfg.StartTime;
     sc.StopTime   = Cfg.StopTime;
     sc.SampleTime = Cfg.SampleTime;
@@ -45,6 +32,8 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     else
         [UE_lats, UE_lons] = meshgrid(Cfg.Lat_vec, Cfg.Lon_vec);
     end
+    UE_lats = UE_lats(:);
+    UE_lons = UE_lons(:);
     Cfg.NumUEs = length(UE_lats);
     
     % 1. Define the perfectly sized SimData template
@@ -117,7 +106,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
 
     Cfg.Num_workers = num_workers; % Will be used in link calculation
     
-    tic
+    
     parfor (idx = 1:Cfg.NumUEs, num_workers)
         ue = groundStation(sc, UEs(idx).Lat, UEs(idx).Lon);
         
