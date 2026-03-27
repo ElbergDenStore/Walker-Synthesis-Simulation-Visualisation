@@ -20,7 +20,7 @@ clear; close all; clc;
 method = "grid"; % Toggle: 'grid', 'surrogate', or 'bayes'
 heights_km = 700:10:1200; % Iterate over these altitudes (in km)
 target_lat = 55;
-plot_individual_results = false; % Keep false for the sweep to save time
+plot_individual_results = true; % Keep false for the sweep to save time
 
 % Record start time for the sweep
 start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
@@ -41,9 +41,10 @@ for i = 1:length(heights_km)
     
     %% Base Cfg for simple test -> goal of running super fast, but avoid too many false positives
     Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-    Cfg.StopTime   = datetime('1-Jun-2025 01:59:59', 'TimeZone', 'UTC'); 
-    Cfg.SampleTime = 240; % New valid mask allows for more "random sampling" instead of contiguous communications
-    Cfg.Lat_vec = linspace(55, 85, 7);  
+    % Cfg.StopTime   = datetime('1-Jun-2025 01:59:59', 'TimeZone', 'UTC');
+    % 2 and 24 hours
+    Cfg.SampleTime = 60; % New valid mask allows for more "random sampling" instead of contiguous communications
+    Cfg.Lat_vec = linspace(55, 85, 5);  
     Cfg.Lon_vec = linspace(-180, 180, 2); %linspace(-60, 30, 2); earth will spin, why not distribute UEs everywhere
     Cfg.Equal_UE_area  = true; % 6 ues for 2 lats, 3^2 + 3 for 3, 7^2 + 7 = 56 
     Cfg.Min_elevation_UE = 20;

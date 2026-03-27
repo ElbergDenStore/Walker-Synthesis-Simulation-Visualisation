@@ -1,8 +1,9 @@
-function metrics = fast_coverage_simulator_function(Cfg, reset_cache, use_parallel, calc_link)
+function metrics = fast_coverage_simulator_function(Cfg, reset_cache, use_parallel, calc_link, use_SGP)
 % FAST_COVERAGE_SIMULATOR_FUNCTION Optmized simulator strictly using ECEF math.
     fprintf('\n Starting Fast Simulation: %d Sats, %.1f deg Inclination\n', Cfg.Total_sats, Cfg.Inclination);
     tic
-    %% 2. Constellation Setup (Cached)
+
+    %% 2. Constellation & Time Setup
     persistent cached_sc cached_UE_lats cached_UE_lons cached_ue_pos_ecef last_Cfg
     
     if reset_cache
@@ -13,37 +14,56 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, use_parall
         last_Cfg = [];
         fprintf(' [!] Cache manually reset for fresh initialization.\n');
     end
-    
-    if isempty(cached_sc) || ~isvalid(cached_sc)
-        cached_sc = satelliteScenario;
-    else
-        if ~isempty(cached_sc.Satellites)
-            delete(cached_sc.Satellites);
+
+    if use_SGP
+        %% SGP4 PROPAGATOR (Standard MATLAB Toolbox)
+        if isempty(cached_sc) || ~isvalid(cached_sc)
+            cached_sc = satelliteScenario;
+        else
+            if ~isempty(cached_sc.Satellites)
+                delete(cached_sc.Satellites);
+            end
+            if ~isempty(cached_sc.GroundStations)
+                delete(cached_sc.GroundStations);
+            end
         end
-        if ~isempty(cached_sc.GroundStations)
-            delete(cached_sc.GroundStations);
+        
+        sc = cached_sc;
+        sc.StartTime  = Cfg.StartTime;
+        sc.StopTime   = Cfg.StopTime;
+        sc.SampleTime = Cfg.SampleTime;
+        r_earth = 6378.14e3;
+        
+        if Cfg.WalkerStar == true
+            sats = asymmetrical_walker_star_generation(Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
+        else
+            sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
+                Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
+                Name="S4D", OrbitPropagator="sgp4");
         end
-    end
-    
-    sc = cached_sc;
-    sc.StartTime  = Cfg.StartTime;
-    sc.StopTime   = Cfg.StopTime;
-    sc.SampleTime = Cfg.SampleTime;
-    r_earth = 6378.14e3;
-    
-    if Cfg.WalkerStar == true
-        sats = asymmetrical_walker_star_generation(Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
+        
+        % Get the massive ECEF matrix instantly from SGP4
+        [sat_pos_raw, ~, simTimes] = states(sats, "CoordinateFrame", "ECEF");
+        
+        % Permute to [3 x NumSats x nT] to make our implicit expansion math easy
+        sat_pos_ecef = permute(sat_pos_raw, [1, 3, 2]);
     else
-        sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
-        Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
-        Name="S4D", OrbitPropagator="sgp4");
+        %% PURE MATH WALKER GENERATOR (0.001 seconds execution time)
+        if Cfg.WalkerStar == true
+            error('Fast math generator currently only supports Walker Delta.');
+        end
+        
+        % Build the exact time vector using double math
+        total_duration_sec = seconds(Cfg.StopTime - Cfg.StartTime);
+        time_steps_sec = 0 : Cfg.SampleTime : total_duration_sec;
+        
+        simTimes = Cfg.StartTime + seconds(time_steps_sec);
+        simTimes.TimeZone = 'UTC';
+        
+        sat_pos_ecef = fast_walker_ecef(Cfg.Orbit_height, Cfg.Inclination, ...
+                                        Cfg.Num_planes, Cfg.Sats_per_plane, ...
+                                        Cfg.Phasing, time_steps_sec, Cfg.StartTime);
     end
-    
-    % Get the massive ECEF matrix instantly from SGP4
-    [sat_pos_raw, ~, simTimes] = states(sats, "CoordinateFrame", "ECEF");
-    
-    % Permute to [3 x NumSats x nT] to make our implicit expansion math easy
-    sat_pos_ecef = permute(sat_pos_raw, [1, 3, 2]);
     
     % Cache the dimensions for the math loop
     num_sats = size(sat_pos_ecef, 2);
@@ -268,5 +288,70 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, use_parall
             metrics.throughput_mean  = mean(valid_thpt);
         end
         fprintf('\nLoss calculation complete (%.1f sec).\n', toc);
+    end
+end
+
+% =========================================================================
+% PURE MATH WALKER GENERATOR
+% =========================================================================
+function sat_pos_ecef = fast_walker_ecef(Orbit_height, Inc_deg, P, S, F, time_steps_sec, StartTime)
+    % Calculates the exact ECEF coordinates of a Walker Delta constellation
+    
+    T = P * S;
+    a = 6378.137e3 + Orbit_height; % Semi-major axis (meters)
+    mu = 3.986004418e14;           % Earth's gravitational constant
+    we = 7.2921150e-5;             % Earth's rotation rate (rad/s)
+    inc = deg2rad(Inc_deg);
+    
+    n = sqrt(mu / a^3);            % Mean motion (rad/s)
+    nT = length(time_steps_sec);
+    
+    % --- THE MISSING LINK: EARTH'S INITIAL ROTATION (GMST) ---
+    % 1. Convert StartTime to Julian Date
+    JD = juliandate(StartTime);
+    D = JD - 2451545.0; % Days since Jan 1, 2000, 12:00 UTC
+    
+    % 2. Calculate Greenwich Mean Sidereal Time in degrees
+    GMST_deg = mod(280.46061837 + 360.98564736629 * D, 360);
+    theta_g0 = deg2rad(GMST_deg);
+    
+    % Preallocate the [3 x NumSats x nT] matrix
+    sat_pos_ecef = zeros(3, T, nT);
+    
+    sat_idx = 1;
+    for p = 0:(P-1)
+        RAAN = p * (2*pi / P); % Right Ascension of the Ascending Node
+        
+        for s = 0:(S-1)
+            % Initial Phase (Mean Anomaly)
+            M0 = s * (2*pi / S) + p * F * (2*pi / T);
+            
+            % Angle within the orbital plane over time (1 x nT vector)
+            theta = M0 + n * time_steps_sec; 
+            
+            % 1. Position in the 2D orbital plane
+            x_orb = a * cos(theta);
+            y_orb = a * sin(theta);
+            
+            % 2. Rotate to 3D Earth-Centered Inertial (ECI)
+            X_eci = x_orb * cos(RAAN) - y_orb * cos(inc) * sin(RAAN);
+            Y_eci = x_orb * sin(RAAN) + y_orb * cos(inc) * cos(RAAN);
+            Z_eci = y_orb * sin(inc);
+            
+            % 3. Rotate to Earth-Centered Earth-Fixed (ECEF) by spinning the Earth!
+            % We add the initial offset (theta_g0) to the rotation over time
+            theta_g = theta_g0 + we * time_steps_sec; 
+            
+            X_ecef = X_eci .* cos(theta_g) + Y_eci .* sin(theta_g);
+            Y_ecef = -X_eci .* sin(theta_g) + Y_eci .* cos(theta_g);
+            Z_ecef = Z_eci; % Z (North Pole) is unaffected by rotation
+            
+            % Store in our 3D tensor
+            sat_pos_ecef(1, sat_idx, :) = X_ecef;
+            sat_pos_ecef(2, sat_idx, :) = Y_ecef;
+            sat_pos_ecef(3, sat_idx, :) = Z_ecef;
+            
+            sat_idx = sat_idx + 1;
+        end
     end
 end

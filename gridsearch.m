@@ -1,6 +1,6 @@
 function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     %% 1. Force kill the current pool
-    % delete(gcp('nocreate')); % necessary or it will get stuck
+    delete(gcp('nocreate')); % necessary or it will get stuck
 
     %% 1. Build the Ascending Grid
     P_vec = 4:15; % Num Planes % 15 both places makes sense to me
@@ -54,7 +54,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     futures(1:total_runs) = parallel.FevalFuture;
     
     % Add this safety net
-    cleanupObj = onCleanup(@() cancel(futures));
+    % cleanupObj = onCleanup(@() cancel(futures)); %does not work anyway
     
     for i = 1:total_runs
         local_Cfg = Cfg;
@@ -313,17 +313,30 @@ function result = evaluate_architecture(Cfg, run_idx)
     inc = Cfg.Inclination; phase = Cfg.Phasing;
 
     % 1. Run the ultra-fast low-fidelity check
-    fast_metrics = fast_coverage_simulator_function(Cfg, false, false, false);
+    Cfg.StopTime = Cfg.StartTime + hours(2);
+    faster_metrics = fast_coverage_simulator_function(Cfg, false, false, false, false);
+    faster_cov = faster_metrics.worst_coverage_percent;
+    result.faster_cov = faster_cov;
+
+    % If it fails, write the failure message and return immediately
+    if faster_cov < 97
+        result.msg = sprintf('[-] %dx%d (Inc: %.1f, Phase: %d) -> Failed Ultra Fast (Cov: %.2f%%)', p, s, inc, phase, faster_cov);
+        return;
+    end
+    
+    Cfg.StopTime = Cfg.StartTime + hours(24);
+    fast_metrics = fast_coverage_simulator_function(Cfg, false, false, false, true); % use SGP
     fast_cov = fast_metrics.worst_coverage_percent;
     result.fast_cov = fast_cov;
 
-    % If it fails, write the failure message and return immediately
+    % If it fails again, write the failure message and return immediately
     if fast_cov < 99.9
         result.msg = sprintf('[-] %dx%d (Inc: %.1f, Phase: %d) -> Failed Fast (Cov: %.2f%%)', p, s, inc, phase, fast_cov);
+        result.msg = sprintf('[-] %dx%d (Inc: %.1f, Phase: %d) -> Passed Ultra Fast (%.2f%%), Failed Fast (%.4f%%)', p, s, inc, phase, faster_cov, fast_cov);
         return;
     end
 
-    % 2. FAST CHECK PASSED! Run the Detailed High-Fidelity Test
+    % 2. FASTer CHECKs PASSED! Run the Detailed High-Fidelity Test
     detailed_Cfg = Cfg; 
     detailed_Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
     detailed_Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
