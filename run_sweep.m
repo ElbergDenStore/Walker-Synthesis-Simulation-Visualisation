@@ -20,7 +20,7 @@ clear; close all; clc;
 method = "grid"; % Toggle: 'grid', 'surrogate', or 'bayes'
 heights_km = 700:10:1200; % Iterate over these altitudes (in km)
 target_lat = 55;
-plot_individual_results = true; % Keep false for the sweep to save time
+plot_individual_results = false; % Keep false for the sweep to save time
 
 % Record start time for the sweep
 start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');

@@ -12,26 +12,26 @@ Cfg.WalkerStar = false;
 Cfg.Min_elevation_UE = 20;
 
 Cfg.StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-Cfg.StopTime = datetime('2-Jun-2025 12:30:00', 'TimeZone', 'UTC'); 
+Cfg.StopTime = datetime('3-Jun-2025 12:30:00', 'TimeZone', 'UTC'); 
 Cfg.SampleTime = 60;
 
-Cfg.Lat_vec = linspace(50, 60, 4);
-Cfg.Lon_vec = linspace(5, 15, 4);
+Cfg.Lat_vec = linspace(50, 60, 1);
+Cfg.Lon_vec = linspace(5, 15, 1);
 Cfg.Equal_UE_area = false;
 Cfg.Accept_Flat_UE_array = false;
 
 fprintf('Number of UEs roughly: %d\n', length(Cfg.Lat_vec)*length(Cfg.Lon_vec));
 
-fprintf('\n--- Running OLD Simulator (coverage_simulator_function) ---\n');
-tic;
-old_metrics = coverage_simulator_function(Cfg, false, false, false);
-old_time = toc;
-fprintf('OLD Simulator took %.2f seconds.\n', old_time);
+% --- Running OLD Simulator ---
+startTimeOld = tic; % Store the start time in a unique variable
+old_metrics = coverage_simulator_function(Cfg, false, false, false); 
+old_time = toc(startTimeOld); % Tell toc which timer to read
+fprintf('OLD Simulator took %.2f seconds.\n', old_time); 
 
-fprintf('\n--- Running NEW FAST Simulator (fast_coverage_simulator_function) ---\n');
-tic;
-new_metrics = fast_coverage_simulator_function(Cfg, true, false, false);
-new_time = toc;
+% --- Running NEW FAST Simulator ---
+startTimeNew = tic; 
+new_metrics = fast_coverage_simulator_function(Cfg, false, false, false); 
+new_time = toc(startTimeNew); 
 fprintf('NEW Simulator took %.2f seconds.\n', new_time);
 
 fprintf('\n--- Comparing Results ---\n');

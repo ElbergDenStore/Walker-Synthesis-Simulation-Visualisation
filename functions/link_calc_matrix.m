@@ -67,7 +67,7 @@ function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec,
     valid_idx = ~isnan(Link_2D.SNR);
     
     SINR_lin_valid = 10.^(Link_2D.SINR(valid_idx)/10);
-    %%%% modified shannon %%%
+    %%%% Modified shannon %%%
     BW_eff = 0.56;
     eta = 1;
     SNR_eff_dB = 2;

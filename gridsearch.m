@@ -70,7 +70,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
             local_Cfg.Total_sats     = batch_grid.Total_sats(i);
             
             
-            metrics = coverage_simulator_function(local_Cfg, false, false, false);
+            metrics = fast_coverage_simulator_function(local_Cfg, false, false, false);
             batch_coverage(i) = metrics.worst_coverage_percent;
             
             fprintf('Finished %dx%d (Inc: %.1f, Phase: %d) -> Cov: %.2f%%\n', ...

@@ -2,7 +2,7 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
 % RUN_SATELLITE_SIM Simulates satellite coverage and link budget.
     fprintf('\n Starting Simulation: %d Sats, %.1f deg Inclination\n', Cfg.Total_sats, Cfg.Inclination);
     tic
-    
+
     %% Scenario & Constellation Setup
     sc = satelliteScenario;
     sc.StartTime  = Cfg.StartTime;
@@ -18,10 +18,15 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         Name="S4D", OrbitPropagator="sgp4");
     end
 
-    dummy_ue = groundStation(sc, 0, 0); 
-    [~, ~, ~, authoritative_simTimes] = aer(dummy_ue, sats);
+    % Get the massive ECEF matrix instantly from SGP4
+    [sat_pos_raw, ~, simTimes] = states(sats, "CoordinateFrame", "ECEF");
     
-    nT = length(authoritative_simTimes);
+    % Permute to [3 x NumSats x nT] to make the implicit expansion math easy
+    sat_pos_ecef = permute(sat_pos_raw, [1, 3, 2]);
+    
+    % Cache the dimensions for the math loop
+    num_sats = size(sat_pos_ecef, 2);
+    nT = size(sat_pos_ecef, 3);
     
     %% Create the UEs Struct Array (Pre-allocated)
     if Cfg.Equal_UE_area == true
@@ -34,6 +39,8 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     end
     UE_lats = UE_lats(:);
     UE_lons = UE_lons(:);
+
+    ue_pos_ecef = lla2ecef([UE_lats, UE_lons, zeros(length(UE_lats), 1)]);
     Cfg.NumUEs = length(UE_lats);
     
     % 1. Define the perfectly sized SimData template
@@ -106,12 +113,52 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
 
     Cfg.Num_workers = num_workers; % Will be used in link calculation
     
-    
+    tic
     parfor (idx = 1:Cfg.NumUEs, num_workers)
-        ue = groundStation(sc, UEs(idx).Lat, UEs(idx).Lon);
+        ue_xyz = ue_pos_ecef(idx, :)'; % 3x1 vector
+        lat = UE_lats(idx);
+        lon = UE_lons(idx);
         
-        [az_mat, el_mat, r_mat, simTimes] = aer(ue, sats);
+        % 2. Vector from UE to ALL satellites at ALL times [3 x NumSats x nT]
+        vec_ecef = sat_pos_ecef - ue_xyz;
         
+        % ===============================================================
+        % 3. ECEF TO ENU ROTATION (To get perfect Azimuth and Elevation)
+        % ===============================================================
+        slat = sind(lat); clat = cosd(lat);
+        slon = sind(lon); clon = cosd(lon);
+        
+        % Standard transformation matrix from Earth-Centered to Local East-North-Up
+        R_ecef_to_enu = [
+            -slon,           clon,          0;
+            -slat*clon,     -slat*slon,     clat;
+             clat*clon,      clat*slon,     slat
+        ];
+        
+        % Flatten the vectors, rotate them all instantly, and re-fold the matrix
+        vec_ecef_flat = reshape(vec_ecef, 3, []);
+        vec_enu_flat = R_ecef_to_enu * vec_ecef_flat;
+        vec_enu = reshape(vec_enu_flat, 3, num_sats, nT);
+        
+        % Extract East, North, and Up components (Safely reshaping to preserve dimensions)
+        E = reshape(vec_enu(1, :, :), num_sats, nT);
+        N = reshape(vec_enu(2, :, :), num_sats, nT);
+        U = reshape(vec_enu(3, :, :), num_sats, nT);
+        
+        % ===============================================================
+        % 4. EXTRACT AER (Azimuth, Elevation, Range)
+        % ===============================================================
+        r_mat = sqrt(E.^2 + N.^2 + U.^2);
+        el_mat = asind(U ./ r_mat);
+        
+        az_mat = atan2d(E, N);
+        az_mat(az_mat < 0) = az_mat(az_mat < 0) + 360;
+
+        % ue = groundStation(sc, UEs(idx).Lat, UEs(idx).Lon);
+        % 
+        % [az_mat, el_mat, r_mat, simTimes] = aer(ue, sats);
+        % 
+
         valid_mask = el_mat >= min_elevation_UE;
         Num_visible = sum(valid_mask,1); 
         has_service = Num_visible > 0;
@@ -140,7 +187,6 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
         end
         
         send(dq, []);
-        delete(ue); % Delete the groundStation so it does not accumulate
     end
     fprintf('\nGeometry calculation complete (%.1f sec).\n', toc);
     
