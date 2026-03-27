@@ -88,7 +88,7 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
             fprintf('%s\n', result.msg);
             
             % 2. Store the data
-            evaluated_coverage(completedIdx) = result.fast_cov;
+            evaluated_coverage(completedIdx) = result.faster_cov;
             
             if result.is_candidate
                 candidates_found = candidates_found + 1;
