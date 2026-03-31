@@ -1,6 +1,6 @@
 % %% 1. Configuration & Region Selection
 % % Toggle between 'Nordjylland', 'Denmark', or 'Full'
-REGION = 'Full300'; 
+REGION = 'Full3000'; 
 
 switch REGION
     case 'Nordjylland'
@@ -48,6 +48,10 @@ else
     Cfg.Accept_Flat_UE_array = true; Cfg.Equal_UE_area = false; 
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons, Total_Pop] = generate_population_based_UEs(latlim, lonlim, people_per_ue);
 
+
+    % VIP_UEs = aalborg, nuuk, kastrup? anden mili base? a fleet of ships
+    % Cfg.Flat_UE_array.Lats = [Cfg.Flat_UE_array.Lats; VIP_UEs.Lats]
+    % Cfg.Flat_UE_array.Lons = [Cfg.Flat_UE_array.Lons; VIP_UEs.Lons]
     calc_link = true; 
     Cfg.Use_P618 = false; %simple atmospheric loss
     Cfg.Simple_Atmospheric_Loss_dB = 1;
@@ -56,8 +60,10 @@ else
     Cfg.Share_bandwidth  = true; 
     plot_results = true; 
     use_parallel = true;
-    metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, calc_link);
-    save(dataFile);
+    metrics = coverage_simulator_function(Cfg, use_parallel, calc_link);
+
+    plot_simulation(metrics, use_parallel);
+    % save(dataFile);
 end
 
 %%%%% VISUALISE UES

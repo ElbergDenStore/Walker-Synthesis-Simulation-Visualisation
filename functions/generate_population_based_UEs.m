@@ -44,8 +44,8 @@ function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_based_UEs
     valid_pixels = find(local_data > 0);
     
     % Extract the population numbers for just those valid pixels to use as weights
-    pixel_weights = local_data(valid_pixels);
-    
+    pixel_weights = local_data(valid_pixels); % weight based on population
+
     % 7. Sample the pixels! 
     % We use 'randsample' with replacement, weighted by the population.
     % If a pixel has 30,000 people, it will get picked roughly 100 times.
@@ -61,7 +61,7 @@ function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_based_UEs
     % Because pixels are ~1km wide, multiple UEs in the same pixel will spawn 
     % on the exact same coordinate. We add a tiny random offset (±0.004 deg) 
     % so they scatter naturally within their 1km pixel bounds.
-    jitter_deg = 0.004; 
+    jitter_deg = 0.004*3; 
     UE_lats_flat = UE_lats_flat + (rand(size(UE_lats_flat)) - 0.5) * jitter_deg;
     UE_lons_flat = UE_lons_flat + (rand(size(UE_lons_flat)) - 0.5) * jitter_deg;
 
