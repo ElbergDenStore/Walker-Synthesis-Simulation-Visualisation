@@ -199,23 +199,23 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
     minNumberSatellites = min(counts, [], 2);
     meanNumberSatellites = mean(counts, 2);
     
-    maxGapMinutes = zeros(Cfg.NumUEs,1);
-    for idx = 1:Cfg.NumUEs
-        row = (counts(idx,:) == 0);  
-        maxZeroStreak = 0; currentStreak = 0;
-        for k = 1:length(row)
-            if row(k)
-                currentStreak = currentStreak + 1;
-                maxZeroStreak = max(maxZeroStreak, currentStreak);
-            else
-                currentStreak = 0;
-            end
-        end
-        maxGapMinutes(idx) = maxZeroStreak * Cfg.SampleTime / 60;
-    end
+    % maxGapMinutes = zeros(Cfg.NumUEs,1);
+    % for idx = 1:Cfg.NumUEs
+    %     row = (counts(idx,:) == 0);  
+    %     maxZeroStreak = 0; currentStreak = 0;
+    %     for k = 1:length(row)
+    %         if row(k)
+    %             currentStreak = currentStreak + 1;
+    %             maxZeroStreak = max(maxZeroStreak, currentStreak);
+    %         else
+    %             currentStreak = 0;
+    %         end
+    %     end
+    %     maxGapMinutes(idx) = maxZeroStreak * Cfg.SampleTime / 60;
+    % end
     
     metrics.worst_coverage_percent = min(prob_coverage);
-    metrics.worst_gap_minutes      = max(maxGapMinutes);
+    % metrics.worst_gap_minutes      = max(maxGapMinutes);
     metrics.Num_visible            = counts; 
     
     % Store the final struct array in metrics
@@ -409,11 +409,13 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             land = shaperead('landareas.shp', 'UseGeoCoords', true);
             geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
             surfm(LatG, LonG, ValG_min, 'FaceAlpha', 0.5);
-            
-            for i = 1:Cfg.NumUEs
-                textm(lat_vector(i), lon_vector(i), sprintf('%d', minNumberSatellites(i)), ...
-                      'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
-                      'FontSize', 14, 'FontWeight', 'bold', 'Color', 'k'); 
+            max_UE_plot = 50;
+            if Cfg.NumUEs < max_UE_plot
+                for i = 1:Cfg.NumUEs
+                    textm(lat_vector(i), lon_vector(i), sprintf('%d', minNumberSatellites(i)), ...
+                          'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
+                          'FontSize', 14, 'FontWeight', 'bold', 'Color', 'k'); 
+                end
             end
             
             cb2 = colorbar; caxis([0 max([minNumberSatellites; 1])]); ylabel(cb2, 'Min Number of Satellites');
@@ -431,13 +433,13 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             axis off;  
             geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
             surfm(LatG, LonG, ValG_mean, 'FaceAlpha', 0.5);
-            
-            for i = 1:Cfg.NumUEs
-                textm(lat_vector(i), lon_vector(i), sprintf('%.1f', meanNumberSatellites(i)), ...
-                      'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
-                      'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k');
+            if Cfg.NumUEs < max_UE_plot
+                for i = 1:Cfg.NumUEs
+                    textm(lat_vector(i), lon_vector(i), sprintf('%.1f', meanNumberSatellites(i)), ...
+                          'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
+                          'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k');
+                end
             end
-            
             cb3 = colorbar; caxis([0 max([meanNumberSatellites; 1])]); ylabel(cb3, 'Mean Number of Satellites');
             set(gca, 'FontSize', 14);
             exportgraphics(f3, fullfile(out_dir, 'Map_Mean_Sats.png'), 'Resolution', 300);
@@ -453,13 +455,13 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             axis off; 
             geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
             surfm(LatG, LonG, ValG_prob, 'FaceAlpha', 0.5);
-            
-            for i = 1:Cfg.NumUEs
-                textm(lat_vector(i), lon_vector(i), sprintf('%.0f', prob_coverage(i)), ...
-                      'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
-                      'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k'); 
+            if Cfg.NumUEs < max_UE_plot
+                for i = 1:Cfg.NumUEs
+                    textm(lat_vector(i), lon_vector(i), sprintf('%.0f', prob_coverage(i)), ...
+                          'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
+                          'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k'); 
+                end
             end
-            
             cb4 = colorbar; caxis([0 100]); ylabel(cb4, 'P(Sat \geq 1) [%]');
             set(gca, 'FontSize', 14);
             exportgraphics(f4, fullfile(out_dir, 'Map_Coverage_Prob.png'), 'Resolution', 300);
@@ -485,39 +487,39 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             % close(f5);
             % send(plot_dq, []);
             
-            %% Figure 6: Adjusted Power vs SNR
-            f6 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
-            
-            % Using an orange accent color for contrast
-            scatter(all_adjusted_power_dBm-Cfg.DL.G_tx, all_snr, 15, 'filled', ...
-                'MarkerFaceColor', '#D95319', 'MarkerFaceAlpha', 0.1);
-            
-            grid on; box on;
-            title('SNR vs. Adjusted Power', 'FontSize', 22, 'FontWeight', 'bold');
-            xlabel('Adjusted Power (dBm)', 'FontSize', 18);
-            ylabel('SNR (dB)', 'FontSize', 18);
-            
-            set(gca, 'FontSize', 14, 'LineWidth', 1.5);
-            exportgraphics(f6, fullfile(out_dir, 'adjusted_power_but_snr.png'), 'Resolution', 300);
-            close(f6);
-        updateLiveScriptProgress(num_plots, false);
+        %     %% Figure 6: Adjusted Power vs SNR
+        %     f6 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
+        % 
+        %     % Using an orange accent color for contrast
+        %     scatter(all_adjusted_power_dBm-Cfg.DL.G_tx, all_snr, 15, 'filled', ...
+        %         'MarkerFaceColor', '#D95319', 'MarkerFaceAlpha', 0.1);
+        % 
+        %     grid on; box on;
+        %     title('SNR vs. Adjusted Power', 'FontSize', 22, 'FontWeight', 'bold');
+        %     xlabel('Adjusted Power (dBm)', 'FontSize', 18);
+        %     ylabel('SNR (dB)', 'FontSize', 18);
+        % 
+        %     set(gca, 'FontSize', 14, 'LineWidth', 1.5);
+        %     exportgraphics(f6, fullfile(out_dir, 'adjusted_power_but_snr.png'), 'Resolution', 300);
+        %     close(f6);
+        % updateLiveScriptProgress(num_plots, false);
 
-            %% Figure 7: PFD regulation
-            f7 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
-            
-            scatter(all_el_deg, all_pfd_W_MHz, 15, 'filled', ...
-                'MarkerFaceColor', '#D95319', 'MarkerFaceAlpha', 0.1);
-            
-            grid on; box on;
-            title('Elevation vs. PFD', 'FontSize', 22, 'FontWeight', 'bold');
-            xlabel('Elevation angle (deg)', 'FontSize', 18);
-            ylabel('PFD (dBW/m^2/MHz)', 'FontSize', 18);
-            ylim([all_pfd_W_MHz(1)-5, all_pfd_W_MHz(1)+5]);
-            
-            set(gca, 'FontSize', 14, 'LineWidth', 1.5);
-            exportgraphics(f7, fullfile(out_dir, 'pfd_regulation.png'), 'Resolution', 300);
-            close(f7);
-        updateLiveScriptProgress(num_plots, false);
+        %     %% Figure 7: PFD regulation
+        %     f7 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 800 600]);
+        % 
+        %     scatter(all_el_deg, all_pfd_W_MHz, 15, 'filled', ...
+        %         'MarkerFaceColor', '#D95319', 'MarkerFaceAlpha', 0.1);
+        % 
+        %     grid on; box on;
+        %     title('Elevation vs. PFD', 'FontSize', 22, 'FontWeight', 'bold');
+        %     xlabel('Elevation angle (deg)', 'FontSize', 18);
+        %     ylabel('PFD (dBW/m^2/MHz)', 'FontSize', 18);
+        %     ylim([all_pfd_W_MHz(1)-5, all_pfd_W_MHz(1)+5]);
+        % 
+        %     set(gca, 'FontSize', 14, 'LineWidth', 1.5);
+        %     exportgraphics(f7, fullfile(out_dir, 'pfd_regulation.png'), 'Resolution', 300);
+        %     close(f7);
+        % updateLiveScriptProgress(num_plots, false);
 
             %% MAP 8: Mean Throughput
             % 1. Force everything to be a column vector (using :) to prevent mismatches
@@ -535,11 +537,12 @@ function metrics = coverage_simulator_function(Cfg, plot_results, use_parallel, 
             
             geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
             surfm(LatG, LonG, meanThroughputGrid, 'FaceAlpha', 0.5);
-            
-            for i = 1:length(lats)
-                textm(lats(i), lons(i), sprintf('%.1f', thpt_vals(i)), ...
-                      'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
-                      'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k');
+            if Cfg.NumUEs < max_UE_plot
+                for i = 1:length(lats)
+                    textm(lats(i), lons(i), sprintf('%.1f', thpt_vals(i)), ...
+                          'HorizontalAlignment','center', 'VerticalAlignment','middle', ...
+                          'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k');
+                end
             end
             
             cb3 = colorbar; 
