@@ -3,9 +3,9 @@ function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
     delete(gcp('nocreate')); % necessary or it will get stuck
 
     %% 1. Build the Ascending Grid
-    P_vec = 4:15; % Num Planes % 15 both places makes sense to me
-    S_vec = 4:15; % Sats per Plane
-    Inc_vec = linspace(70, 80, 11);
+    P_vec = 2:20; % Num Planes
+    S_vec = 2:20; % Sats per Plane
+    Inc_vec = linspace(70, 80, 21);
     target_num_candidates = 10;
     
     grid_data = [];
@@ -314,7 +314,7 @@ function result = evaluate_architecture(Cfg, run_idx)
 
     % 1. Run the ultra-fast low-fidelity check
     Cfg.StopTime = Cfg.StartTime + hours(2);
-    faster_metrics = fast_coverage_simulator_function(Cfg, false, false, false, false);
+    faster_metrics = fast_coverage_simulator_function(Cfg, false, false, false);
     faster_cov = faster_metrics.worst_coverage_percent;
     result.faster_cov = faster_cov;
 
@@ -325,7 +325,7 @@ function result = evaluate_architecture(Cfg, run_idx)
     end
     
     Cfg.StopTime = Cfg.StartTime + hours(24);
-    fast_metrics = fast_coverage_simulator_function(Cfg, false, false, false, true); % use SGP
+    fast_metrics = fast_coverage_simulator_function(Cfg, false, false, true); % use SGP
     fast_cov = fast_metrics.worst_coverage_percent;
     result.fast_cov = fast_cov;
 
@@ -339,13 +339,13 @@ function result = evaluate_architecture(Cfg, run_idx)
     % 2. FASTer CHECKs PASSED! Run the Detailed High-Fidelity Test
     detailed_Cfg = Cfg; 
     detailed_Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-    detailed_Cfg.StopTime   = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC');
+    detailed_Cfg.StopTime   = datetime('2-Jun-2025 11:59:59', 'TimeZone', 'UTC');
     detailed_Cfg.SampleTime = 20; 
-    detailed_Cfg.Lat_vec = linspace(55, 85, 10); 
-    detailed_Cfg.Lon_vec = linspace(-60, 30, 3);
+    detailed_Cfg.Lat_vec = linspace(55, 85, 20); %20 lats and full lon means 1600 UEs
+    detailed_Cfg.Lon_vec = linspace(-180, 180, 3);
     detailed_Cfg.Equal_UE_area = true; 
 
-    detailed_metrics = coverage_simulator_function(detailed_Cfg, false, false, false); 
+    detailed_metrics = coverage_simulator_function(detailed_Cfg, false, false); 
     detailed_cov = detailed_metrics.worst_coverage_percent;
 
     % Check the final result and generate the appropriate message

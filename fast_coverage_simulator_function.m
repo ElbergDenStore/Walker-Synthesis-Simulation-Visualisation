@@ -1,4 +1,4 @@
-function metrics = fast_coverage_simulator_function(Cfg, reset_cache, use_parallel, calc_link, use_SGP)
+function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link, use_SGP)
 % FAST_COVERAGE_SIMULATOR_FUNCTION Optmized simulator strictly using ECEF math.
     fprintf('\n Starting Fast Simulation: %d Sats, %.1f deg Inclination\n', Cfg.Total_sats, Cfg.Inclination);
     tic
