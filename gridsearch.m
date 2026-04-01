@@ -1,7 +1,4 @@
 function [best_params, all_candidates] = gridsearch(Cfg, plot_results, min_sats)
-    %% 1. Force kill the current pool
-    delete(gcp('nocreate')); % necessary or it will get stuck
-
     %% 1. Build the Ascending Grid
     P_vec = 2:20; % Num Planes
     S_vec = 2:20; % Sats per Plane
