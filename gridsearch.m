@@ -134,6 +134,18 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         status_flags(best_indices) = 2; 
     end
 
+    %% Create Output Directory (for report + plots)
+    date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+    folder_name = sprintf('%.0f_%d_%s', Cfg.Orbit_height/1e3, best_params.Total_sats, date_str);
+    out_dir = fullfile('simulation_output/gridsearch_runs', folder_name);
+    if ~exist(out_dir, 'dir'), mkdir(out_dir); end
+
+    % Write deep profiling report and parameter summaries to file
+    report_path = fullfile(out_dir, 'deep_profile_report.txt');
+    write_profiling_report_to_file(report_path, Cfg, run_time, runs_completed, num_workers, ...
+        t_faster_all, t_fast_all, t_detailed_all, worker_run_counts, worker_total_math_time, ...
+        best_params, all_candidates, search_grid, status_flags);
+
     %% --- PREPARE DATA FOR PLOTTING ---
     if plot_results
         was_evaluated = ~isnan(evaluated_coverage);
@@ -392,13 +404,56 @@ function print_dashboard(states, runs, completed, total, wall_time, event_log, c
     fprintf('======================================================================\n');
 end
 
-function generate_profiling_report(wall_time, runs_done, n_workers, t1, t2, t3, w_counts, w_math)
-    fprintf('\n================== DEEP PROFILE REPORT ==================\n');
+function write_profiling_report_to_file(report_path, Cfg, wall_time, runs_done, n_workers, t1, t2, t3, w_counts, w_math, best_params, all_candidates, search_grid, status_flags)
+    fid = fopen(report_path, 'w');
+    if fid == -1
+        warning('Could not open deep profile report file: %s', report_path);
+        return;
+    end
+    cleanupObj = onCleanup(@() fclose(fid));
+
+    fprintf(fid, '================== DEEP PROFILE REPORT ==================\n');
+    fprintf(fid, 'Generated: %s\n', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
+
     eff = (sum(w_math) / (wall_time * n_workers)) * 100;
-    fprintf('Wall Time: %.2fs | Efficiency: %.1f%% | Throughput: %.2f r/s\n', wall_time, eff, runs_done/wall_time);
-    fprintf('Phase 1 (Ultra): Avg %.4fs | Count: %d\n', mean(t1(~isnan(t1))), sum(~isnan(t1)));
-    if any(~isnan(t2)), fprintf('Phase 2 (Fast):  Avg %.4fs | Count: %d\n', mean(t2(~isnan(t2))), sum(~isnan(t2))); end
-    if any(~isnan(t3)), fprintf('Phase 3 (Det):   Avg %.4fs | Count: %d\n', mean(t3(~isnan(t3))), sum(~isnan(t3))); end
-    fprintf('Worker Balance: Min %d, Max %d\n', min(w_counts), max(w_counts));
-    fprintf('=========================================================\n\n');
+    fprintf(fid, 'Wall Time: %.2fs\n', wall_time);
+    fprintf(fid, 'Worker Efficiency: %.1f%%\n', eff);
+    fprintf(fid, 'Throughput: %.2f runs/s\n', runs_done / wall_time);
+
+    t1_valid = t1(~isnan(t1));
+    fprintf(fid, 'Phase 1 (Ultra): Avg %.4fs | Count: %d\n', mean(t1_valid), numel(t1_valid));
+    t2_valid = t2(~isnan(t2));
+    if ~isempty(t2_valid)
+        fprintf(fid, 'Phase 2 (Fast):  Avg %.4fs | Count: %d\n', mean(t2_valid), numel(t2_valid));
+    end
+    t3_valid = t3(~isnan(t3));
+    if ~isempty(t3_valid)
+        fprintf(fid, 'Phase 3 (Det):   Avg %.4fs | Count: %d\n', mean(t3_valid), numel(t3_valid));
+    end
+
+    fprintf(fid, 'Worker Balance: Min %d, Max %d\n', min(w_counts), max(w_counts));
+    fprintf(fid, '=========================================================\n\n');
+
+    fprintf(fid, '---------------- BASE CONFIG PARAMETERS ----------------\n');
+    fprintf(fid, '%s\n', evalc('disp(Cfg)'));
+
+    fprintf(fid, '---------------- BEST PARAMETERS ----------------\n');
+    fprintf(fid, '%s\n', evalc('disp(best_params)'));
+
+    fprintf(fid, '---------------- CANDIDATE PARAMETERS ----------------\n');
+    if isempty(all_candidates)
+        fprintf(fid, 'No candidates found.\n');
+    else
+        fprintf(fid, 'Total candidates: %d\n', height(all_candidates));
+        fprintf(fid, '%s\n', evalc('disp(all_candidates)'));
+    end
+
+    fprintf(fid, '---------------- EVALUATION SUMMARY ----------------\n');
+    n_eval = sum(~isnan(status_flags));
+    n_cand = sum(status_flags == 1 | status_flags == 2);
+    fprintf(fid, 'Evaluated rows tracked: %d\n', n_eval);
+    fprintf(fid, 'Rows marked candidate/minimum: %d\n', n_cand);
+    fprintf(fid, 'Search grid rows: %d\n', height(search_grid));
+
+    fprintf('Deep profile report written to: %s\n', report_path);
 end
