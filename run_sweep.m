@@ -16,7 +16,7 @@
 
 clear; close all; clc;
 %% 1. Force kill the current pool
-    delete(gcp('nocreate')); % necessary or it will get stuck
+delete(gcp('nocreate')); % necessary or it will get stuck
 
 %% --- 1. Master Configuration ---
 method = "grid"; % Toggle: 'grid', 'surrogate', or 'bayes'
