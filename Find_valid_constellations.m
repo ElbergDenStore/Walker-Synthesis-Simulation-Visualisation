@@ -1,12 +1,11 @@
 % How to run through the night:
-% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run_sweep" > sweep_log.txt
-% xvfb is a virtual display to avoid constellation pictures do not crash
-% server
+% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "Find_optimal_constellations" > log.txt
+% xvfb is a virtual display to avoid constellation pictures do not crash server
 % one ">" overwrites the file
-% Read log during run using tail -f sweep_log.txt
+% Read log during run using tail -f log.txt
 
 % Read log afterwards using less
-% How to use it: Type less my_log_file.txt.
+% How to use it: Type less log.txt
 % Pro-tips inside less:% 
 % Press Space to page down, b to page up.
 % Press G to jump immediately to the very bottom (the newest logs).
@@ -15,14 +14,27 @@
 % Press q to quit.
 
 clear; close all; clc;
-%% 1. Force kill the current pool
+%% 1. Force kill the current parallel pool
     delete(gcp('nocreate')); % necessary or it will get stuck
 
-%% --- 1. Master Configuration ---
-method = "grid"; % Toggle: 'grid', 'surrogate', or 'bayes'
-heights_km = 700:10:1200; % Iterate over these altitudes (in km)
-target_lat = 55;
-plot_individual_results = true; % Keep false for the sweep to save time
+%% Master Configuration
+heights_km                          = 700:10:1200;
+plot_individual_results = true;
+Master_config.Lat_range_deg         = [55, 85];
+Master_config.Min_elevation_UE      = 20;
+Master_config.Num_Planes            = 2:20; % Num Planes
+Master_config.Sats_Plane            = 2:20; % Sats per Plane
+Master_config.Inc_vec               = linspace(70, 80, 21); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+Master_config.Target_num_candidates = 10;
+
+% Sub Run configurations
+Master_config.Ultrafast.Duration_h  = 1;  
+Master_config.Ultrafast.Num_UEs     = 100;
+Master_config.Fast.Duration_h       = 2;  
+Master_config.Fast.Num_UEs          = 100;
+Master_config.Detailed.Duration_h   = 36;      
+Master_config.Detailed.Num_UEs      = 2000;
+
 
 % Record start time for the sweep
 start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
@@ -30,29 +42,16 @@ fprintf('=======================================================\n');
 fprintf('STARTING CONSTELLATION SWEEP AT: %s\n', char(start_time));
 fprintf('=======================================================\n');
 
-% Arrays to store the data for our combined plot
-% star_sats_array = NaN(size(heights_km));
-% delta_sats_array = NaN(size(heights_km));
 
 star_sats = [];
 best_delta_sats = [];
 all_delta_sats = [];
-%% --- 2. The Sweep Loop ---
-for i = 1:length(heights_km)
-    current_h_meters = heights_km(i) * 1000;
-    
-    %% Base Cfg for simple test -> goal of running super fast, but avoid too many false positives
-    Cfg.StartTime  = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-    % Cfg.StopTime   = datetime('1-Jun-2025 01:59:59', 'TimeZone', 'UTC');
-    % 2 and 24 hours
-    Cfg.SampleTime = 60; % New valid mask allows for more "random sampling" instead of contiguous communications
-    Cfg.Lat_vec = linspace(55, 85, 5);  
-    Cfg.Lon_vec = linspace(-180, 180, 2); %linspace(-60, 30, 2); earth will spin, why not distribute UEs everywhere
-    Cfg.Equal_UE_area  = true; % 6 ues for 2 lats, 3^2 + 3 for 3, 7^2 + 7 = 56 
-    Cfg.Min_elevation_UE = 20;
-    Cfg.WalkerStar     = false; % We are optimizing Walker Deltas
-    Cfg.Orbit_height = current_h_meters;
 
+% Runs through all orbit heights from top to bottom
+heights_km = sort(heights_km,"descending");
+for i = 1:length(heights_km) 
+    current_h_meters = heights_km(i) * 1000;
+  
     %% The Analytical "Seed" (Walker Star Baseline)
     [star_P, star_S, star_N] = get_analytical_star(heights_km(i), target_lat, Cfg.Min_elevation_UE);
     star_sats(i).Orbit_height = heights_km(i);
@@ -62,48 +61,35 @@ for i = 1:length(heights_km)
     star_sats(i).Inclination = 87;
     star_sats(i).Sats_per_plane = star_S;
 
-    fprintf('\n======================================================\n');
-    fprintf('ALTITUDE: %d km\n', heights_km(i));
-    fprintf('Analytical Star Baseline: %d Planes x %d Sats (%d Total)\n', star_P, star_S, star_N);
-    fprintf('======================================================\n');
+    % fprintf('\n======================================================\n');
+    % fprintf('ALTITUDE: %d km\n', heights_km(i));
+    % fprintf('Analytical Star Baseline: %d Planes x %d Sats (%d Total)\n', star_P, star_S, star_N);
+    % fprintf('======================================================\n');
 
-    %% Dynamically Bound the Search Space
-    min_sats = floor(star_N * 0.6); %0.6 is smart
-    % max_sats = ceil(star_N);          
-
-    %% Route to the chosen Optimizer
-    best_params = [];
-    switch lower(method)
-        case 'grid'
-            fprintf('Running Smart Ascending Grid Search...\n');
-            % NOTE: Ensure your gridsearch function accepts these inputs!
-            [best_params, all_delta_sats{i}] = gridsearch(Cfg, plot_individual_results, min_sats);
-            
-        case 'surrogate'
-            fprintf('Running Surrogate Optimization...\n');
-            best_params = run_surrogate(Cfg, plot_individual_results, min_sats, max_sats);
-            
-        case 'bayes'
-            fprintf('Running Bayesian Optimization...\n');
-            best_params = run_bayes(Cfg, plot_individual_results, min_sats, max_sats);
-            
-        otherwise
-            error('Invalid method. Choose: ''grid'', ''surrogate'', or ''bayes''.');
-    end
-    
-    %% Save the Optimized Result
-    if ~isempty(best_params)
-        best_delta_sats(i).Orbit_height = heights_km(i);
-        best_delta_sats(i).Total_sats     = best_params.Total_sats;
-        best_delta_sats(i).Num_planes     = best_params.Num_planes;
-        best_delta_sats(i).Phasing        = best_params.Phasing;
-        best_delta_sats(i).Sats_per_plane = best_params.Sats_per_plane;
-        best_delta_sats(i).Inclination    = best_params.Inclination;
+    if (i > 1)
+        min_sats = best_delta_sats(i-1).Total_sats; % Limit search space based on previous result
     else
-        % if no solutions are found, it deserves to crash
-        error_msg = sprintf('FATAL ERROR: Optimizer failed to find a solution at %d km! Halting sweep.', heights_km(i));
-        error(error_msg);
-    end
+        min_sats = 0; %floor(star_N * 0.6); % Limit search space based on analytical star
+    end 
+
+    best_params = [];
+    [best_params, all_delta_sats{i}] = gridsearch(Master_config, heights_km(i), plot_individual_results, min_sats);
+
+
+    best_delta_sats = best_params;
+    %% Save the Optimized Result
+    % if ~isempty(best_params)
+    %     best_delta_sats(i).Orbit_height = heights_km(i);
+    %     best_delta_sats(i).Total_sats     = best_params.Total_sats;
+    %     best_delta_sats(i).Num_planes     = best_params.Num_planes;
+    %     best_delta_sats(i).Phasing        = best_params.Phasing;
+    %     best_delta_sats(i).Sats_per_plane = best_params.Sats_per_plane;
+    %     best_delta_sats(i).Inclination    = best_params.Inclination;
+    % else
+    %     % if no solutions are found, it deserves to crash
+    %     error_msg = sprintf('FATAL ERROR: Optimizer failed to find a solution at %d km! Halting sweep.', heights_km(i));
+    %     error(error_msg);
+    % end
 end
 
 %% --- 3. Plot the Final Master Curve (Star vs Delta) ---

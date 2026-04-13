@@ -29,14 +29,12 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
     nT = size(sat_pos_ecef, 3);
     
     %% Create the UEs Struct Array (Pre-allocated)
-    if Cfg.Equal_UE_area == true
-        [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Cfg.Lat_vec, Cfg.Lon_vec);
-    elseif Cfg.Accept_Flat_UE_array == true
-        UE_lats = Cfg.Flat_UE_array.Lats;
-        UE_lons = Cfg.Flat_UE_array.Lons;
-    else
-        [UE_lats, UE_lons] = meshgrid(Cfg.Lat_vec, Cfg.Lon_vec);
+    if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats') || ~isfield(Cfg.Flat_UE_array, 'Lons')
+        error('Cfg.Flat_UE_array with fields Lats and Lons is required. Generate UEs before calling coverage_simulator_function.');
     end
+
+    UE_lats = Cfg.Flat_UE_array.Lats;
+    UE_lons = Cfg.Flat_UE_array.Lons;
     UE_lats = UE_lats(:);
     UE_lons = UE_lons(:);
 
@@ -234,8 +232,6 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
         range_mat = single(vertcat(SimDataArray.Range));      
         lat_vec   = [UEs.Lat]';
         lon_vec   = [UEs.Lon]';
-        
-        nT = size(el_mat, 2);
         
         if isfield(Cfg, 'DL')
             batch_size = 100;

@@ -8,7 +8,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     end
 
     %%%%% CONSTELLATION %%%%
-    optimal_constellation = load("optimal_constellations.mat");
+    optimal_constellation = load("optimal_constellations.mat"); % TODO add failsafe if not present
 
     constellation_idx = find(optimal_constellation.heights_km >= height_km, 1, 'first');
     switch lower(constellation_type)
@@ -33,15 +33,15 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
 
 
     %%%%% UE GRID SIZE %%%%
-    Cfg.Lon_vec       = linspace(-60, 30, 2);
-    Cfg.Equal_UE_area = true;
+    Lat_range_deg = [55, 85];
+    Lon_range_deg = [-60, 30];
     switch lower(ue_grid_size)
         case 'small'
-            Cfg.Lat_vec = linspace(55, 85, 2); % 6
+            [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, 6);
         case 'medium'
-            Cfg.Lat_vec = linspace(55, 85, 4); % 20
+            [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, 69);
         case 'big'
-            Cfg.Lat_vec = linspace(55, 85, 8); % 73
+            [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, 420);
         otherwise
             error('Invalid ue_grid_size');
     end
