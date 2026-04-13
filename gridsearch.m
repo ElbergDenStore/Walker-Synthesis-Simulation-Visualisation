@@ -15,7 +15,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing', 'Total_sats'});
     
     %% 2. The Smart Filters
-    isValidTarget = search_grid.Total_sats >= min_sats;
+    isValidTarget = search_grid.Total_sats >= min_sats & search_grid.Total_sats <= min_sats * 2;
     search_grid = search_grid(isValidTarget, :);
     
     % Sort from cheapest to most expensive!
@@ -24,7 +24,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     fprintf('\n=== Starting Ascending Grid Search ===\n');
     fprintf('Testing %d valid architectures from %d satellites...\n\n', height(search_grid), min_sats);
     
-    %% 3. Simulate until we find the Global Minimum + N candidates
+    %% 3. Setup Parallel Environment and Queue
     best_params = [];
     all_candidates = table();
     target_num_candidates = master_config.Target_num_candidates;
@@ -35,6 +35,17 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     total_runs = height(search_grid);
     
     fprintf('Using %d parallel workers for batch processing...\n', num_workers);
+    
+    % --- DASHBOARD & PROFILING TRACKERS ---
+    t_faster_all = NaN(total_runs, 1);
+    t_fast_all = NaN(total_runs, 1);
+    t_detailed_all = NaN(total_runs, 1);
+    worker_run_counts = zeros(num_workers, 1);
+    worker_total_math_time = zeros(num_workers, 1);
+    
+    w_states = repmat("Idle", 1, num_workers);
+    w_runs = zeros(1, num_workers);
+    event_log = repmat({''}, 1, 10); % Persistent history for 10 events
     
     evaluated_coverage = NaN(total_runs, 1);
     status_flags = zeros(total_runs, 1); % 0 = Invalid, 1 = Candidate, 2 = Best
@@ -60,6 +71,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     end
 
     candidates_found = 0;
+    runs_completed = 0;
     
     for i = 1:total_runs
         fprintf(sprintf("run %d",i))
@@ -116,11 +128,10 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     end
     
     % --- UPGRADE BEST PARAM TO STATUS 2 ---
-    % Find ALL configurations that share the absolute minimum satellite count
     best_sats_count = min(search_grid.Total_sats(status_flags == 1 | status_flags == 2));
     if ~isempty(best_sats_count)
         best_indices = find(search_grid.Total_sats == best_sats_count & status_flags > 0);
-        status_flags(best_indices) = 2; % Mark ALL of them as the global minimum
+        status_flags(best_indices) = 2; 
     end
 
     %% --- PREPARE DATA FOR PLOTTING ---
@@ -159,6 +170,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         grid on; hold off;
         exportgraphics(f1, fullfile(out_dir, 'Inclinations_NumSats.png'), 'Resolution', 300);
         close(f1);
+        
         % --- PLOT 4: Architecture Map (Planes vs Sats per Plane) ---
         planes = history_X.Num_planes;
         sats_pp = history_X.Sats_per_plane;
@@ -292,12 +304,14 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         % show_constellation(Cfg, false, true, out_dir);%Show interactive = false; savefig = true;
     end
 end
+
 % =========================================================================
-% WORKER FUNCTION (Executes invisibly, returns a single result struct)
+% WORKER & HELPER FUNCTIONS
 % =========================================================================
 function result = evaluate_architecture(local_config, master_config, run_idx)
     result.run_idx = run_idx;
     result.is_candidate = false;
+    result.t_faster = 0; result.t_fast = 0; result.t_detailed = 0;
 
     % Base configuration
     Cfg.StartTime       = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
@@ -321,10 +335,9 @@ function result = evaluate_architecture(local_config, master_config, run_idx)
     faster_cov = faster_metrics.worst_coverage_percent;
     result.faster_cov = faster_cov;
 
-    % If it fails, write the failure message and return immediately
-    if faster_cov < 97
-        result.msg = sprintf('[-] %dx%d (Inc: %.1f, Phase: %d) -> Failed Ultra Fast (Cov: %.2f%%)', p, s, inc, phase, faster_cov);
-        return;
+    if result.faster_cov < 99
+        result.t_total = result.t_faster;
+        result.msg = "Failed Ultra"; return; 
     end
     
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Fast.Duration_h);
@@ -333,11 +346,9 @@ function result = evaluate_architecture(local_config, master_config, run_idx)
     fast_cov = fast_metrics.worst_coverage_percent;
     result.fast_cov = fast_cov;
 
-    % If it fails again, write the failure message and return immediately
-    if fast_cov < 99.9
-        result.msg = sprintf('[-] %dx%d (Inc: %.1f, Phase: %d) -> Failed Fast (Cov: %.2f%%)', p, s, inc, phase, fast_cov);
-        result.msg = sprintf('[-] %dx%d (Inc: %.1f, Phase: %d) -> Passed Ultra Fast (%.2f%%), Failed Fast (%.4f%%)', p, s, inc, phase, faster_cov, fast_cov);
-        return;
+    if m2.worst_coverage_percent < 99.9
+        result.t_total = result.t_faster + result.t_fast;
+        result.msg = "Failed Fast"; return;
     end
 
     % 2. FASTer CHECKs PASSED! Run the Detailed High-Fidelity Test
@@ -350,8 +361,44 @@ function result = evaluate_architecture(local_config, master_config, run_idx)
     % Check the final result and generate the appropriate message
     if detailed_cov > 99.999
         result.is_candidate = true;
-        result.msg = sprintf('[+] %dx%d (Inc: %.1f, Phase: %d) -> PASSED BOTH! (Detailed Cov: %.4f%%)', p, s, inc, phase, detailed_cov);
+        result.msg = sprintf("PASSED! %.4f%% | %s", m3.worst_coverage_percent, arch_str);
     else
-        result.msg = sprintf('[-] %dx%d (Inc: %.1f, Phase: %d) -> Passed Fast (%.2f%%), Failed Detailed (%.4f%%)', p, s, inc, phase, fast_cov, detailed_cov);
+        result.msg = sprintf("Failed Detailed %.4f%% | %s", m3.worst_coverage_percent, arch_str);
     end
+end
+
+function print_dashboard(states, runs, completed, total, wall_time, event_log, cand_count)
+    clc;
+    num_w = length(states); cols = 6; rows = ceil(num_w / cols);
+    fprintf('======================================================================\n');
+    fprintf('  GRID SEARCH: %d / %d (%.1f%%) | Time: %.1fs | Cand: %d/10\n', ...
+        completed, total, (completed/total)*100, wall_time, cand_count);
+    fprintf('======================================================================\n');
+    for r = 0:(rows-1)
+        for c = 1:cols
+            wid = r*cols + c;
+            if wid <= num_w
+                s = char(states(wid)); s_char = s(1);
+                fprintf('W%02d:[%s|%5d]  ', wid, s_char, runs(wid));
+            end
+        end
+        fprintf('\n');
+    end
+    fprintf('----------------------------------------------------------------------\n');
+    fprintf(' RECENT EVENTS:\n');
+    for i = 1:length(event_log)
+        if ~isempty(event_log{i}), fprintf(' %s\n', event_log{i}); end
+    end
+    fprintf('======================================================================\n');
+end
+
+function generate_profiling_report(wall_time, runs_done, n_workers, t1, t2, t3, w_counts, w_math)
+    fprintf('\n================== DEEP PROFILE REPORT ==================\n');
+    eff = (sum(w_math) / (wall_time * n_workers)) * 100;
+    fprintf('Wall Time: %.2fs | Efficiency: %.1f%% | Throughput: %.2f r/s\n', wall_time, eff, runs_done/wall_time);
+    fprintf('Phase 1 (Ultra): Avg %.4fs | Count: %d\n', mean(t1(~isnan(t1))), sum(~isnan(t1)));
+    if any(~isnan(t2)), fprintf('Phase 2 (Fast):  Avg %.4fs | Count: %d\n', mean(t2(~isnan(t2))), sum(~isnan(t2))); end
+    if any(~isnan(t3)), fprintf('Phase 3 (Det):   Avg %.4fs | Count: %d\n', mean(t3(~isnan(t3))), sum(~isnan(t3))); end
+    fprintf('Worker Balance: Min %d, Max %d\n', min(w_counts), max(w_counts));
+    fprintf('=========================================================\n\n');
 end
