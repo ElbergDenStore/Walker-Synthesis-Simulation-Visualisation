@@ -20,7 +20,7 @@ It has been developed to be easily used for future development.
  - OneWeb validation 
  - run single coverage test 
     - showing how get_cfg, run test, plot results, show contellation
- - run_sweep (name change to Find_optimal_constellations.mat)
+ - Find_valid_constellations.mat
  - Show beam on earth (maybe call it stationary analysis and combine it with possibilities arised with a stationary example for example UE placement?)
  - Satellite centric simulation (utilization) (somewhat example code)
     - how many UEs are connected or how large part of the area is covered by the satellite (make both plots always)
@@ -29,5 +29,9 @@ It has been developed to be easily used for future development.
 
 # TODO
 Changes to code that i want:
-- optimal_constellation = load("optimal_constellations.mat"); % TODO add failsafe if not present
-
+- Follow code style
+- Remove stupid and unnecessary comments
+- Revive UE focus view from the dead
+- Revive OneWeb validation from the dead
+- Develop satellite focused view
+- Change all orbit height to altitude which is more correct, but people use h, so im confused
