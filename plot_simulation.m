@@ -46,8 +46,8 @@ function plot_simulation(metrics, use_parallel)
     end
 
     %% 4. Pre-calculate Shared Map Data
-    lat_lim = [min(Cfg.Lat_vec) max(Cfg.Lat_vec)];
-    lon_lim = [min(Cfg.Lon_vec) max(Cfg.Lon_vec)];
+    lat_lim = [min(Cfg.Flat_UE_array.Lats) max(Cfg.Flat_UE_array.Lats)];
+    lon_lim = [min(Cfg.Flat_UE_array.Lons) max(Cfg.Flat_UE_array.Lons)];
     nLat = 500; nLon = 500; 
     [LonG, LatG] = meshgrid(linspace(lon_lim(1), lon_lim(2), nLon), linspace(lat_lim(1), lat_lim(2), nLat));
     

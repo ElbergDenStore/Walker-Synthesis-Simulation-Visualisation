@@ -30,7 +30,7 @@ Master_config.Target_num_candidates = 10;
 % Sub Run configurations
 Master_config.Ultrafast.Duration_h  = 1;  
 Master_config.Ultrafast.Num_UEs     = 100;
-Master_config.Fast.Duration_h       = 2;  
+Master_config.Fast.Duration_h       = 24;  
 Master_config.Fast.Num_UEs          = 100;
 Master_config.Detailed.Duration_h   = 36;      
 Master_config.Detailed.Num_UEs      = 2000;
@@ -44,16 +44,16 @@ fprintf('=======================================================\n');
 
 
 star_sats = [];
-best_delta_sats = [];
+best_delta_sats = table();
 all_delta_sats = [];
 
 % Runs through all orbit heights from top to bottom
-heights_km = sort(heights_km,"descending");
+heights_km = sort(heights_km,"descend");
 for i = 1:length(heights_km) 
     current_h_meters = heights_km(i) * 1000;
   
     %% The Analytical "Seed" (Walker Star Baseline)
-    [star_P, star_S, star_N] = get_analytical_star(heights_km(i), target_lat, Cfg.Min_elevation_UE);
+    [star_P, star_S, star_N] = get_analytical_star(heights_km(i), min(Master_config.Lat_range_deg), Master_config.Min_elevation_UE);
     star_sats(i).Orbit_height = heights_km(i);
     star_sats(i).Total_sats = star_N;
     star_sats(i).Num_planes = star_P;
@@ -66,17 +66,16 @@ for i = 1:length(heights_km)
     % fprintf('Analytical Star Baseline: %d Planes x %d Sats (%d Total)\n', star_P, star_S, star_N);
     % fprintf('======================================================\n');
 
-    if (i > 1)
-        min_sats = best_delta_sats(i-1).Total_sats; % Limit search space based on previous result
+    if i > 1
+        min_sats = best_delta_sats.Total_sats(i-1); % Limit search space based on previous result
     else
         min_sats = 0; %floor(star_N * 0.6); % Limit search space based on analytical star
     end 
 
-    best_params = [];
     [best_params, all_delta_sats{i}] = gridsearch(Master_config, heights_km(i), plot_individual_results, min_sats);
 
-
-    best_delta_sats = best_params;
+    % Keep one best row per altitude in sweep order.
+    best_delta_sats = [best_delta_sats; best_params(1, :)];
     %% Save the Optimized Result
     % if ~isempty(best_params)
     %     best_delta_sats(i).Orbit_height = heights_km(i);
