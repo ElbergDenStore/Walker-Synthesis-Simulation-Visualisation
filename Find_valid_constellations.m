@@ -53,18 +53,14 @@ for i = 1:length(heights_km)
     current_h_meters = heights_km(i) * 1000;
   
     %% The Analytical "Seed" (Walker Star Baseline)
-    [star_P, star_S, star_N] = get_analytical_star(heights_km(i), min(Master_config.Lat_range_deg), Master_config.Min_elevation_UE);
-    star_sats(i).Orbit_height = heights_km(i);
-    star_sats(i).Total_sats = star_N;
-    star_sats(i).Num_planes = star_P;
-    star_sats(i).Phasing = star_P/2;
-    star_sats(i).Inclination = 87;
-    star_sats(i).Sats_per_plane = star_S;
+    [Num_planes, Sats_per_plane, Total_sats] = calculate_walker_star(heights_km(i), min(Master_config.Lat_range_deg), Master_config.Min_elevation_UE);
+    star_sats(i).Orbit_height   = heights_km(i);
+    star_sats(i).Total_sats     = Total_sats;
+    star_sats(i).Num_planes     = Num_planes;
+    star_sats(i).Phasing        = Num_planes/2;
+    star_sats(i).Inclination    = 87;
+    star_sats(i).Sats_per_plane = Sats_per_plane;
 
-    % fprintf('\n======================================================\n');
-    % fprintf('ALTITUDE: %d km\n', heights_km(i));
-    % fprintf('Analytical Star Baseline: %d Planes x %d Sats (%d Total)\n', star_P, star_S, star_N);
-    % fprintf('======================================================\n');
 
     if i > 1
         min_sats = best_delta_sats.Total_sats(i-1); % Limit search space based on previous result
@@ -132,19 +128,3 @@ fprintf('SWEEP FINISHED AT: %s\n', char(end_time));
 fprintf('TOTAL ELAPSED TIME: %s\n', char(elapsed_time));
 fprintf('Master plot saved as Star_vs_Delta_Comparison.png\n');
 fprintf('=======================================================\n');
-
-
-%% --- HELPER FUNCTIONS ---
-function [P, S, N] = get_analytical_star(alt_km, phi_min, eps_min)
-    Re = 6378.137;           
-    Rs = Re + alt_km; 
-    earth_O_at_lat = (cosd(phi_min)*Re)*2*pi;
-    
-    alpha = asind((Re / Rs) * cosd(eps_min));
-    ECA = deg2rad(180 - (90 + eps_min + alpha));
-    
-    hex_side = ECA * Re;
-    P = ceil((((earth_O_at_lat / 2) - hex_side) / (1.5 * hex_side)) + 1);
-    S = ceil((2*pi)/(sqrt(3)*ECA)); 
-    N = P * S;
-end

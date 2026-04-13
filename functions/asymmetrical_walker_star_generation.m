@@ -4,7 +4,7 @@ function sats = asymmetrical_walker_star_generation(orbit_height, inclination, p
         e = 0; % Circular orbit
         argPer = 0; 
         
-        co_rotating_spacing         = 180 / (planes - 1/3); % based on seamgap = 2/3 of normal gap
+        co_rotating_spacing = 180 / (planes - 1/3); % based on seamgap = 2/3 of normal gap
 
         
         % Calculate the Walker Phasing offset
