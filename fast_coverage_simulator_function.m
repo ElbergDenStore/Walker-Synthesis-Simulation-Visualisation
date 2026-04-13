@@ -74,34 +74,25 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
     recon_UEs = false;
     if isempty(cached_UE_lats)
         recon_UEs = true;
-    elseif ~isequal(last_Cfg.Lat_vec, Cfg.Lat_vec) || ~isequal(last_Cfg.Lon_vec, Cfg.Lon_vec)
-        recon_UEs = true;
-    elseif last_Cfg.Equal_UE_area ~= Cfg.Equal_UE_area
-        recon_UEs = true;
     end
     
     if recon_UEs
-        if Cfg.Equal_UE_area == true
-            [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Cfg.Lat_vec, Cfg.Lon_vec);
-        elseif Cfg.Accept_Flat_UE_array == true
-            UE_lats = Cfg.Flat_UE_array.Lats;
-            UE_lons = Cfg.Flat_UE_array.Lons;
-        else
-            [UE_lats, UE_lons] = meshgrid(Cfg.Lat_vec, Cfg.Lon_vec);
+        if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats') || ~isfield(Cfg.Flat_UE_array, 'Lons')
+            error('Cfg.Flat_UE_array with fields Lats and Lons is required. Generate UEs before calling coverage_simulator_function.');
         end
+        UE_lats = Cfg.Flat_UE_array.Lats;
+        UE_lons = Cfg.Flat_UE_array.Lons;
         cached_UE_lats = UE_lats(:);
         cached_UE_lons = UE_lons(:);
+
         cached_ue_pos_ecef = lla2ecef([cached_UE_lats, cached_UE_lons, zeros(length(cached_UE_lats), 1)]);
-        
-        last_Cfg.Lat_vec = Cfg.Lat_vec;
-        last_Cfg.Lon_vec = Cfg.Lon_vec;
-        last_Cfg.Equal_UE_area = Cfg.Equal_UE_area;
+    else
+        UE_lats = cached_UE_lats;
+        UE_lons = cached_UE_lons;
     end
     
-    UE_lats = cached_UE_lats;
-    UE_lons = cached_UE_lons;
     ue_pos_ecef = cached_ue_pos_ecef;
-    Cfg.NumUEs = length(UE_lats);
+    Cfg.NumUEs = size(ue_pos_ecef, 1);
     
     % Lock in memory for Struct Array
     empty_SimData = struct('Time', simTimes, 'SatID', NaN(1, nT), ...

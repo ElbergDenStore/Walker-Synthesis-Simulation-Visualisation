@@ -4,6 +4,8 @@
 *.asv
 *.tif
 
+log.txt
+
 # Large Data files (Keep these local!)
 *.mat
 *.tar.gz

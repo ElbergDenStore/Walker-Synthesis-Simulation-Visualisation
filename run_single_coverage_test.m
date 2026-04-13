@@ -4,8 +4,6 @@ Cfg = get_cfg(1000,"walkerdelta","medium","short");
 Cfg.FRF = 3;
 Cfg.RU = 1;
 
-Cfg.Lat_vec = linspace(55, 85, 5); 
-Cfg.Lon_vec = linspace(-180, 180, 3);
 Cfg.DL.Direction     = "DL";
 Cfg.DL.G_rx          = 39;  
 Cfg.Target_PFD_MHz   = -128;
@@ -19,7 +17,10 @@ Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
 
 calc_link = true;
 use_parallel = false;
+% metrics = fast_coverage_simulator_function(Cfg,false,false,false);
+
 metrics = coverage_simulator_function(Cfg,use_parallel,calc_link);
+
 % Num_UEs = length(metrics.UEs);
 plot_simulation(metrics, use_parallel);
 
