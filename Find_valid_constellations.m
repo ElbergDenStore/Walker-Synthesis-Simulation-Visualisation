@@ -93,11 +93,11 @@ delta_plot_y = [best_delta_sats.Total_sats];
 f1 = figure('Visible', 'off', 'Name', 'Constellation Comparison', 'Color', 'w', 'Position', [100 100 1000 600]); hold on;
 
 % Plot the Analytical Walker Star baseline (Red Line)
-plot(heights_km, star_plot_y, '-ro', 'LineWidth', 2, 'MarkerSize', 6, 'MarkerFaceColor', 'r', 'DisplayName', 'Analytical Walker Star');
+scatter(heights_km, star_plot_y, 36, 'o', 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'DisplayName', 'Analytical Walker Star');
 
-% Plot the Optimized Walker Delta results (Blue Line)
+% Plot the Optimized Walker Delta results (Blue Markers)
 % We only plot valid indices in case one of the heights failed
-plot(heights_km, delta_plot_y, '-bs', 'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', 'b', 'DisplayName', 'Optimized Walker Delta');
+scatter(heights_km, delta_plot_y, 36, 's', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'DisplayName', 'Optimized Walker Delta');
 
 xlabel('Orbit Height (km)', 'FontWeight', 'bold');
 ylabel('Total Satellites Required', 'FontWeight', 'bold');
