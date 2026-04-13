@@ -29,9 +29,5 @@ It has been developed to be easily used for future development.
 
 # TODO
 Changes to code that i want:
-- I always want to feed in a "flat array" of UE positions instead of having multiple if statements inside the coverage simulator function
-- grid search needs to be more function like instead of having this weird shared control relationsship between run_sweep and grid_search. It should also be made in a way where there cannot be a non optimal solution due to randomness
-- run_sweep needs to start from the heighest orbit and go down with the minimum number of satellites being exactly the previous orbit height solution. This is genius
-- Equal UE distribution: I want to only have to write the region limits and number of UEs and it should just make it happen. not all this guesswork  
 - optimal_constellation = load("optimal_constellations.mat"); % TODO add failsafe if not present
 
