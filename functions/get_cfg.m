@@ -8,22 +8,43 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     end
 
     %%%%% CONSTELLATION %%%%
-    optimal_constellation = load("optimal_constellations.mat"); % TODO add failsafe if not present
+    Lat_range_deg = [55, 85];
+    Lon_range_deg = [-60, 30];
+    Cfg.Min_elevation_UE = 20;
+    requested_constellation = lower(constellation_type);
+    mat_path = "optimal_constellations.mat";
+    if isfile(mat_path)
+        optimal_constellation = load(mat_path);
+        constellation_idx = find(optimal_constellation.heights_km >= height_km, 1, 'first');
+        if isempty(constellation_idx)
+            constellation_idx = numel(optimal_constellation.heights_km);
+        end
 
-    constellation_idx = find(optimal_constellation.heights_km >= height_km, 1, 'first');
-    switch lower(constellation_type)
-        case 'walkerdelta'
-            Cfg = optimal_constellation.best_delta_sats(constellation_idx);
-            Cfg.WalkerStar = false;
-        case 'walkerstar'
-            Cfg = optimal_constellation.star_sats(constellation_idx);
-            Cfg.WalkerStar = true;
-        otherwise
-            error('Invalid constellation type');
+        switch requested_constellation
+            case 'walkerdelta'
+                Cfg = optimal_constellation.best_delta_sats(constellation_idx);
+                Cfg.WalkerStar = false;
+            case 'walkerstar'
+                Cfg = optimal_constellation.star_sats(constellation_idx);
+                Cfg.WalkerStar = true;
+            otherwise
+                error('Invalid constellation type');
+        end
+    else
+        warning('No optimal_constellations.mat found. Switching to analytical Walker Star solution.');
+        [Num_planes, Sats_per_plane, Total_sats] = calculate_walker_star(height_km, min(Lat_range_deg), Cfg.Min_elevation_UE);
+        Cfg = struct('Orbit_height', height_km, ...
+                     'Total_sats', Total_sats, ...
+                     'Num_planes', Num_planes, ...
+                     'Phasing', Num_planes / 2, ...
+                     'Inclination', 87, ...
+                     'Sats_per_plane', Sats_per_plane, ...
+                     'WalkerStar', true);
     end
+
     Cfg.Total_sats = Cfg.Sats_per_plane * Cfg.Num_planes;
     Cfg.SampleTime = 60; % seconds
-    Cfg.Min_elevation_UE = 20;
+    Cfg.Min_elevation_UE = min_elevation_UE;
     Cfg.Orbit_height = height_km*1e3;
     Cfg.FRF = 3;
     Cfg.RU = 1;
@@ -33,8 +54,6 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
 
 
     %%%%% UE GRID SIZE %%%%
-    Lat_range_deg = [55, 85];
-    Lon_range_deg = [-60, 30];
     switch lower(ue_grid_size)
         case 'small'
             [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, 6);
