@@ -250,7 +250,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         scatter(history_X.Inclination(isCand), history_Loss(isCand), 50, [0.2 0.6 0.8], 'filled', 'MarkerEdgeColor', 'k');
         scatter(history_X.Inclination(isBest), history_Loss(isBest), 100, [1 0.8 0], 'diamond', 'filled', 'MarkerEdgeColor', 'k');
         xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Num Sats', 'FontWeight', 'bold');
-        title("Architecture Feasibility @ " + num2str(orbit_height_km) + " km");
+        title("Candidate Inclinations @ " + num2str(orbit_height_km) + " km");
         legend('Invalid', 'Candidate', 'Minimum', 'Location', 'best');
         grid on; hold off;
         exportgraphics(f1, fullfile(out_dir, 'Inclinations_NumSats.png'), 'Resolution', 300);
@@ -261,21 +261,20 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         det_grid = search_grid(was_detailed, :);
         det_cov = detailed_coverage(was_detailed);
 
-        if ~isempty(det_cov)
-            det_feasible = det_cov >= 99.999;
-            det_infeasible = ~det_feasible;
 
-            f_trade = figure('Visible', 'off', 'Name', 'Detailed Tradeoff', 'Color', 'w'); hold on;
-            scatter(det_grid.Total_sats(det_infeasible), det_cov(det_infeasible), 26, [0.90 0.30 0.30], 'x', 'LineWidth', 1.0);
-            scatter(det_grid.Total_sats(det_feasible), det_cov(det_feasible), 36, [0.12 0.60 0.18], 'filled', 'MarkerEdgeColor', 'k');
-            xlabel('Total Satellites', 'FontWeight', 'bold');
-            ylabel('Worst Coverage %', 'FontWeight', 'bold');
-            title("Coverage percentage @ " + num2str(orbit_height_km) + " km");
-            legend('Infeasible', 'Feasible', 'Location', 'best');
-            grid on; hold off;
-            exportgraphics(f_trade, fullfile(out_dir, 'Detailed_Tradeoff_Coverage_vs_Sats.png'), 'Resolution', 300);
-            close(f_trade);
-        end
+        det_feasible = det_cov >= 99.999;
+        det_infeasible = ~det_feasible;
+
+        f_trade = figure('Visible', 'off', 'Name', 'Detailed Tradeoff', 'Color', 'w'); hold on;
+        scatter(det_grid.Total_sats(det_infeasible), det_cov(det_infeasible), 26, [0.90 0.30 0.30], 'x', 'LineWidth', 1.0);
+        scatter(det_grid.Total_sats(det_feasible), det_cov(det_feasible), 36, [0.12 0.60 0.18], 'filled', 'MarkerEdgeColor', 'k');
+        xlabel('Num Sats', 'FontWeight', 'bold');
+        ylabel('Worst Coverage %', 'FontWeight', 'bold');
+        title("Coverage percentage @ " + num2str(orbit_height_km) + " km");
+        legend('Invalid', 'Candidate', 'Location', 'best');
+        grid on; hold off;
+        exportgraphics(f_trade, fullfile(out_dir, 'Detailed_Tradeoff_Coverage_vs_Sats.png'), 'Resolution', 300);
+        close(f_trade);
 
         %% Plot 2: Architecture map (planes vs sats per plane)
         planes = history_X.Num_planes;
@@ -296,11 +295,35 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
             cb.Label.String = 'Total Satellites';
         end
         xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Sats per Plane', 'FontWeight', 'bold');
-        title("Evaluated Architectures @ " + num2str(orbit_height_km) + " km");
+        title("Evaluated Constellations @ " + num2str(orbit_height_km) + " km");
         legend('Invalid', 'Candidate', 'Minimum', 'Location', 'best');
         grid on; hold off;
         exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', 300);
         close(f4);
+
+        %% Plot 3: Phasing vs Number of Planes
+        f_phase = figure('Visible', 'off', 'Name', 'Phasing vs Planes', 'Color', 'w'); hold on;
+        
+        % Adding slight jitter to the X-axis (Num Planes) to prevent markers from stacking perfectly
+        jitter_planes = history_X.Num_planes + (rand(size(history_X.Num_planes))-0.5)*0.4;
+        
+        % Scatter plots matching the existing color scheme
+        scatter(jitter_planes(isInvalid), history_X.Phasing_Degrees(isInvalid), 35, [0.8 0.8 0.8], 'x');
+        scatter(jitter_planes(isCand), history_X.Phasing_Degrees(isCand), 50, [0.2 0.6 0.8], 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jitter_planes(isBest), history_X.Phasing_Degrees(isBest), 100, [1 0.8 0], 'diamond', 'filled', 'MarkerEdgeColor', 'k');
+        
+        xlabel('Num Planes', 'FontWeight', 'bold'); 
+        ylabel('Phasing (deg)', 'FontWeight', 'bold');
+        title("Candidate Phasing @ " + num2str(orbit_height_km) + " km");
+        legend('Invalid', 'Candidate', 'Minimum', 'Location', 'best');
+        
+        % Ensure Y-axis ticks make sense for degrees (optional, bounds between 0 and 360)
+        ylim([0 360]);
+        yticks(0:45:360);
+        
+        grid on; hold off;
+        exportgraphics(f_phase, fullfile(out_dir, 'NumPlanes_Phasing.png'), 'Resolution', 300);
+        close(f_phase);
     end
 end
 

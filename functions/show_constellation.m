@@ -1,24 +1,13 @@
-function show_constellation(Cfg, show_interactive, save_fig, out_dir)
+function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_details)
     % Set default behaviors if you don't provide all inputs
     if nargin < 1
-        Cfg.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-        Cfg.StopTime   = datetime('1-Jun-2025 12:59:59', 'TimeZone', 'UTC');
-        Cfg.SampleTime = 60; % seconds
-        Cfg.Lat_vec = linspace(55, 85, 5);  
-        Cfg.Lon_vec = linspace(-60, 30, 2);
-        Cfg.Min_elevation_UE = 20;
-
-        Cfg.Orbit_height = 1000e3;
-        Cfg.Num_planes   = 5;
-        Cfg.Sats_per_plane   = 13;
-        Cfg.Inclination  = 87;
-        Cfg.Total_sats   = Cfg.Num_planes * Cfg.Sats_per_plane;
-        Cfg.WalkerStar     = true;
-        Cfg.Phasing        = Cfg.Num_planes/2;
+        Cfg = get_cfg(1000,"walkerdelta","big","short")
     end
     if nargin < 2, show_interactive = true; end
     if nargin < 3, save_fig = false; end
     if nargin < 4, out_dir = pwd; end % Default to current folder
+    if nargin < 5, show_details = false; end % Default to current folder
+
 
     sc = satelliteScenario;
     sc.StartTime  = Cfg.StartTime;
@@ -39,28 +28,47 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir)
         Cfg.Phasing, ...
         Name="S4D", OrbitPropagator="sgp4");
     end
-
-    [UE_lats_flat, UE_lons_flat] = generate_equal_ish_area_UEs(Cfg.Lat_vec, Cfg.Lon_vec);
     
-    %% Create the UEs Array
-    NumUEs = length(UE_lats_flat);
-    UEs = cell(NumUEs, 1);
-    
-    for idx = 1:NumUEs
-        UEs{idx}.Lat = UE_lats_flat(idx);
-        UEs{idx}.Lon = UE_lons_flat(idx);
-        UEs{idx}.Name = sprintf('UE%d', idx);
-        
-        % Add to scenario
-        groundStation(sc, UEs{idx}.Lat, UEs{idx}.Lon, ...
-            'Name', UEs{idx}.Name, 'MinElevationAngle', Cfg.Min_elevation_UE);
+    %% UEs Array
+    if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats') || ~isfield(Cfg.Flat_UE_array, 'Lons')
+        error('Cfg.Flat_UE_array with fields Lats and Lons is required. Generate UEs before calling coverage_simulator_function.');
     end
 
-    % If we are here, we are on a computer with a GUI (like your Windows laptop)
+    UE_lats = Cfg.Flat_UE_array.Lats;
+    UE_lons = Cfg.Flat_UE_array.Lons;
+    %% Create the UEs Array
+    NumUEs = length(UE_lats);
+    % UEs = cell(NumUEs, 1);
+    
+    % for idx = 1:NumUEs
+    %     UEs{idx}.Lat = UE_lats(idx);
+    %     UEs{idx}.Lon = UE_lons(idx);
+    %     UEs{idx}.Name = sprintf('UE%d', idx);
+        
+    %     % Add to scenario
+    %     groundStation(sc, UEs{idx}.Lat, UEs{idx}.Lon, ...
+    %         'Name', UEs{idx}.Name, 'MinElevationAngle', Cfg.Min_elevation_UE);
+    % end
+    %% Vectorized UE Array Creation
+    % NumUEs = length(UE_lats);
+
+    % 1. Generate all names at once as a string array (e.g., ["UE1", "UE2", ...])
+    % ue_names = compose('UE%d', 1:NumUEs); 
+
+    % 2. Create ALL ground stations in one single call
+    % By passing arrays for lat/lon/names, MATLAB handles the loop internally in C++
+    groundStation(sc, UE_lats, UE_lons, ...
+        'MinElevationAngle', Cfg.Min_elevation_UE);
+
+
     if show_interactive || save_fig
         
         % 1. Launch the viewer FIRST so it's ready to receive graphics
-        v = satelliteScenarioViewer(sc, 'ShowDetails', false);
+        v = satelliteScenarioViewer(sc, 'ShowDetails', show_details);
+
+        for idx = 1:length(sc.GroundStations)
+            sc.GroundStations(idx).ShowLabel = false; % even if showdetails is true, remove the UE labels
+        end
         
         % 2. Calculate and apply the sensors
         a = r_earth + Cfg.Orbit_height;

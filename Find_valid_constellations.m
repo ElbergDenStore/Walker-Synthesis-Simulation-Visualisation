@@ -1,5 +1,5 @@
 % How to run through the night:
-% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "Find_optimal_constellations" > log.txt
+% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "Find_valid_constellations" > log.txt
 % xvfb is a virtual display to avoid constellation pictures do not crash server
 % one ">" overwrites the file
 % Read log during run using tail -f log.txt
@@ -24,8 +24,8 @@ Master_config.Lat_range_deg         = [55, 85];
 Master_config.Min_elevation_UE      = 20;
 Master_config.Num_Planes            = 2:20; % Num Planes
 Master_config.Sats_Plane            = 2:20; % Sats per Plane
-Master_config.Inc_vec               = linspace(70, 80, 21); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
-Master_config.Target_num_candidates = 10;
+Master_config.Inc_vec               = linspace(70, 80, 41); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+Master_config.Target_num_candidates = 30;
 
 % Sub Run configurations
 Master_config.Ultrafast.Duration_h  = 1;  
@@ -34,6 +34,7 @@ Master_config.Fast.Duration_h       = 24;
 Master_config.Fast.Num_UEs          = 100;
 Master_config.Detailed.Duration_h   = 36;      
 Master_config.Detailed.Num_UEs      = 2000;
+
 
 
 % Record start time for the sweep
@@ -53,7 +54,8 @@ for i = 1:length(heights_km)
     current_h_meters = heights_km(i) * 1000;
   
     %% The Analytical "Seed" (Walker Star Baseline)
-    [Num_planes, Sats_per_plane, Total_sats] = calculate_walker_star(heights_km(i), min(Master_config.Lat_range_deg), Master_config.Min_elevation_UE);
+    minimum_lat_deg = min(Master_config.Lat_range_deg);
+    [Num_planes, Sats_per_plane, Total_sats] = calculate_walker_star(heights_km(i), minimum_lat_deg, Master_config.Min_elevation_UE);
     star_sats(i).Orbit_height   = heights_km(i);
     star_sats(i).Total_sats     = Total_sats;
     star_sats(i).Num_planes     = Num_planes;
@@ -101,7 +103,7 @@ scatter(heights_km, delta_plot_y, 36, 's', 'MarkerEdgeColor', 'b', 'MarkerFaceCo
 
 xlabel('Orbit Height (km)', 'FontWeight', 'bold');
 ylabel('Total Satellites Required', 'FontWeight', 'bold');
-title(sprintf('Coverage Efficiency: Walker Star vs Walker Delta (Lat: %d°)', target_lat));
+title(sprintf('Walker Star vs Minimum Walker Delta (Lat: %d°)', minimum_lat_deg));
 legend('Location', 'northeast');
 grid on; hold off;
 

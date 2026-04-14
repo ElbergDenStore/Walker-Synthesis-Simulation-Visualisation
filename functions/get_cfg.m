@@ -10,7 +10,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     %%%%% CONSTELLATION %%%%
     Lat_range_deg = [55, 85];
     Lon_range_deg = [-60, 30];
-    Cfg.Min_elevation_UE = 20;
+    min_elevation_UE = 20;
     requested_constellation = lower(constellation_type);
     mat_path = "optimal_constellations.mat";
     if isfile(mat_path)
@@ -32,7 +32,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
         end
     else
         warning('No optimal_constellations.mat found. Switching to analytical Walker Star solution.');
-        [Num_planes, Sats_per_plane, Total_sats] = calculate_walker_star(height_km, min(Lat_range_deg), Cfg.Min_elevation_UE);
+        [Num_planes, Sats_per_plane, Total_sats] = calculate_walker_star(height_km, min(Lat_range_deg), min_elevation_UE);
         Cfg = struct('Orbit_height', height_km, ...
                      'Total_sats', Total_sats, ...
                      'Num_planes', Num_planes, ...
