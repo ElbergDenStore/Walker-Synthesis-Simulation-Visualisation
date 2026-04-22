@@ -224,62 +224,62 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
     
     more_1_satellites = (counts >= 1);
     prob_coverage = 100 * sum(more_1_satellites, 2) ./ nT; 
-    minNumberSatellites = min(counts, [], 2);
-    meanNumberSatellites = mean(counts, 2);
+    % minNumberSatellites = min(counts, [], 2);
+    % meanNumberSatellites = mean(counts, 2);
     
-    maxGapMinutes = zeros(Cfg.NumUEs,1);
-    for idx = 1:Cfg.NumUEs
-        row = (counts(idx,:) == 0);  
-        maxZeroStreak = 0; currentStreak = 0;
-        for k = 1:length(row)
-            if row(k)
-                currentStreak = currentStreak + 1;
-                maxZeroStreak = max(maxZeroStreak, currentStreak);
-            else
-                currentStreak = 0;
-            end
-        end
-        maxGapMinutes(idx) = maxZeroStreak * Cfg.SampleTime / 60;
-    end
+    % maxGapMinutes = zeros(Cfg.NumUEs,1);
+    % for idx = 1:Cfg.NumUEs
+    %     row = (counts(idx,:) == 0);  
+    %     maxZeroStreak = 0; currentStreak = 0;
+    %     for k = 1:length(row)
+    %         if row(k)
+    %             currentStreak = currentStreak + 1;
+    %             maxZeroStreak = max(maxZeroStreak, currentStreak);
+    %         else
+    %             currentStreak = 0;
+    %         end
+    %     end
+    %     maxGapMinutes(idx) = maxZeroStreak * Cfg.SampleTime / 60;
+    % end
     
     metrics.worst_coverage_percent = min(prob_coverage);
-    metrics.worst_gap_minutes      = max(maxGapMinutes);
-    metrics.Num_visible            = counts; 
-    metrics.SimData                = SimDataArray;
+    % metrics.worst_gap_minutes      = max(maxGapMinutes);
+    % metrics.Num_visible            = counts; 
+    % metrics.SimData                = SimDataArray;
     
     metrics.throughput_10pct  = NaN;
     metrics.throughput_mean   = NaN;
     meanThroughput = NaN(Cfg.NumUEs, 1);
     
-    %% Link Budget Calculation
-    if calc_link
-        tic
-        el_mat_calc = vertcat(SimDataArray.Elevation_deg); 
-        az_mat_calc = vertcat(SimDataArray.Azimuth_deg);   
-        range_mat_calc = vertcat(SimDataArray.Range);      
-        lat_vec_calc = [UEs.Lat]';
-        lon_vec_calc = [UEs.Lon]';
+    % %% Link Budget Calculation
+    % if calc_link
+    %     tic
+    %     el_mat_calc = vertcat(SimDataArray.Elevation_deg); 
+    %     az_mat_calc = vertcat(SimDataArray.Azimuth_deg);   
+    %     range_mat_calc = vertcat(SimDataArray.Range);      
+    %     lat_vec_calc = [UEs.Lat]';
+    %     lon_vec_calc = [UEs.Lon]';
         
-        if isfield(Cfg, 'DL')
-            DL_Result = link_calc_matrix(el_mat_calc, az_mat_calc, range_mat_calc, lat_vec_calc, lon_vec_calc, Cfg.DL, Cfg);
-            for idx = 1:Cfg.NumUEs
-                UEs(idx).DL.Frequency         = DL_Result.Frequency;
-                UEs(idx).DL.Bandwidth         = DL_Result.Bandwidth;
-                UEs(idx).DL.FSPL              = DL_Result.FSPL(idx, :);
-                UEs(idx).DL.Total_loss        = DL_Result.Total_loss(idx, :);
-                UEs(idx).DL.Adjusted_EIRP_dBm = DL_Result.Adjusted_EIRP_dBm(idx, :);
-                UEs(idx).DL.PFD_W_MHz         = DL_Result.PFD_W_MHz(idx, :);
-                UEs(idx).DL.SNR               = DL_Result.SNR(idx, :);
-                UEs(idx).DL.Throughput        = DL_Result.Throughput(idx, :);
-                UEs(idx).DL.Absorption.At     = DL_Result.Absorption_At(idx, :);
-            end
+    %     if isfield(Cfg, 'DL')
+    %         DL_Result = link_calc_matrix(el_mat_calc, az_mat_calc, range_mat_calc, lat_vec_calc, lon_vec_calc, Cfg.DL, Cfg);
+    %         for idx = 1:Cfg.NumUEs
+    %             UEs(idx).DL.Frequency         = DL_Result.Frequency;
+    %             UEs(idx).DL.Bandwidth         = DL_Result.Bandwidth;
+    %             UEs(idx).DL.FSPL              = DL_Result.FSPL(idx, :);
+    %             UEs(idx).DL.Total_loss        = DL_Result.Total_loss(idx, :);
+    %             UEs(idx).DL.Adjusted_EIRP_dBm = DL_Result.Adjusted_EIRP_dBm(idx, :);
+    %             UEs(idx).DL.PFD_W_MHz         = DL_Result.PFD_W_MHz(idx, :);
+    %             UEs(idx).DL.SNR               = DL_Result.SNR(idx, :);
+    %             UEs(idx).DL.Throughput        = DL_Result.Throughput(idx, :);
+    %             UEs(idx).DL.Absorption.At     = DL_Result.Absorption_At(idx, :);
+    %         end
             
-            valid_thpt = DL_Result.Throughput(~isnan(DL_Result.Throughput));
-            metrics.throughput_10pct = prctile(valid_thpt, 10);
-            metrics.throughput_mean  = mean(valid_thpt);
-        end
-        fprintf('\nLoss calculation complete (%.1f sec).\n', toc);
-    end
+    %         valid_thpt = DL_Result.Throughput(~isnan(DL_Result.Throughput));
+    %         metrics.throughput_10pct = prctile(valid_thpt, 10);
+    %         metrics.throughput_mean  = mean(valid_thpt);
+    %     end
+    %     fprintf('\nLoss calculation complete (%.1f sec).\n', toc);
+    % end
 end
 
 % =========================================================================

@@ -1,27 +1,42 @@
-function [planes, sats_per_plane, total_sats] = calculate_walker_star(orbit_height_km, min_latitude_deg, min_elevation_deg)
-    Re = 6378.14; 
-    Rs = Re + orbit_height_km; 
-    
-    % Circumference of the Earth at the minimum target latitude
-    earth_O_at_lat = (cosd(min_latitude_deg) * Re) * 2 * pi;
-    
-    % Calculate Earth Central Angle (ECA) based on minimum allowable elevation
-    alpha = asind((Re / Rs) * cosd(min_elevation_deg));
-    ECA = deg2rad(180 - (90 + min_elevation_deg + alpha));
-    
-    % Hexagonal footprint dimensions
-    hex_side = ECA * Re;
-    max_normal_gap = 1.5 * hex_side;
-    max_seam_gap = 2 * (hex_side/2);
-    
-    % planes = (earth circumference @ 55 lat / 2 ) / Beam coverage)
-    % As the seam is smaller, ”planes – 1” needs to cover (earthcircumference @ 55 lat / 2) – seam coverage
-    % Planes – 1 = ((earth circumference @ 55 lat / 2) – seam coverage) / beam coverage 
-    planes = ceil((((earth_O_at_lat / 2) - max_seam_gap) / max_normal_gap) + 1);
+function [optimal_planes, optimal_sats_per_plane, total_sats] = calculate_walker_star(orbit_height_km, min_latitude_deg, min_elevation_deg)
+    Re = 6378.14;
+    Rs = Re + orbit_height_km;
 
-    % Calculate Satellites per Plane
-    sats_per_plane = ceil((2 * pi) / (sqrt(3) * ECA)); 
-    
-    % Output the total
-    total_sats = planes * sats_per_plane;
+    % Calculate Earth Central Angle (lambda_max) in radians
+    alpha = asind((Re / Rs) * cosd(min_elevation_deg));
+    lambda_max = deg2rad(180 - (90 + min_elevation_deg + alpha));
+
+    % Define search bounds for satellites per plane
+    % Must have enough sats so S/2 is less than lambda_max to close the street
+    min_sats_per_plane = ceil(pi / lambda_max) + 1; 
+    max_sats_per_plane = 40; % Upper search limit
+
+    best_total_sats = inf;
+    optimal_sats_per_plane = 0;
+    optimal_planes = 0;
+
+    % Optimize by testing all viable integer values of sats per plane
+    for s = min_sats_per_plane:max_sats_per_plane
+        S = (2 * pi) / s;
+        
+        % Check if the street is physically viable (cosine ratio must be <= 1)
+        if (S / 2) >= lambda_max
+            continue; 
+        end
+        
+        lambda_street = acos(cos(lambda_max) / cos(S / 2));
+        
+        D_maxCounter = 2 * lambda_street;
+        D_maxSame = lambda_street + lambda_max;
+        
+        P = ceil((((cosd(min_latitude_deg)*pi) - D_maxCounter) / D_maxSame) + 1);
+        total_sats = P * s;
+        
+        % Store the configuration if it is the new minimum
+        if total_sats < best_total_sats
+            best_total_sats = total_sats;
+            optimal_sats_per_plane = s;
+            optimal_planes = P;
+        end
+    end
 end

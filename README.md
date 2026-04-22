@@ -34,4 +34,4 @@ Changes to code that i want:
 - Revive UE focus view from the dead
 - Revive OneWeb validation from the dead
 - Develop satellite focused view
-- Change all orbit height to altitude which is more correct, but people use h, so im confused
+- Develop P618 grid per degree to plot and use for big simulations

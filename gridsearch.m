@@ -1,11 +1,15 @@
 function [best_params, all_candidates] = gridsearch(master_config, orbit_height_km, plot_results, min_sats)
     %% 1. Build the Ascending Grid
-    grid_data = [];
+    Num_constellations = sum(master_config.Num_Planes-1); %The phasing plus number of planes combinations. For 20 planes 19 phasing factors are possible and the total sum is 190.
+    Num_constellations = Num_constellations*size(master_config.Sats_Plane,1)*size(master_config.Inc_vec,1);
+    grid_data = zeros(Num_constellations,5);
+    i = 1;
     for p = master_config.Num_Planes
         for s = master_config.Sats_Plane
             for f = 1:(p-1) % Integer Walker Phase Factor. Zero is always bad so not checked
                 for inc = master_config.Inc_vec
-                    grid_data = [grid_data; p, s, inc, f, p*s];
+                    grid_data(i,:) = [p, s, inc, f, p*s];
+                    i = i + 1;
                 end
             end
         end
@@ -229,6 +233,21 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
 
     %% 8. Prepare Data For Plotting
     if plot_results
+        %% --- Standardized Plotting Parameters ---
+        % Define colors and sizes once so they are identical across all plots
+        color_inv  = [0.7 0.7 0.7]; % Grey
+        color_cand = [0.2 0.6 0.8]; % Blue
+        color_best = [1.0 0.8 0.0]; % Gold/Yellow
+        
+        sz_inv  = 35;
+        sz_cand = 50;
+        sz_best = 120; % Slightly larger to make the optimal stand out
+        
+        export_dpi = 600; % 600 is standard for print/report ready
+        leg_loc = 'northeast'; % Forces legend to top-right
+        jitter_amount = 0.5; % Global jitter scaling
+
+        %% --- Data Preparation ---
         was_evaluated = ~isnan(evaluated_coverage);
         eval_grid = search_grid(was_evaluated, :);
         eval_status = status_flags(was_evaluated); % 0=Invalid, 1=Candidate, 2=Best
@@ -238,91 +257,99 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         isBest = eval_status == 2;
 
         history_Loss = eval_grid.Total_sats;
-
         phasing_deg = (eval_grid.Phasing ./ eval_grid.Num_planes) .* 360;
+        
         history_X = table(eval_grid.Num_planes, eval_grid.Sats_per_plane, ...
             eval_grid.Inclination, phasing_deg, ...
             'VariableNames', {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees'});
 
+
         %% Plot 1: Loss vs Inclination
         f1 = figure('Visible', 'off', 'Name', 'Sats vs Inclination', 'Color', 'w'); hold on;
-        scatter(history_X.Inclination(isInvalid), history_Loss(isInvalid), 35, [0.8 0.8 0.8], 'x');
-        scatter(history_X.Inclination(isCand), history_Loss(isCand), 50, [0.2 0.6 0.8], 'filled', 'MarkerEdgeColor', 'k');
-        scatter(history_X.Inclination(isBest), history_Loss(isBest), 100, [1 0.8 0], 'diamond', 'filled', 'MarkerEdgeColor', 'k');
+        
+        % Jitter Inclination slightly to prevent identical integers from stacking
+        jitter_inc = history_X.Inclination + (rand(size(history_X.Inclination))-0.5)*jitter_amount;
+
+        scatter(jitter_inc(isInvalid), history_Loss(isInvalid), sz_inv, color_inv, 'x');
+        scatter(jitter_inc(isCand), history_Loss(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jitter_inc(isBest), history_Loss(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
+        
         xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Num Sats', 'FontWeight', 'bold');
         title("Candidate Inclinations @ " + num2str(orbit_height_km) + " km");
-        legend('Invalid', 'Candidate', 'Minimum', 'Location', 'best');
+        legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
         grid on; hold off;
-        exportgraphics(f1, fullfile(out_dir, 'Inclinations_NumSats.png'), 'Resolution', 300);
+        exportgraphics(f1, fullfile(out_dir, 'Inclinations_NumSats.png'), 'Resolution', export_dpi);
         close(f1);
+
 
         %% Plot 1b: Detailed-only tradeoff (coverage vs total sats)
         was_detailed = ~isnan(detailed_coverage);
         det_grid = search_grid(was_detailed, :);
         det_cov = detailed_coverage(was_detailed);
+        det_status = status_flags(was_detailed); % Pull exact status for standard colors
 
-
-        det_feasible = det_cov >= 99.999;
-        det_infeasible = ~det_feasible;
+        % Map the standard flags to the detailed subset
+        det_inv = det_status == 0;
+        det_cand = det_status == 1;
+        det_best = det_status == 2;
 
         f_trade = figure('Visible', 'off', 'Name', 'Detailed Tradeoff', 'Color', 'w'); hold on;
-        scatter(det_grid.Total_sats(det_infeasible), det_cov(det_infeasible), 26, [0.90 0.30 0.30], 'x', 'LineWidth', 1.0);
-        scatter(det_grid.Total_sats(det_feasible), det_cov(det_feasible), 36, [0.12 0.60 0.18], 'filled', 'MarkerEdgeColor', 'k');
-        xlabel('Num Sats', 'FontWeight', 'bold');
-        ylabel('Worst Coverage %', 'FontWeight', 'bold');
+        
+        % Jitter total sats
+        jitter_det_sats = det_grid.Total_sats + (rand(size(det_grid.Total_sats))-0.5)*jitter_amount;
+
+        scatter(jitter_det_sats(det_inv), det_cov(det_inv), sz_inv, color_inv, 'x', 'LineWidth', 1.0);
+        scatter(jitter_det_sats(det_cand), det_cov(det_cand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jitter_det_sats(det_best), det_cov(det_best), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
+        
+        xlabel('Num Sats', 'FontWeight', 'bold'); ylabel('Worst Coverage %', 'FontWeight', 'bold');
         title("Coverage percentage @ " + num2str(orbit_height_km) + " km");
-        legend('Invalid', 'Candidate', 'Location', 'best');
+        legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
         grid on; hold off;
-        exportgraphics(f_trade, fullfile(out_dir, 'Detailed_Tradeoff_Coverage_vs_Sats.png'), 'Resolution', 300);
+        exportgraphics(f_trade, fullfile(out_dir, 'Detailed_Tradeoff_Coverage_vs_Sats.png'), 'Resolution', export_dpi);
         close(f_trade);
+
 
         %% Plot 2: Architecture map (planes vs sats per plane)
         planes = history_X.Num_planes;
         sats_pp = history_X.Sats_per_plane;
 
         f4 = figure('Visible', 'off', 'Name', 'Architecture Map', 'Color', 'w'); hold on;
-        jitter_x = planes + (rand(size(planes))-0.5)*0.4;
-        jitter_y = sats_pp + (rand(size(sats_pp))-0.5)*0.4;
+        
+        jitter_x = planes + (rand(size(planes))-0.5)*jitter_amount;
+        jitter_y = sats_pp + (rand(size(sats_pp))-0.5)*jitter_amount;
 
-        scatter(jitter_x(isInvalid), jitter_y(isInvalid), 30, [0.8 0.8 0.8], 'x');
-        scatter(jitter_x(isCand), jitter_y(isCand), 40, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jitter_x(isBest), jitter_y(isBest), 90, history_Loss(isBest), 'diamond', 'filled', ...
-            'MarkerEdgeColor', 'k', 'LineWidth', 1.5);
+        scatter(jitter_x(isInvalid), jitter_y(isInvalid), sz_inv, color_inv, 'x');
+        % Removed colormap to maintain standard blue candidate dots across all plots
+        scatter(jitter_x(isCand), jitter_y(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jitter_x(isBest), jitter_y(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
 
-        colormap('parula');
-        if any(isCand) || any(isBest)
-            cb = colorbar;
-            cb.Label.String = 'Total Satellites';
-        end
         xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Sats per Plane', 'FontWeight', 'bold');
         title("Evaluated Constellations @ " + num2str(orbit_height_km) + " km");
-        legend('Invalid', 'Candidate', 'Minimum', 'Location', 'best');
+        legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
         grid on; hold off;
-        exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', 300);
+        exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', export_dpi);
         close(f4);
+
 
         %% Plot 3: Phasing vs Number of Planes
         f_phase = figure('Visible', 'off', 'Name', 'Phasing vs Planes', 'Color', 'w'); hold on;
         
-        % Adding slight jitter to the X-axis (Num Planes) to prevent markers from stacking perfectly
-        jitter_planes = history_X.Num_planes + (rand(size(history_X.Num_planes))-0.5)*0.4;
+        jitter_planes = history_X.Num_planes + (rand(size(history_X.Num_planes))-0.5)*jitter_amount;
         
-        % Scatter plots matching the existing color scheme
-        scatter(jitter_planes(isInvalid), history_X.Phasing_Degrees(isInvalid), 35, [0.8 0.8 0.8], 'x');
-        scatter(jitter_planes(isCand), history_X.Phasing_Degrees(isCand), 50, [0.2 0.6 0.8], 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jitter_planes(isBest), history_X.Phasing_Degrees(isBest), 100, [1 0.8 0], 'diamond', 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jitter_planes(isInvalid), history_X.Phasing_Degrees(isInvalid), sz_inv, color_inv, 'x');
+        scatter(jitter_planes(isCand), history_X.Phasing_Degrees(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jitter_planes(isBest), history_X.Phasing_Degrees(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
         
-        xlabel('Num Planes', 'FontWeight', 'bold'); 
-        ylabel('Phasing (deg)', 'FontWeight', 'bold');
+        xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Phasing (deg)', 'FontWeight', 'bold');
         title("Candidate Phasing @ " + num2str(orbit_height_km) + " km");
-        legend('Invalid', 'Candidate', 'Minimum', 'Location', 'best');
+        legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
         
-        % Ensure Y-axis ticks make sense for degrees (optional, bounds between 0 and 360)
         ylim([0 360]);
         yticks(0:45:360);
         
         grid on; hold off;
-        exportgraphics(f_phase, fullfile(out_dir, 'NumPlanes_Phasing.png'), 'Resolution', 300);
+        exportgraphics(f_phase, fullfile(out_dir, 'NumPlanes_Phasing.png'), 'Resolution', export_dpi);
         close(f_phase);
     end
 end
