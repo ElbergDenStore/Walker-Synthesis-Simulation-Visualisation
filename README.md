@@ -33,5 +33,6 @@ Changes to code that i want:
 - Remove stupid and unnecessary comments
 - Revive UE focus view from the dead
 - Revive OneWeb validation from the dead
+- Revive the aer and homemade calculation both for speed and to validate the method
 - Develop satellite focused view
 - Develop P618 grid per degree to plot and use for big simulations

@@ -39,4 +39,6 @@ function [optimal_planes, optimal_sats_per_plane, total_sats] = calculate_walker
             optimal_planes = P;
         end
     end
+
+    total_sats = best_total_sats;
 end

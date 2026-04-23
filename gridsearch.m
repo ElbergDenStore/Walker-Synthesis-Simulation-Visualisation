@@ -234,18 +234,16 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     %% 8. Prepare Data For Plotting
     if plot_results
         %% --- Standardized Plotting Parameters ---
-        % Define colors and sizes once so they are identical across all plots
-        color_inv  = [0.7 0.7 0.7]; % Grey
+        color_inv  = [0.8 0.8 0.8]; % Standard light grey for invalid
         color_cand = [0.2 0.6 0.8]; % Blue
-        color_best = [1.0 0.8 0.0]; % Gold/Yellow
+        color_best = [1.0 0.8 0.0]; % Gold
         
         sz_inv  = 35;
         sz_cand = 50;
-        sz_best = 120; % Slightly larger to make the optimal stand out
+        sz_best = 120; 
         
-        export_dpi = 600; % 600 is standard for print/report ready
-        leg_loc = 'northeast'; % Forces legend to top-right
-        jitter_amount = 0.5; % Global jitter scaling
+        export_dpi = 600; 
+        leg_loc = 'northeast'; 
 
         %% --- Data Preparation ---
         was_evaluated = ~isnan(evaluated_coverage);
@@ -267,12 +265,12 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         %% Plot 1: Loss vs Inclination
         f1 = figure('Visible', 'off', 'Name', 'Sats vs Inclination', 'Color', 'w'); hold on;
         
-        % Jitter Inclination slightly to prevent identical integers from stacking
-        jitter_inc = history_X.Inclination + (rand(size(history_X.Inclination))-0.5)*jitter_amount;
-
-        scatter(jitter_inc(isInvalid), history_Loss(isInvalid), sz_inv, color_inv, 'x');
-        scatter(jitter_inc(isCand), history_Loss(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jitter_inc(isBest), history_Loss(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
+        % Inclination (X) is Continuous -> FALSE. Num Sats (Y) is Integer -> TRUE.
+        [jx_inc, jy_loss] = apply_density_jitter(history_X.Inclination, history_Loss, false, true);
+        
+        scatter(jx_inc(isInvalid), jy_loss(isInvalid), sz_inv, color_inv, 'x');
+        scatter(jx_inc(isCand), jy_loss(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jx_inc(isBest), jy_loss(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
         
         xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Num Sats', 'FontWeight', 'bold');
         title("Candidate Inclinations @ " + num2str(orbit_height_km) + " km");
@@ -286,21 +284,20 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         was_detailed = ~isnan(detailed_coverage);
         det_grid = search_grid(was_detailed, :);
         det_cov = detailed_coverage(was_detailed);
-        det_status = status_flags(was_detailed); % Pull exact status for standard colors
+        det_status = status_flags(was_detailed); 
 
-        % Map the standard flags to the detailed subset
         det_inv = det_status == 0;
         det_cand = det_status == 1;
         det_best = det_status == 2;
 
         f_trade = figure('Visible', 'off', 'Name', 'Detailed Tradeoff', 'Color', 'w'); hold on;
         
-        % Jitter total sats
-        jitter_det_sats = det_grid.Total_sats + (rand(size(det_grid.Total_sats))-0.5)*jitter_amount;
+        % Num Sats (X) is Integer -> TRUE. Coverage (Y) is Continuous -> FALSE.
+        [jx_sats, jy_cov] = apply_density_jitter(det_grid.Total_sats, det_cov, true, false);
 
-        scatter(jitter_det_sats(det_inv), det_cov(det_inv), sz_inv, color_inv, 'x', 'LineWidth', 1.0);
-        scatter(jitter_det_sats(det_cand), det_cov(det_cand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jitter_det_sats(det_best), det_cov(det_best), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
+        scatter(jx_sats(det_inv), jy_cov(det_inv), sz_inv, color_inv, 'x', 'LineWidth', 1.0);
+        scatter(jx_sats(det_cand), jy_cov(det_cand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jx_sats(det_best), jy_cov(det_best), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
         
         xlabel('Num Sats', 'FontWeight', 'bold'); ylabel('Worst Coverage %', 'FontWeight', 'bold');
         title("Coverage percentage @ " + num2str(orbit_height_km) + " km");
@@ -316,14 +313,17 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
 
         f4 = figure('Visible', 'off', 'Name', 'Architecture Map', 'Color', 'w'); hold on;
         
-        jitter_x = planes + (rand(size(planes))-0.5)*jitter_amount;
-        jitter_y = sats_pp + (rand(size(sats_pp))-0.5)*jitter_amount;
-
-        scatter(jitter_x(isInvalid), jitter_y(isInvalid), sz_inv, color_inv, 'x');
-        % Removed colormap to maintain standard blue candidate dots across all plots
-        scatter(jitter_x(isCand), jitter_y(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jitter_x(isBest), jitter_y(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
-
+        % BOTH are Integers -> TRUE, TRUE. (Clouds will form in both directions)
+        [jx_planes, jy_sats_pp] = apply_density_jitter(planes, sats_pp, true, true);
+        
+        scatter(jx_planes(isInvalid), jy_sats_pp(isInvalid), sz_inv, color_inv, 'x');
+        scatter(jx_planes(isCand), jy_sats_pp(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jx_planes(isBest), jy_sats_pp(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
+        colormap('parula');
+        if any(isCand) || any(isBest)
+            cb = colorbar;
+            cb.Label.String = 'Total Satellites';
+        end
         xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Sats per Plane', 'FontWeight', 'bold');
         title("Evaluated Constellations @ " + num2str(orbit_height_km) + " km");
         legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
@@ -335,11 +335,12 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         %% Plot 3: Phasing vs Number of Planes
         f_phase = figure('Visible', 'off', 'Name', 'Phasing vs Planes', 'Color', 'w'); hold on;
         
-        jitter_planes = history_X.Num_planes + (rand(size(history_X.Num_planes))-0.5)*jitter_amount;
+        % Num Planes (X) is Integer -> TRUE. Phasing (Y) is Continuous -> FALSE.
+        [jx_phase_p, jy_phase_deg] = apply_density_jitter(history_X.Num_planes, history_X.Phasing_Degrees, true, false);
         
-        scatter(jitter_planes(isInvalid), history_X.Phasing_Degrees(isInvalid), sz_inv, color_inv, 'x');
-        scatter(jitter_planes(isCand), history_X.Phasing_Degrees(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jitter_planes(isBest), history_X.Phasing_Degrees(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
+        scatter(jx_phase_p(isInvalid), jy_phase_deg(isInvalid), sz_inv, color_inv, 'x');
+        scatter(jx_phase_p(isCand), jy_phase_deg(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jx_phase_p(isBest), jy_phase_deg(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
         
         xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Phasing (deg)', 'FontWeight', 'bold');
         title("Candidate Phasing @ " + num2str(orbit_height_km) + " km");
@@ -542,14 +543,14 @@ function write_profiling_report_to_file(report_path, base_config, wall_time, run
     fprintf(fid, '%s\n', evalc('disp(base_config)'));
 
     fprintf(fid, '---------------- BEST PARAMETERS ----------------\n');
-    fprintf(fid, '%s\n', evalc('disp(best_params)'));
+    fprintf(fid, '%s\n', regexprep(evalc('disp(best_params)'), '<.*?>', ''));
 
     fprintf(fid, '---------------- CANDIDATE PARAMETERS ----------------\n');
     if isempty(all_candidates)
         fprintf(fid, 'No candidates found.\n');
     else
         fprintf(fid, 'Total candidates: %d\n', height(all_candidates));
-        fprintf(fid, '%s\n', evalc('disp(all_candidates)'));
+        fprintf(fid, '%s\n', regexprep(evalc('disp(all_candidates)'), '<.*?>', ''));
     end
 
     fprintf(fid, '---------------- EVALUATION SUMMARY ----------------\n');
@@ -560,4 +561,32 @@ function write_profiling_report_to_file(report_path, base_config, wall_time, run
     fprintf(fid, 'Search grid rows: %d\n', height(search_grid));
 
     fprintf('Deep profile report written to: %s\n', report_path);
+end
+
+function [jx, jy] = apply_density_jitter(x, y, jitter_x_flag, jitter_y_flag)
+    % Initialize with exact values
+    jx = x; 
+    jy = y;
+    
+    % Find completely identical overlapping coordinate pairs
+    [~, ~, ic] = unique([x, y], 'rows');
+    counts = accumarray(ic, 1);
+    
+    % Apply dynamic jitter based on localized density
+    for i = 1:max(ic)
+        n = counts(i);
+        if n > 1 % Only jitter if multiple points share the EXACT same (x,y)
+            idx = find(ic == i);
+            
+            % Dynamic spread: 1 point = 0 spread. Scales with sqrt(n) up to a max of 0.20
+            spread = min(0.20, 0.02 * sqrt(n - 1)); 
+            
+            if jitter_x_flag
+                jx(idx) = x(idx) + (rand(length(idx), 1) - 0.5) * 2 * spread;
+            end
+            if jitter_y_flag
+                jy(idx) = y(idx) + (rand(length(idx), 1) - 0.5) * 2 * spread;
+            end
+        end
+    end
 end

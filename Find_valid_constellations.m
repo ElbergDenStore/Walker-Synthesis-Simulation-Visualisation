@@ -18,9 +18,9 @@ clear; close all; clc;
 delete(gcp('nocreate')); % necessary or it will get stuck
 
 %% Master Configuration
-heights_km                          = 700:10:1200;
+heights_km                          = 500:10:1200;
 plot_individual_results = true;
-Master_config.Lat_range_deg         = [55+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
+Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
 Master_config.Min_elevation_UE      = 20;
 Master_config.Num_Planes            = 2:20; % Num Planes
 Master_config.Sats_Plane            = 2:20; % Sats per Plane
@@ -53,7 +53,7 @@ heights_km = sort(heights_km,"descend");
 for i = 1:length(heights_km) 
     current_h_meters = heights_km(i) * 1000;
   
-    %% The Analytical "Seed" (Walker Star Baseline)
+    %% Walker-Star calculation
     minimum_lat_deg = min(Master_config.Lat_range_deg);
     [Num_planes, Sats_per_plane, Total_sats] = calculate_walker_star(heights_km(i), minimum_lat_deg, Master_config.Min_elevation_UE);
     star_sats(i).Orbit_height   = heights_km(i);
