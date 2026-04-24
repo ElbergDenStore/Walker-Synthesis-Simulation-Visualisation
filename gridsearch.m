@@ -55,7 +55,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     if isfield(master_config, 'Worker_stall_timeout_s')
         stall_timeout_s = master_config.Worker_stall_timeout_s;
     else
-        stall_timeout_s = 300;
+        stall_timeout_s = 500;
     end
 
     evaluated_coverage = NaN(total_runs, 1);
@@ -317,8 +317,10 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         [jx_planes, jy_sats_pp] = apply_density_jitter(planes, sats_pp, true, true);
         
         scatter(jx_planes(isInvalid), jy_sats_pp(isInvalid), sz_inv, color_inv, 'x');
-        scatter(jx_planes(isCand), jy_sats_pp(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jx_planes(isBest), jy_sats_pp(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
+        % 2. Map Candidate and Best colors to their Total Satellites (history_Loss)
+        scatter(jx_planes(isCand), jy_sats_pp(isCand), sz_cand, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
+        scatter(jx_planes(isBest), jy_sats_pp(isBest), sz_best, history_Loss(isBest), 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
+        
         colormap('parula');
         if any(isCand) || any(isBest)
             cb = colorbar;

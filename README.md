@@ -31,8 +31,7 @@ It has been developed to be easily used for future development.
 Changes to code that i want:
 - Follow code style
 - Remove stupid and unnecessary comments
+- Move all the plotting files to the plotting folder
 - Revive UE focus view from the dead
 - Revive OneWeb validation from the dead
-- Revive the aer and homemade calculation both for speed and to validate the method
 - Develop satellite focused view
-- Develop P618 grid per degree to plot and use for big simulations

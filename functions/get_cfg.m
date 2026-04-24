@@ -8,7 +8,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     end
 
     %%%%% CONSTELLATION %%%%
-    Lat_range_deg = [55, 85];
+    Lat_range_deg = [54+(35/60), 83+(40/60)];
     Lon_range_deg = [-60, 30];
     min_elevation_UE = 20;
     requested_constellation = lower(constellation_type);

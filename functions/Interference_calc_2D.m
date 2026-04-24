@@ -1,8 +1,10 @@
-function [sir_lin_mat, mb_idx_mat] = Interference_calc_2D(el_mat, az_mat, BeamGrid, Cfg)
+function [sir_lin_mat, serving_beam_idx_mat, serving_beam_signal_lin_mat, interference_lin_mat] = Interference_calc_2D(el_mat, az_mat, BeamGrid, Cfg)
     NumUEs = size(az_mat, 1);
     nT = size(az_mat, 2);
     sir_lin_mat = nan(NumUEs, nT);
-    mb_idx_mat  = nan(NumUEs, nT);
+    serving_beam_idx_mat  = nan(NumUEs, nT);
+    serving_beam_signal_lin_mat = nan(NumUEs, nT);
+    interference_lin_mat = nan(NumUEs, nT);
 
     Re = 6378.14e3;   
     
@@ -27,8 +29,15 @@ function [sir_lin_mat, mb_idx_mat] = Interference_calc_2D(el_mat, az_mat, BeamGr
     valid_mask = ~isnan(u_ues) & ~isnan(v_ues);
     valid_linear_idx = find(valid_mask); % Store exact original matrix locations
 
+    if isempty(valid_linear_idx)
+        return;
+    end
+
+    % Force column vectors so query_coords is always N x 2, even for 1 UE.
     u_flat = u_ues(valid_linear_idx);
     v_flat = v_ues(valid_linear_idx);
+    u_flat = u_flat(:);
+    v_flat = v_flat(:);
 
     % Step B: KD-Tree Nearest Neighbor Search (The Magic Trick)
     % This finds the closest beam for millions of points without blowing up RAM
@@ -77,5 +86,7 @@ function [sir_lin_mat, mb_idx_mat] = Interference_calc_2D(el_mat, az_mat, BeamGr
     % Step G: Re-inflate back into the 2D Matrix using Linear Indexing!
     sir_lin_mat(final_linear_idx) = sir_final;
 
-    mb_idx_mat(final_linear_idx)  = mb_idx_final;
+    serving_beam_idx_mat(final_linear_idx)  = mb_idx_final;
+    serving_beam_signal_lin_mat(final_linear_idx) = sig_lin_final;
+    interference_lin_mat(final_linear_idx) = int_lin_final;
 end

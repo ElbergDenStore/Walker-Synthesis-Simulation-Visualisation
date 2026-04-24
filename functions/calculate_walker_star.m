@@ -9,7 +9,7 @@ function [optimal_planes, optimal_sats_per_plane, total_sats] = calculate_walker
     % Define search bounds for satellites per plane
     % Must have enough sats so S/2 is less than lambda_max to close the street
     min_sats_per_plane = ceil(pi / lambda_max) + 1; 
-    max_sats_per_plane = 40; % Upper search limit
+    max_sats_per_plane = 60; % Upper search limit
 
     best_total_sats = inf;
     optimal_sats_per_plane = 0;

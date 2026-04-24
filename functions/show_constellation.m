@@ -19,7 +19,7 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
     r_earth = 6378.14e3;
     
     if Cfg.WalkerStar == true
-        sats = asymmetrical_walker_star_generation(orbit_height, inclination, planes, sats_per_plane);
+        sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height,  Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
     else
         sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
         Cfg.Inclination, ...

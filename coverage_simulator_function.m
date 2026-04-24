@@ -11,7 +11,7 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
 
     r_earth = 6378.14e3;
     if Cfg.WalkerStar == true
-        sats = asymmetrical_walker_star_generation(Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
+        sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
     else
         sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
         Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
@@ -274,8 +274,12 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
                     UEs(idx).DL.Adjusted_EIRP_dBm = chunk.Adjusted_EIRP_dBm(local_idx, :);
                     UEs(idx).DL.PFD_W_MHz         = chunk.PFD_W_MHz(local_idx, :);
                     UEs(idx).DL.SNR               = chunk.SNR(local_idx, :);
+                    UEs(idx).DL.SIR               = chunk.SIR(local_idx, :);
                     UEs(idx).DL.SINR              = chunk.SINR(local_idx, :);
                     UEs(idx).DL.Throughput        = chunk.Throughput(local_idx, :);
+                    UEs(idx).DL.serving_beam_idx     = chunk.serving_beam_idx(local_idx, :);
+                    UEs(idx).DL.serving_beam_signal_lin = chunk.serving_beam_signal_lin(local_idx, :);
+                    UEs(idx).DL.interference_lin   = chunk.interference_lin(local_idx, :);
                     UEs(idx).DL.Absorption.At     = chunk.Absorption_At(local_idx, :);
                     
                     local_idx = local_idx + 1;

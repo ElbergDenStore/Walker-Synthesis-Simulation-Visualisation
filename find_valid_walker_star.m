@@ -2,7 +2,7 @@ clear; close all; clc;
 
 heights_km            = 500:0.1:1200;
 Lat_range_deg         = [55+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
-Min_elevation_UE      = 20;
+Min_elevation_UE      = 40;
 minimum_lat_deg = min(Lat_range_deg);
 
 num_steps = length(heights_km);

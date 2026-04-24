@@ -35,7 +35,7 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
         r_earth = 6378.14e3;
         
         if Cfg.WalkerStar == true
-            sats = asymmetrical_walker_star_generation(Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
+            sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane);
         else
             sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
                 Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...

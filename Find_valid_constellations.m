@@ -22,8 +22,8 @@ heights_km                          = 500:10:1200;
 plot_individual_results = true;
 Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
 Master_config.Min_elevation_UE      = 20;
-Master_config.Num_Planes            = 2:20; % Num Planes
-Master_config.Sats_Plane            = 2:20; % Sats per Plane
+Master_config.Num_Planes            = 2:25; % Num Planes
+Master_config.Sats_Plane            = 2:25; % Sats per Plane
 Master_config.Inc_vec               = linspace(70, 80, 41); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
 Master_config.Target_num_candidates = 1;
 
@@ -99,7 +99,7 @@ scatter(heights_km, star_plot_y, 36, 'o', 'MarkerEdgeColor', 'r', 'MarkerFaceCol
 
 % Plot the Optimized Walker Delta results (Blue Markers)
 % We only plot valid indices in case one of the heights failed
-scatter(heights_km, delta_plot_y, 36, 's', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'DisplayName', 'Optimized Walker Delta');
+scatter(heights_km, delta_plot_y, 36, 'o', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'DisplayName', 'Optimized Walker Delta');
 
 xlabel('Orbit Height (km)', 'FontWeight', 'bold');
 ylabel('Total Satellites Required', 'FontWeight', 'bold');

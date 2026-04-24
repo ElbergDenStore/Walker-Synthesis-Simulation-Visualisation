@@ -47,8 +47,11 @@ function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec,
         BeamGrid = calculate_Beams(link_cfg.f, link_cfg.G_tx, general_config.Orbit_height, general_config.Min_elevation_UE, general_config.FRF);
     end
     
-    [sir_lin_mat, mb_idx_mat] = Interference_calc_2D(el_mat, az_mat, BeamGrid, general_config);
+    [sir_lin_mat, serving_beam_idx_mat, serving_beam_signal_lin_mat, interference_lin_mat] = Interference_calc_2D(el_mat, az_mat, BeamGrid, general_config);
     Link_2D.SIR = 10 * log10(sir_lin_mat);
+    Link_2D.serving_beam_idx = serving_beam_idx_mat;
+    Link_2D.serving_beam_signal_lin = serving_beam_signal_lin_mat;
+    Link_2D.interference_lin = interference_lin_mat;
     
     % Convert signal and noise back to linear milliwatts
     S_mW = 10.^(Link_2D.Rx_Power / 10);
@@ -79,14 +82,14 @@ function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec,
     
     % Check if the Bandwidth Sharing flag is turned on
     if isfield(general_config, 'Share_bandwidth') && general_config.Share_bandwidth
-        NumUEs = size(mb_idx_mat, 1);
-        nT = size(mb_idx_mat, 2);
+        NumUEs = size(serving_beam_idx_mat, 1);
+        nT = size(serving_beam_idx_mat, 2);
         
         % Create a time index matrix the exact same size as the UEs
         time_matrix = repmat(1:nT, NumUEs, 1);
         
-        valid_mask = ~isnan(mb_idx_mat);
-        mb_valid = mb_idx_mat(valid_mask);
+        valid_mask = ~isnan(serving_beam_idx_mat);
+        mb_valid = serving_beam_idx_mat(valid_mask);
         time_valid = time_matrix(valid_mask);
         
         % Create a unique ID for every single "Beam at Time T" combination
@@ -148,24 +151,41 @@ function [At_mat, Tsky_mat] = Absorption_calc_2D(f, el_mat, lat_vec, lon_vec, Cf
         Tsky_mat = zeros(size(el_mat)) + 290;
         return;
     end
+
+    % Preferred precision path: direct LUT interpolation.
+    lut_file = sprintf('p618_lookup_%0.1f.mat', f / 1e9);
+    if isfield(Cfg, 'P618_LUT_File') && strlength(string(Cfg.P618_LUT_File)) > 0
+        lut_file = char(string(Cfg.P618_LUT_File));
+    end
+
+    if isfile(lut_file)
+        S = load(lut_file, 'LUT');
+        if isfield(S, 'LUT')
+            [At_mat, Tsky_mat, ok] = interpolate_p618_lut_simple(S.LUT, el_mat, lat_vec, lon_vec);
+            if ok
+                return;
+            end
+        end
+    end
     
     % Precision Mode (P.618)
     % Because P618 relies on LAT/LON specific lookups, we MUST loop over UEs here.
     % But we only loop over the spatial dimension, keeping time vectorized.
+    num_ues = numel(lat_vec);
     At_mat = zeros(size(el_mat));
     Tsky_mat = zeros(size(el_mat));
     el_grid = 20:10:90; 
 
     dq = parallel.pool.DataQueue;
-    updateLiveScriptProgress(Cfg.NumUEs, true); 
-    afterEach(dq, @(~) updateLiveScriptProgress(Cfg.NumUEs, false));
+    updateLiveScriptProgress(num_ues, true); 
+    afterEach(dq, @(~) updateLiveScriptProgress(num_ues, false));
     
     old_warn = warning('off', 'all'); 
-    parfor (idx = 1:Cfg.NumUEs, Cfg.Num_workers)
+    parfor (idx = 1:num_ues, Cfg.Num_workers)
         grid_At = zeros(1, length(el_grid)); grid_Tsky = zeros(1, length(el_grid));
         for i = 1:length(el_grid)
-            link_cfg = p618Config('Frequency',f,'ElevationAngle',el_grid(i),'Latitude',lat_vec(idx),'Longitude',lon_vec(idx),'TotalAnnualExceedance',1);      
-            [pl, ~, tsky] = p618PropagationLosses(link_cfg, 'StationHeight', 0);
+            p618_local_cfg = p618Config('Frequency',f,'ElevationAngle',el_grid(i),'Latitude',lat_vec(idx),'Longitude',lon_vec(idx),'TotalAnnualExceedance',1);      
+            [pl, ~, tsky] = p618PropagationLosses(p618_local_cfg, 'StationHeight', 0);
             grid_At(i) = pl.At; grid_Tsky(i) = tsky;
         end
         % Interpolate for this specific UE's time series
@@ -174,4 +194,47 @@ function [At_mat, Tsky_mat] = Absorption_calc_2D(f, el_mat, lat_vec, lon_vec, Cf
         send(dq, []);
     end
     warning(old_warn); 
+end
+
+function [At_mat, Tsky_mat, ok] = interpolate_p618_lut_simple(LUT, el_mat, lat_vec, lon_vec)
+    ok = false;
+    At_mat = [];
+    Tsky_mat = [];
+
+    required = {'lat_deg', 'lon_deg', 'el_deg', 'At_dB', 'Tsky_K'};
+    for i = 1:numel(required)
+        if ~isfield(LUT, required{i})
+            return;
+        end
+    end
+
+    n_ues = numel(lat_vec);
+    n_t = size(el_mat, 2);
+
+    lat_min = min(LUT.lat_deg);
+    lat_max = max(LUT.lat_deg);
+    lon_min = min(LUT.lon_deg);
+    lon_max = max(LUT.lon_deg);
+    el_min = min(LUT.el_deg);
+    el_max = max(LUT.el_deg);
+
+    lat_q = repmat(min(max(lat_vec(:), lat_min), lat_max), 1, n_t);
+    lon_q = repmat(min(max(lon_vec(:), lon_min), lon_max), 1, n_t);
+    el_q = min(max(el_mat, el_min), el_max);
+
+    try
+        F_at = griddedInterpolant({double(LUT.lat_deg), double(LUT.lon_deg), double(LUT.el_deg)}, ...
+            double(LUT.At_dB), 'linear', 'nearest');
+        F_tsky = griddedInterpolant({double(LUT.lat_deg), double(LUT.lon_deg), double(LUT.el_deg)}, ...
+            double(LUT.Tsky_K), 'linear', 'nearest');
+
+        At_mat = F_at(double(lat_q), double(lon_q), double(el_q));
+        Tsky_mat = F_tsky(double(lat_q), double(lon_q), double(el_q));
+
+        At_mat = reshape(At_mat, [n_ues, n_t]);
+        Tsky_mat = reshape(Tsky_mat, [n_ues, n_t]);
+        ok = true;
+    catch
+        ok = false;
+    end
 end
