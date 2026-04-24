@@ -1,10 +1,11 @@
-function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclination, planes, sats_per_plane)
+function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclination, planes, sats_per_plane, min_elevation_deg)
     arguments
         sc (1,1) satelliteScenario
-        orbit_height (1,1) double
+        orbit_height (1,1) double % Assumed to be in meters based on r_earth = 6378.14e3
         inclination (1,1) double
         planes (1,1) double {mustBeInteger, mustBePositive}
         sats_per_plane (1,1) double {mustBeInteger, mustBePositive}
+        min_elevation_deg (1,1) double 
     end
 
     r_earth = 6378.14e3;
@@ -12,11 +13,27 @@ function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclinatio
     e = 0;
     argPer = 0;
 
-    % Use the asymmetrical Walker-star seam spacing from the original design. % TODO - FIX THIS
-    co_rotating_spacing = 180 / (planes - 1/3); % This is wrong and retarded
-    in_plane_spacing = 360 / sats_per_plane; % correct
-    total_sats = planes * sats_per_plane; % unused
-    phase_shift = 180 / sats_per_plane; % is this correct?
+    %  Calculate EXACT Seam Ratio for equal overlap ---
+    orbit_height_km = orbit_height / 1000;
+    Re_km = 6378.14;
+    Rs_km = Re_km + orbit_height_km;
+
+    alpha = asind((Re_km / Rs_km) * cosd(min_elevation_deg));
+    lambda_max = deg2rad(180 - (90 + min_elevation_deg + alpha));
+    
+    S = (2 * pi) / sats_per_plane;
+    lambda_street = acos(cos(lambda_max) / cos(S / 2));
+    
+    D_maxCounter = 2 * lambda_street;
+    D_maxSame = lambda_street + lambda_max;
+    
+    seam_ratio = D_maxCounter / D_maxSame; 
+
+    % --- Apply Spacing ---
+    co_rotating_spacing = 180 / (planes - 1 + seam_ratio); 
+    
+    in_plane_spacing = 360 / sats_per_plane; 
+    phase_shift = in_plane_spacing / 2; % Optimal staggered "brick wall" street
 
     sat_array = [];
 
