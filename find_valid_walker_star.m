@@ -1,8 +1,8 @@
 clear; close all; clc;
 
 heights_km            = 500:0.1:1200;
-Lat_range_deg         = [55+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
-Min_elevation_UE      = 40;
+Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
+Min_elevation_UE      = 20;
 minimum_lat_deg = min(Lat_range_deg);
 
 num_steps = length(heights_km);
@@ -59,11 +59,11 @@ ylim([0, max(total_sats)*1.5]);
 grid on;
 ax.GridAlpha = 0.25; % Softer grid lines to keep focus on the data
 xlabel('Orbit Height (km)');
-title(sprintf('Walker-Star Configuration (Min Elevation: %d°)', Min_elevation_UE));
+title(sprintf('Walker-Star Configuration | Min Elevation: %d° | Min Latitude: %0.1f°', Min_elevation_UE, minimum_lat_deg));
 
 % Legend improvements
 lgd = legend('Planes', 'Sats/Plane', 'Total Satellites', 'Location', 'best');
-lgd.Box = 'off'; % Removes the distracting border around the legend
+% lgd.Box = 'off'; % Removes the distracting border around the legend
 
 % IEEE Standard Fonts
 set(gca, 'FontName', 'Times New Roman', 'FontSize', 12);

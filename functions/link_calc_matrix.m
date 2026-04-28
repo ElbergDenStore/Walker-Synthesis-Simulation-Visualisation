@@ -41,29 +41,39 @@ function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec,
     Link_2D.Rx_Power = Link_2D.Adjusted_EIRP_dBm + link_cfg.G_rx - Link_2D.Total_loss;
     Link_2D.SNR = Link_2D.Rx_Power - Link_2D.P_noise;
 
-    if (isfield(link_cfg, 'Direction') && link_cfg.Direction == "UL")
+    if isfield(general_config, 'Custom_BeamGrid') && ~isempty(general_config.Custom_BeamGrid)
+        BeamGrid = general_config.Custom_BeamGrid;
+    elseif (isfield(link_cfg, 'Direction') && link_cfg.Direction == "UL")
         BeamGrid = calculate_Beams(link_cfg.f, link_cfg.G_rx, general_config.Orbit_height, general_config.Min_elevation_UE, general_config.FRF);
     else
         BeamGrid = calculate_Beams(link_cfg.f, link_cfg.G_tx, general_config.Orbit_height, general_config.Min_elevation_UE, general_config.FRF);
     end
     
     [sir_lin_mat, serving_beam_idx_mat, serving_beam_signal_lin_mat, interference_lin_mat] = Interference_calc_2D(el_mat, az_mat, BeamGrid, general_config);
-    Link_2D.SIR = 10 * log10(sir_lin_mat);
+    if isfield(general_config, 'Ignore_Interference') && general_config.Ignore_Interference
+        Link_2D.SIR = nan(size(sir_lin_mat));
+        Link_2D.SINR = Link_2D.SNR;
+        Link_2D.interference_lin = zeros(size(interference_lin_mat));
+    else
+        Link_2D.SIR = 10 * log10(sir_lin_mat);
+        Link_2D.interference_lin = interference_lin_mat;
+    end
     Link_2D.serving_beam_idx = serving_beam_idx_mat;
     Link_2D.serving_beam_signal_lin = serving_beam_signal_lin_mat;
-    Link_2D.interference_lin = interference_lin_mat;
     
-    % Convert signal and noise back to linear milliwatts
-    S_mW = 10.^(Link_2D.Rx_Power / 10);
-    N_mW = 10.^(Link_2D.P_noise / 10);
-    SIR_lin = 10.^(Link_2D.SIR / 10);
-    
-    % Calculate exact Interference power
-    I_mW = S_mW ./ SIR_lin;
-    
-    % Final SINR
-    SINR_lin = S_mW ./ (I_mW + N_mW);
-    Link_2D.SINR = 10 * log10(SINR_lin);
+    if ~(isfield(general_config, 'Ignore_Interference') && general_config.Ignore_Interference)
+        % Convert signal and noise back to linear milliwatts
+        S_mW = 10.^(Link_2D.Rx_Power / 10);
+        N_mW = 10.^(Link_2D.P_noise / 10);
+        SIR_lin = 10.^(Link_2D.SIR / 10);
+        
+        % Calculate exact Interference power
+        I_mW = S_mW ./ SIR_lin;
+        
+        % Final SINR
+        SINR_lin = S_mW ./ (I_mW + N_mW);
+        Link_2D.SINR = 10 * log10(SINR_lin);
+    end
 
     % Throughput calculation
     Link_2D.Throughput = zeros(size(Link_2D.SNR));

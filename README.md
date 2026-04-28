@@ -29,9 +29,13 @@ It has been developed to be easily used for future development.
 
 # TODO
 Changes to code that i want:
+- OneWeb Validation should run and produce nice plots, and be correct
+- Matlab project is a thing that i need to understand to make the scripts run correctly.
+- FIX INTERFERENCE CALC
 - Follow code style
+- SEARCH FOR ALL TODOs
 - Remove stupid and unnecessary comments
+- Big cleanup in the files
 - Move all the plotting files to the plotting folder
-- Revive UE focus view from the dead
-- Revive OneWeb validation from the dead
-- Develop satellite focused view
+- Revive UE focus view from the dead?
+- Develop satellite focused view?

@@ -304,7 +304,7 @@ xline(-angle_frf3, '-.', 'Color', '#EDB120', 'LineWidth', 1.5);
 ylim([-45 5]);
 xlim([-10 10]);
 xlabel('Steering Angle \theta (deg)', 'FontSize', 12, 'FontWeight', 'bold');
-ylabel('Relative Gain [dB]', 'FontSize', 12, 'FontWeight', 'bold');
+ylabel('Relative Gain (dB)', 'FontSize', 12, 'FontWeight', 'bold');
 title(sprintf('Phased Array Radiation Pattern (%d Elements)\nServing Lobe vs. Neighboring Beam Locations', N_elements), 'FontSize', 14);
 exportgraphics(gcf, fullfile(out_dir, 'Antenna_Pattern_1D.png'), 'Resolution', 600);
 

@@ -1,4 +1,4 @@
-% matlab -nosplash -nodesktop -batch "run_single_coverage_test" > "log.txt"
+% matlab -nosplash -nodesktop -batch "run_single_gridsearch" > "log.txt"
 clear; close all; clc;
 delete(gcp('nocreate')); % necessary or it might get stuck
 
@@ -12,11 +12,11 @@ Master_config.Target_num_candidates = 50;
 
 % Sub Run configurations
 Master_config.Ultrafast.Duration_h  = 1;  
-Master_config.Ultrafast.Num_UEs     = 10;
+Master_config.Ultrafast.Num_UEs     = 200;
 Master_config.Fast.Duration_h       = 12;  
-Master_config.Fast.Num_UEs          = 30;
+Master_config.Fast.Num_UEs          = 400;
 Master_config.Detailed.Duration_h   = 36;      
-Master_config.Detailed.Num_UEs      = 200;
+Master_config.Detailed.Num_UEs      = 2000;
 
 
 orbit_height_km = 1000;

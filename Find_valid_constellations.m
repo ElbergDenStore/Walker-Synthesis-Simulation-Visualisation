@@ -20,11 +20,12 @@ delete(gcp('nocreate')); % necessary or it will get stuck
 %% Master Configuration
 heights_km                          = 500:10:1200;
 plot_individual_results = true;
-Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
+% Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
+Master_config.Lat_range_deg         = [0 83.6];
 Master_config.Min_elevation_UE      = 20;
-Master_config.Num_Planes            = 2:25; % Num Planes
-Master_config.Sats_Plane            = 2:25; % Sats per Plane
-Master_config.Inc_vec               = linspace(70, 80, 41); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+Master_config.Num_Planes            = 2:32; % Num Planes
+Master_config.Sats_Plane            = 2:32; % Sats per Plane
+Master_config.Inc_vec               = linspace(70, 80, 11); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
 Master_config.Target_num_candidates = 1;
 
 % Sub Run configurations
@@ -103,7 +104,7 @@ scatter(heights_km, delta_plot_y, 36, 'o', 'MarkerEdgeColor', 'b', 'MarkerFaceCo
 
 xlabel('Orbit Height (km)', 'FontWeight', 'bold');
 ylabel('Total Satellites Required', 'FontWeight', 'bold');
-title(sprintf('Walker Star vs Minimum Walker Delta (Lat: %d°)', minimum_lat_deg));
+title(sprintf('Walker Star vs Minimum Walker Delta (Lat: %0.1f°)', minimum_lat_deg));
 legend('Location', 'northeast');
 grid on; hold off;
 

@@ -2,7 +2,28 @@ function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_based_UEs
     % 1. Load the population data
     filename = 'ppp_2020_1km_Aggregated.tif';
     fprintf('Loading GeoTIFF for UE generation...\n');
-    [pop_data, R] = readgeoraster(filename);
+
+    candidate_files = {filename};
+    try
+        proj = currentProject;
+        candidate_files = [fullfile(proj.RootFolder, filename), fullfile(proj.RootFolder, 'functions', filename), candidate_files];
+    catch
+        % No active project; fall back to the current folder.
+    end
+
+    tif_path = '';
+    for i = 1:numel(candidate_files)
+        if isfile(candidate_files{i})
+            tif_path = candidate_files{i};
+            break;
+        end
+    end
+
+    if isempty(tif_path)
+        error('Could not find %s in the project root, functions folder, or current folder.', filename);
+    end
+
+    [pop_data, R] = readgeoraster(tif_path);
     
     % 2. Get the bounding box from your simulation config
     latlim = [min(lat_vec), max(lat_vec)];
