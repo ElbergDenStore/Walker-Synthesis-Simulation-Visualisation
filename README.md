@@ -26,14 +26,20 @@ It has been developed to be easily used for future development.
     - how many UEs are connected or how large part of the area is covered by the satellite (make both plots always)
 
 
+%%%%%%%%%%%%%%%%%%%%%%%% AAAAAAAAAAAAAARHHHHHHHHHHHHHH %%%%%%%%%%%%%%%%%%%%%
+I NEED TO MAKE THE BEAMGRID FUNCTIONALITY TO WORK BEFORE ANYTHING ELSE IS DONE
+CALCULATE ONEWEB BEAMS IS THE CORRECT IMPLEMENTED BUT SHOULD BE PLACED IN THE ONEWEB VALIDATION, AS IT IS NOT GOING TO BE USED ANYWHERE ELSE
+
 
 # TODO
 Changes to code that i want:
 - OneWeb Validation should run and produce nice plots, and be correct
+- Real tles instead of modelling, should be possible
 - Matlab project is a thing that i need to understand to make the scripts run correctly.
 - FIX INTERFERENCE CALC
 - Follow code style
 - SEARCH FOR ALL TODOs
+- Add Uplink functionality
 - Remove stupid and unnecessary comments
 - Big cleanup in the files
 - Move all the plotting files to the plotting folder

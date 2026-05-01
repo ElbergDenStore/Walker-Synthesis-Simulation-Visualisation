@@ -130,6 +130,23 @@ function generate_global_stats(Cfg, metrics, all_thpt, all_snr, all_sinr, thpt_s
         ['Min Elev:        ' num2str(Cfg.Min_elevation_UE, '%.1f') '\circ'];
     };
     
+    % Handle optional fields gracefully
+    if ~isfield(Cfg.DL, 'Tx_type'), Cfg.DL.Tx_type = 'N/A'; end
+    if isfield(Cfg.DL, 'BeamGrid') && isfield(Cfg.DL.BeamGrid, 'Max_gain')
+        Cfg.DL.G_tx = Cfg.DL.BeamGrid.Max_gain;
+    elseif ~isfield(Cfg.DL, 'G_tx')
+        Cfg.DL.G_tx = NaN; 
+    end
+    if isfield(Cfg.DL, 'Max_EIRP_dBm') && ~isnan(Cfg.DL.G_tx)
+        Cfg.DL.Max_P_tx_dBm = Cfg.DL.Max_EIRP_dBm - Cfg.DL.G_tx;
+    elseif ~isfield(Cfg.DL, 'Max_P_tx_dBm')
+        Cfg.DL.Max_P_tx_dBm = NaN;
+    end
+    if ~isfield(Cfg.DL, 'Max_EIRP_dBm'), Cfg.DL.Max_EIRP_dBm = NaN; end
+    if ~isfield(Cfg.DL, 'Rx_type'), Cfg.DL.Rx_type = 'N/A'; end
+    if ~isfield(Cfg, 'RU'), Cfg.RU = 1; end
+    if ~isfield(Cfg, 'FRF'), Cfg.FRF = 1; end
+
     col2_str = {
         '\bfLink Budget Specs\rm';
         ['Direction:      ' char(Cfg.DL.Direction)];

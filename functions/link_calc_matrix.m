@@ -3,207 +3,173 @@ function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec,
     Link_2D.Frequency = link_cfg.f;
     Link_2D.Bandwidth = link_cfg.B;
     
-    % 1. FSPL (Matrix Math)
+    % FSPL
     c = physconst('LightSpeed');
     lambda = c / link_cfg.f;
     Link_2D.FSPL = 10 * log10(((4 * pi * range_mat) / lambda).^2);
     
-    % 2. Steering Loss (Matrix Math)
-    [Link_2D.Rx_steering_loss, Link_2D.Tx_steering_loss] = Steering_loss_calc_2D(el_mat, range_mat, link_cfg.Tx_type, link_cfg.Rx_type);
+    % Steering Loss
+    Link_2D.Rx_steering_loss = Steering_loss_calc_2D(el_mat, link_cfg.Rx_type);
     
-    % 3. Absorption (Matrix Math for Fast Mode)
+    % Absorption
     [Link_2D.Absorption_At, Link_2D.T_antenna] = Absorption_calc_2D(link_cfg.f, el_mat, lat_vec, lon_vec, general_config);
     
     % 4. Total Loss
-    Link_2D.Total_loss = Link_2D.FSPL + Link_2D.Absorption_At + Link_2D.Rx_steering_loss + Link_2D.Tx_steering_loss;
+    Link_2D.Total_loss = Link_2D.FSPL + Link_2D.Absorption_At + Link_2D.Rx_steering_loss;
     
-    % 5. Adjusted Power & PFD
-    if (isfield(link_cfg, 'Direction') && link_cfg.Direction == "UL")
-        Link_2D.T_antenna = zeros(size(el_mat)) + 290;
-        Link_2D.Adjusted_EIRP_dBm = zeros(size(el_mat)) + link_cfg.Max_EIRP_dBm;
-        Link_2D.PFD_W_MHz = nan(size(el_mat)); 
-    else
-        Link_2D.Adjusted_EIRP_dBm = Adjust_tx_power_2D(el_mat, range_mat, general_config.Min_elevation_UE, general_config.Orbit_height, link_cfg.Tx_type, link_cfg.Max_EIRP_dBm); 
-        
-        area = 10*log10(4*pi.*range_mat.^2); 
-        Link_2D.PFD_W_MHz = Link_2D.Adjusted_EIRP_dBm - 30 - area - Link_2D.Tx_steering_loss - 10*log10(link_cfg.B/1e6);
-
-        
-
-    end
     
-    % 6. SNR & Throughput (Matrix Math)
+    [carrier_density_dBmHz_mat, serving_beam_idx_mat, serving_beam_signal_density_dBmHz_mat, interference_density_dBmHz_mat] = beam_gain_and_interference(el_mat, az_mat, link_cfg.BeamGrid, general_config);
+    
+    area = 10*log10(4*pi.*range_mat.^2);
+    Link_2D.PFD_W_MHz = carrier_density_dBmHz_mat - 30 - area - 10*log10(1e6);
+
     F_lin = 10^(link_cfg.NF/10);
     T_rx = (F_lin - 1) * 290;
     T_sys = Link_2D.T_antenna + T_rx;
-    Link_2D.P_noise = (10*log10(T_sys) + 10*log10(1.38e-23)) + 30 + 10*log10(link_cfg.B);
-    
-    Link_2D.Rx_Power = Link_2D.Adjusted_EIRP_dBm + link_cfg.G_rx - Link_2D.Total_loss;
-    Link_2D.SNR = Link_2D.Rx_Power - Link_2D.P_noise;
+    Link_2D.Noise_density_dBmHz = (10*log10(T_sys) + 10*log10(1.38e-23)) + 30;
 
-    if isfield(general_config, 'Custom_BeamGrid') && ~isempty(general_config.Custom_BeamGrid)
-        BeamGrid = general_config.Custom_BeamGrid;
-    elseif (isfield(link_cfg, 'Direction') && link_cfg.Direction == "UL")
-        BeamGrid = calculate_Beams(link_cfg.f, link_cfg.G_rx, general_config.Orbit_height, general_config.Min_elevation_UE, general_config.FRF);
-    else
-        BeamGrid = calculate_Beams(link_cfg.f, link_cfg.G_tx, general_config.Orbit_height, general_config.Min_elevation_UE, general_config.FRF);
-    end
-    
-    [sir_lin_mat, serving_beam_idx_mat, serving_beam_signal_lin_mat, interference_lin_mat] = Interference_calc_2D(el_mat, az_mat, BeamGrid, general_config);
-    if isfield(general_config, 'Ignore_Interference') && general_config.Ignore_Interference
-        Link_2D.SIR = nan(size(sir_lin_mat));
-        Link_2D.SINR = Link_2D.SNR;
-        Link_2D.interference_lin = zeros(size(interference_lin_mat));
-    else
-        Link_2D.SIR = 10 * log10(sir_lin_mat);
-        Link_2D.interference_lin = interference_lin_mat;
-    end
+    Link_2D.Carrier_density_dBmHz = carrier_density_dBmHz_mat + link_cfg.G_rx - Link_2D.Total_loss;
+    Link_2D.Interference_density_dBmHz = interference_density_dBmHz_mat + link_cfg.G_rx - Link_2D.Total_loss;
+
+    Link_2D.Rx_Power = Link_2D.Carrier_density_dBmHz;
+    Link_2D.P_noise = Link_2D.Noise_density_dBmHz;
+    Link_2D.interference_lin = 10.^(Link_2D.Interference_density_dBmHz / 10);
     Link_2D.serving_beam_idx = serving_beam_idx_mat;
-    Link_2D.serving_beam_signal_lin = serving_beam_signal_lin_mat;
-    
-    if ~(isfield(general_config, 'Ignore_Interference') && general_config.Ignore_Interference)
-        % Convert signal and noise back to linear milliwatts
-        S_mW = 10.^(Link_2D.Rx_Power / 10);
-        N_mW = 10.^(Link_2D.P_noise / 10);
-        SIR_lin = 10.^(Link_2D.SIR / 10);
-        
-        % Calculate exact Interference power
-        I_mW = S_mW ./ SIR_lin;
-        
-        % Final SINR
-        SINR_lin = S_mW ./ (I_mW + N_mW);
-        Link_2D.SINR = 10 * log10(SINR_lin);
-    end
+    Link_2D.serving_beam_signal_lin = serving_beam_signal_density_dBmHz_mat;
 
-    % Throughput calculation
-    Link_2D.Throughput = zeros(size(Link_2D.SNR));
-    valid_idx = ~isnan(Link_2D.SNR);
-    
-    SINR_lin_valid = 10.^(Link_2D.SINR(valid_idx)/10);
-    %%%% Modified shannon %%%
-    BW_eff = 0.56;
-    eta = 1;
-    SNR_eff_dB = 2;
-    SNR_eff = 10^(SNR_eff_dB/10);
+    Link_2D.SNR = Link_2D.Carrier_density_dBmHz - Link_2D.Noise_density_dBmHz;
+    Link_2D.SIR = Link_2D.Carrier_density_dBmHz - Link_2D.Interference_density_dBmHz;
+    Link_2D.SINR = calculate_sinr_from_density(Link_2D.Carrier_density_dBmHz, Link_2D.Interference_density_dBmHz, Link_2D.Noise_density_dBmHz);
 
-    % Calculate the raw capacity of the beam
-    raw_throughput = link_cfg.B * BW_eff * eta .* log2(1 + SINR_lin_valid ./ SNR_eff);
-    %%%% modified shannon end %%%
-    
-    % Check if the Bandwidth Sharing flag is turned on
-    if isfield(general_config, 'Share_bandwidth') && general_config.Share_bandwidth
-        NumUEs = size(serving_beam_idx_mat, 1);
-        nT = size(serving_beam_idx_mat, 2);
-        
-        % Create a time index matrix the exact same size as the UEs
-        time_matrix = repmat(1:nT, NumUEs, 1);
-        
-        valid_mask = ~isnan(serving_beam_idx_mat);
-        mb_valid = serving_beam_idx_mat(valid_mask);
-        time_valid = time_matrix(valid_mask);
-        
-        % Create a unique ID for every single "Beam at Time T" combination
-        unique_beam_time_ids = mb_valid + (time_valid * BeamGrid.num_beams);
-        
-        % Vectorized counting: How many UEs share the exact same Beam-Time ID?
-        [~, ~, ic] = unique(unique_beam_time_ids);
-        counts = accumarray(ic, 1);
-        users_sharing_beam = counts(ic);
-        
-        % Re-inflate the counts back into a 2D matrix
-        users_per_beam_mat = ones(NumUEs, nT);
-        users_per_beam_mat(valid_mask) = users_sharing_beam;
-        
-        % Divide the throughput by the number of users sharing the beam!
-        Link_2D.Throughput(valid_idx) = raw_throughput ./ users_per_beam_mat(valid_idx);
-    else
-        % No sharing, every user gets 100% of the beam's capacity
-        Link_2D.Throughput(valid_idx) = raw_throughput;
+    if isfield(general_config, 'Ignore_Interference') && general_config.Ignore_Interference
+        Link_2D.SIR = nan(size(el_mat));
+        Link_2D.SINR = Link_2D.SNR;
+        Link_2D.interference_lin = zeros(size(el_mat));
+        Link_2D.Interference_density_dBmHz = -Inf(size(el_mat));
     end
 end
+
+% function BeamGrid = get_satellite_beam_grid(general_config)
+%     if ~isfield(general_config, 'Satellite_antenna') || ~isfield(general_config.Satellite_antenna, 'BeamGrid') || isempty(general_config.Satellite_antenna.BeamGrid)
+%         error('link_calc_matrix requires general_config.Satellite_antenna.BeamGrid to be populated before link calculation.');
+%     end
+
+%     BeamGrid = general_config.Satellite_antenna.BeamGrid;
+% end
+
+function SINR_dB = calculate_sinr_from_density(carrier_density_dBmHz, interference_density_dBmHz, noise_density_dBmHz)
+    carrier_mWHz = 10.^(carrier_density_dBmHz / 10);
+    interference_mWHz = 10.^(interference_density_dBmHz / 10);
+    noise_mWHz = 10.^(noise_density_dBmHz / 10);
+
+    SINR_lin = carrier_mWHz ./ (interference_mWHz + noise_mWHz);
+    SINR_dB = 10 * log10(SINR_lin);
+end
+
+% function [adjusted_eirp_dBmHz, tx_steering_loss_dB] = calculate_beam_density_and_tx_steering(BeamGrid, serving_beam_idx)
+%     if ~isfield(BeamGrid, 'BeamCenter_EIRP_dBmHz') || isempty(BeamGrid.BeamCenter_EIRP_dBmHz)
+%         error('Satellite beam grid must contain BeamCenter_EIRP_dBmHz. Populate general_config.Satellite_antenna.BeamGrid during scenario setup.');
+%     end
+
+%     adjusted_eirp_dBmHz = nan(size(serving_beam_idx));
+%     tx_steering_loss_dB = nan(size(serving_beam_idx));
+
+%     valid_mask = isfinite(serving_beam_idx) & serving_beam_idx > 0;
+%     if ~any(valid_mask)
+%         return;
+%     end
+
+%     adjusted_eirp_dBmHz(valid_mask) = BeamGrid.BeamCenter_EIRP_dBmHz(serving_beam_idx(valid_mask));
+%     tx_steering_loss_dB(valid_mask) = BeamGrid.TxSteeringLoss_dB(serving_beam_idx(valid_mask));
+% end
 
 % --- Subfunctions adjusted for matrices ---
-function [loss_rx, loss_tx] = Steering_loss_calc_2D(el_mat, range_mat, tx_type, rx_type)
-    Re = 6378.14e3;     
-    theta_rx = 90 - el_mat; 
-    R_sat = sqrt(Re^2 + range_mat.^2 + 2 * Re .* range_mat .* sind(el_mat));
-    theta_tx = asind((Re .* cosd(el_mat)) ./ R_sat); 
-    
-    loss_tx = zeros(size(el_mat)); 
-    loss_rx = zeros(size(el_mat));
-    if contains(tx_type, 'array'), loss_tx = -10 * log10(cosd(theta_tx).^1.5); end
-    if contains(rx_type, 'array'), loss_rx = -10 * log10(cosd(theta_rx).^1.5); end
-end
+function loss_rx = Steering_loss_calc_2D(el_mat, rx_type)
+    theta_rx = 90 - el_mat;
 
-function adjusted_tx_power = Adjust_tx_power_2D(el_mat, range_mat, min_elev, orb_ht, tx_type, max_pwr)
-    Re = 6378.14e3;     
-    worst_sin = (Re * cosd(min_elev)) / (orb_ht + Re);
-    worst_dist_inc = (-Re*sind(min_elev)+sqrt(Re^2*sind(min_elev)^2 -(Re^2-(Re+orb_ht)^2)))/orb_ht; 
-    
-    dist_dec = -20*log10(range_mat ./ (worst_dist_inc*orb_ht)); 
-    
-    if contains(tx_type, 'array')
-        worst_beam_inc = 1/(cosd(asind(worst_sin)).^1.5);
-        theta_tx = asind((Re .* cosd(el_mat)) ./ (orb_ht + Re));
-        beam_dec = -10*log10((1./(cosd(theta_tx).^1.5))/worst_beam_inc);
-        adjusted_tx_power = max_pwr - dist_dec - beam_dec;
-    else
-        adjusted_tx_power = max_pwr - dist_dec;
+    loss_rx = zeros(size(el_mat));
+    if contains(rx_type, 'array')
+        loss_rx = -10 * log10(cosd(theta_rx).^1.5);
     end
 end
 
 function [At_mat, Tsky_mat] = Absorption_calc_2D(f, el_mat, lat_vec, lon_vec, Cfg)
-    % Fast Mode: Instantaneous matrix fill
+    % Fast Mode / Fallback: Instantaneous matrix fill
+    static_loss = 0.5;
+    if isfield(Cfg, 'Simple_Atmospheric_Loss_dB'), static_loss = Cfg.Simple_Atmospheric_Loss_dB; end
+
     if isfield(Cfg, 'Use_P618') && Cfg.Use_P618 == false
-        static_loss = 0.5;
-        if isfield(Cfg, 'Simple_Atmospheric_Loss_dB'), static_loss = Cfg.Simple_Atmospheric_Loss_dB; end
         At_mat = zeros(size(el_mat)) + static_loss;
         Tsky_mat = zeros(size(el_mat)) + 290;
         return;
     end
 
-    % Preferred precision path: direct LUT interpolation.
-    lut_file = sprintf('p618_lookup_%0.1f.mat', f / 1e9);
+    % Preferred precision path: direct LUT interpolation only!
+    freq_GHz = f / 1e9;
+    lut_file_target = sprintf('p618_%.1f.mat', freq_GHz);
+    
     if isfield(Cfg, 'P618_LUT_File') && strlength(string(Cfg.P618_LUT_File)) > 0
-        lut_file = char(string(Cfg.P618_LUT_File));
+        lut_file_target = char(string(Cfg.P618_LUT_File));
     end
 
-    if isfile(lut_file)
-        S = load(lut_file, 'LUT');
+    lut_path = which(lut_file_target);
+
+    % If exact match not found, scan functions/data for best frequency match within 20%
+    if isempty(lut_path)
+        script_dir = fileparts(mfilename('fullpath'));
+        data_dir = fullfile(script_dir, 'data');
+        candidate_luts = dir(fullfile(data_dir, 'p618_*.mat'));
+        best_err = Inf;
+        best_lut_freq_hz = NaN;
+        for ci = 1:numel(candidate_luts)
+            cpath = fullfile(data_dir, candidate_luts(ci).name);
+            % Check if file contains a 'LUT' variable before loading (avoids spurious warnings)
+            file_info = whos('-file', cpath, 'LUT');
+            if isempty(file_info)
+                continue;
+            end
+            try
+                Sc = load(cpath, 'LUT');
+            catch
+                continue;
+            end
+            if ~isfield(Sc, 'LUT') || ~isfield(Sc.LUT, 'frequency_hz')
+                continue;
+            end
+            err = abs(Sc.LUT.frequency_hz - f) / f;
+            if err < best_err
+                best_err = err;
+                lut_path = cpath;
+                best_lut_freq_hz = Sc.LUT.frequency_hz;
+            end
+        end
+        if ~isempty(lut_path) && best_err > 0.20
+            warning('LinkCalc:P618FrequencyMismatch', 'Closest LUT is %.1f GHz but requested %.1f GHz (%.0f%% off). Falling back to simple attenuation.', ...
+                best_lut_freq_hz/1e9, freq_GHz, best_err*100);
+            lut_path = '';
+        elseif ~isempty(lut_path)
+            fprintf('P618: Using %.1f GHz LUT for %.1f GHz request (%.1f%% freq difference).\n', ...
+                best_lut_freq_hz/1e9, freq_GHz, best_err*100);
+        end
+    end
+
+    lut_valid = false;
+    if ~isempty(lut_path) && isfile(lut_path)
+        S = load(lut_path, 'LUT');
         if isfield(S, 'LUT')
             [At_mat, Tsky_mat, ok] = interpolate_p618_lut_simple(S.LUT, el_mat, lat_vec, lon_vec);
             if ok
-                return;
+                lut_valid = true;
             end
         end
+    else
+        warning('LinkCalc:P618LUTNotFound', 'No suitable LUT found for %.1f GHz. Falling back to simple attenuation.', freq_GHz);
     end
-    
-    % Precision Mode (P.618)
-    % Because P618 relies on LAT/LON specific lookups, we MUST loop over UEs here.
-    % But we only loop over the spatial dimension, keeping time vectorized.
-    num_ues = numel(lat_vec);
-    At_mat = zeros(size(el_mat));
-    Tsky_mat = zeros(size(el_mat));
-    el_grid = 20:10:90; 
 
-    dq = parallel.pool.DataQueue;
-    updateLiveScriptProgress(num_ues, true); 
-    afterEach(dq, @(~) updateLiveScriptProgress(num_ues, false));
-    
-    old_warn = warning('off', 'all'); 
-    parfor (idx = 1:num_ues, Cfg.Num_workers)
-        grid_At = zeros(1, length(el_grid)); grid_Tsky = zeros(1, length(el_grid));
-        for i = 1:length(el_grid)
-            p618_local_cfg = p618Config('Frequency',f,'ElevationAngle',el_grid(i),'Latitude',lat_vec(idx),'Longitude',lon_vec(idx),'TotalAnnualExceedance',1);      
-            [pl, ~, tsky] = p618PropagationLosses(p618_local_cfg, 'StationHeight', 0);
-            grid_At(i) = pl.At; grid_Tsky(i) = tsky;
-        end
-        % Interpolate for this specific UE's time series
-        At_mat(idx, :) = interp1(el_grid, grid_At, el_mat(idx,:), 'linear');
-        Tsky_mat(idx, :) = interp1(el_grid, grid_Tsky, el_mat(idx,:), 'linear');
-        send(dq, []);
+    if ~lut_valid
+        At_mat = zeros(size(el_mat)) + static_loss;
+        Tsky_mat = zeros(size(el_mat)) + 290;
     end
-    warning(old_warn); 
 end
 
 function [At_mat, Tsky_mat, ok] = interpolate_p618_lut_simple(LUT, el_mat, lat_vec, lon_vec)
@@ -218,16 +184,32 @@ function [At_mat, Tsky_mat, ok] = interpolate_p618_lut_simple(LUT, el_mat, lat_v
         end
     end
 
-    n_ues = numel(lat_vec);
-    n_t = size(el_mat, 2);
-
     lat_min = min(LUT.lat_deg);
     lat_max = max(LUT.lat_deg);
     lon_min = min(LUT.lon_deg);
     lon_max = max(LUT.lon_deg);
+
+    req_lat_min = min(lat_vec(:));
+    req_lat_max = max(lat_vec(:));
+    req_lon_min = min(lon_vec(:));
+    req_lon_max = max(lon_vec(:));
+
+    % Produce warning and fallback if out of bounds
+    if req_lat_min < lat_min - 0.1 || req_lat_max > lat_max + 0.1 || ...
+       req_lon_min < lon_min - 0.1 || req_lon_max > lon_max + 0.1
+        warning('LinkCalc:P618LUTOutOfBounds', ...
+                'Requested UE coordinates (Lat: %.1f to %.1f, Lon: %.1f to %.1f) are outside the LUT generated range (Lat: %.1f to %.1f, Lon: %.1f to %.1f). Falling back to simple attenuation.', ...
+                req_lat_min, req_lat_max, req_lon_min, req_lon_max, lat_min, lat_max, lon_min, lon_max);
+        return;
+    end
+
+    n_ues = numel(lat_vec);
+    n_t = size(el_mat, 2);
+
     el_min = min(LUT.el_deg);
     el_max = max(LUT.el_deg);
 
+    % Safely clamp coordinates slightly to avoid griddedInterpolant NaN at the exact edges
     lat_q = repmat(min(max(lat_vec(:), lat_min), lat_max), 1, n_t);
     lon_q = repmat(min(max(lon_vec(:), lon_min), lon_max), 1, n_t);
     el_q = min(max(el_mat, el_min), el_max);

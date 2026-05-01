@@ -49,6 +49,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     Cfg.FRF = 3;
     Cfg.RU = 1;
     Cfg.Use_P618 = false;
+    Cfg.Modified_shannon = true; % Set to true for User/L2 achievable throughput (Modified Shannon), false for raw PHY Shannon capacity
     Cfg.Simple_Atmospheric_Loss_dB = 1;
     
 
@@ -115,5 +116,9 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     Cfg.DL.G_tx          = get_adjusted_tx_gain(Cfg.Orbit_height, Cfg.Min_elevation_UE, Cfg.DL.f); 
     Cfg.DL.Max_P_tx_dBm  = PFD_calc(Cfg.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
     Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
+    Cfg.DL.Max_EIRP_dBm_Hz = Cfg.DL.Max_EIRP_dBm - 10*log10(Cfg.DL.B);
+
+    % Configure generalized BeamGrid for standard constellations
+    Cfg.DL.BeamGrid = calculate_hexagonal_beams(Cfg.DL.G_tx, Cfg.DL.f, Cfg.Orbit_height, Cfg.Min_elevation_UE, Cfg.DL.Max_EIRP_dBm_Hz, Cfg.FRF);
 
 end

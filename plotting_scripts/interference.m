@@ -124,7 +124,11 @@ legend({'SIR',['Best ' metric_name],['Worst ' metric_name]}, 'Location', 'best')
 exportgraphics(f1, fullfile(out_dir, 'Aalborg_SIR_SINR_TimeSeries.png'), 'Resolution', 600);
 
 % Reconstruct the beam grid used by the online link calculation.
-BeamGrid = calculate_Beams(Cfg.DL.f, Cfg.DL.G_tx, Cfg.Orbit_height, Cfg.Min_elevation_UE, Cfg.FRF);
+if isfield(Cfg, 'Satellite_antenna') && isfield(Cfg.Satellite_antenna, 'BeamGrid') && ~isempty(Cfg.Satellite_antenna.BeamGrid)
+    BeamGrid = Cfg.Satellite_antenna.BeamGrid;
+else
+    error('Plotting requires Cfg.Satellite_antenna.BeamGrid to be populated before the simulation is run.');
+end
 b_u = BeamGrid.b_u;
 b_v = BeamGrid.b_v;
 neighbor_idx = BeamGrid.neighbor_idx;

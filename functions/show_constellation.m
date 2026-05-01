@@ -5,7 +5,7 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
     end
     if nargin < 2, show_interactive = true; end
     if nargin < 3, save_fig = false; end
-    if nargin < 4, out_dir = pwd; end % Default to current folder
+    if nargin < 4, out_dir = "figures"; end % Default to current folder
     if nargin < 5, show_details = false; end % Default to current folder
 
 

@@ -10,6 +10,7 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
     sc.SampleTime = Cfg.SampleTime;
 
     r_earth = 6378.14e3;
+    fprintf("Constructing Satellites\n")
     if Cfg.WalkerStar == true
         sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE);
     else
@@ -19,6 +20,7 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
     end
 
     % Get the massive ECEF matrix instantly from SGP4
+    fprintf("Propagating Satellites\n")
     [sat_pos_raw, ~, simTimes] = states(sats, "CoordinateFrame", "ECEF");
     
     % Permute to [3 x NumSats x nT] to make the implicit expansion math easy
@@ -64,8 +66,11 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
             'Rx_steering_loss',  NaN(1, nT), ...
             'Tx_steering_loss',  NaN(1, nT), ...
             'Total_loss',        NaN(1, nT), ...
-            'Adjusted_EIRP_dBm', NaN(1, nT), ...
+            'Adjusted_EIRP_density_dBmHz', NaN(1, nT), ...
             'PFD_W_MHz',         NaN(1, nT), ...
+            'Noise_density_dBmHz', NaN(1, nT), ...
+            'Carrier_density_dBmHz', NaN(1, nT), ...
+            'Interference_density_dBmHz', NaN(1, nT), ...
             'P_noise',           NaN(1, nT), ...
             'Rx_Power',          NaN(1, nT), ...
             'SNR',               NaN(1, nT), ...
@@ -271,12 +276,13 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
                     UEs(idx).DL.Bandwidth         = chunk.Bandwidth;
                     UEs(idx).DL.FSPL              = chunk.FSPL(local_idx, :);
                     UEs(idx).DL.Total_loss        = chunk.Total_loss(local_idx, :);
-                    UEs(idx).DL.Adjusted_EIRP_dBm = chunk.Adjusted_EIRP_dBm(local_idx, :);
                     UEs(idx).DL.PFD_W_MHz         = chunk.PFD_W_MHz(local_idx, :);
+                    UEs(idx).DL.Noise_density_dBmHz = chunk.Noise_density_dBmHz(local_idx, :);
+                    UEs(idx).DL.Carrier_density_dBmHz = chunk.Carrier_density_dBmHz(local_idx, :);
+                    UEs(idx).DL.Interference_density_dBmHz = chunk.Interference_density_dBmHz(local_idx, :);
                     UEs(idx).DL.SNR               = chunk.SNR(local_idx, :);
                     UEs(idx).DL.SIR               = chunk.SIR(local_idx, :);
                     UEs(idx).DL.SINR              = chunk.SINR(local_idx, :);
-                    UEs(idx).DL.Throughput        = chunk.Throughput(local_idx, :);
                     UEs(idx).DL.serving_beam_idx     = chunk.serving_beam_idx(local_idx, :);
                     UEs(idx).DL.serving_beam_signal_lin = chunk.serving_beam_signal_lin(local_idx, :);
                     UEs(idx).DL.interference_lin   = chunk.interference_lin(local_idx, :);
@@ -284,6 +290,17 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
                     
                     local_idx = local_idx + 1;
                 end
+            end
+
+            DL_structs = [UEs.DL];
+            DL_SINR = vertcat(DL_structs.SINR);
+            DL_serving_beam_idx = vertcat(DL_structs.serving_beam_idx);
+            SimData_structs = [UEs.SimData];
+            SimData_SatID = vertcat(SimData_structs.SatID);
+            DL_Throughput = calculate_throughput_matrix(DL_SINR, DL_serving_beam_idx, SimData_SatID, Cfg.DL.BeamGrid, Cfg.DL.B, Cfg.Share_bandwidth, Cfg.Modified_shannon);
+
+            for idx = 1:Cfg.NumUEs %% TODO look closely at this, it looks stupid and inefficient, messy
+                UEs(idx).DL.Throughput = DL_Throughput(idx, :);
             end
         end
         fprintf('\nLoss calculation complete (%.1f sec).\n', toc);

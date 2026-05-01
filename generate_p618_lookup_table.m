@@ -124,7 +124,13 @@ function LUT = generate_p618_lookup_table(totalAnnualExceedance, frequency_hz, l
     LUT.generated_utc = datetime("now", "TimeZone", "UTC");
     LUT.grid_shape = [n_lat, n_lon, n_el];
 
-    out_name = sprintf("p618_lookup_%0.1f.mat", frequency_hz / 1e9);
+    % Save into the functions/data/ directory directly
+    script_dir = fileparts(mfilename('fullpath'));
+    out_dir = fullfile(script_dir, 'functions', 'data');
+    if ~exist(out_dir, 'dir')
+        mkdir(out_dir);
+    end
+    out_name = fullfile(out_dir, sprintf("p618_%.1f.mat", frequency_hz / 1e9));
     save(out_name, "LUT", "-v7.3");
 
     fprintf("Done in %.1f s\n", toc(t_start));

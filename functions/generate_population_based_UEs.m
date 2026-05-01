@@ -3,24 +3,12 @@ function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_based_UEs
     filename = 'ppp_2020_1km_Aggregated.tif';
     fprintf('Loading GeoTIFF for UE generation...\n');
 
-    candidate_files = {filename};
-    try
-        proj = currentProject;
-        candidate_files = [fullfile(proj.RootFolder, filename), fullfile(proj.RootFolder, 'functions', filename), candidate_files];
-    catch
-        % No active project; fall back to the current folder.
-    end
-
-    tif_path = '';
-    for i = 1:numel(candidate_files)
-        if isfile(candidate_files{i})
-            tif_path = candidate_files{i};
-            break;
-        end
-    end
-
+    % Simply rely on the MATLAB path. If you added the functions folder using path_setup()
+    % or addpath(), MATLAB will find it automatically.
+    tif_path = which(filename);
+    
     if isempty(tif_path)
-        error('Could not find %s in the project root, functions folder, or current folder.', filename);
+        error('Could not find %s anywhere on the MATLAB path. Ensure the parent directory is added (e.g. by running path_setup).', filename);
     end
 
     [pop_data, R] = readgeoraster(tif_path);

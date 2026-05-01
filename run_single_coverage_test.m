@@ -2,7 +2,6 @@
 % /opt/VirtualGL/bin/vglrun matlab & - run it interactively with GPU rendering
 function run_single_coverage_test()
 clear all; close all; clc;
-
 Cfg = get_cfg(1000,"walkerdelta","medium","medium");
 Cfg.FRF = 3;
 Cfg.RU = 1;
@@ -20,7 +19,7 @@ Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
 
 
 calc_link = true;
-use_parallel = true;
+use_parallel = false;
 % metrics = fast_coverage_simulator_function(Cfg,false,false,false);
 
 metrics = coverage_simulator_function(Cfg,use_parallel,calc_link);
@@ -34,6 +33,10 @@ plot_simulation(metrics, use_parallel);
 show_interactive = false;
 save_fig = true;
 % 
-show_constellation(Cfg, show_interactive, save_fig)
+if ~isempty(getenv('DISPLAY'))
+    show_constellation(Cfg, show_interactive, save_fig)
+else
+    disp('Skipping show_constellation because no display is available');
+end
 % fprintf("Worst Coverage percentage " + metrics.worst_coverage_percent);
 end
