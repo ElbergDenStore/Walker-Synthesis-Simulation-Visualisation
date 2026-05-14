@@ -57,8 +57,10 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
 
     % 2. Create ALL ground stations in one single call
     % By passing arrays for lat/lon/names, MATLAB handles the loop internally in C++
-    groundStation(sc, UE_lats, UE_lons, ...
-        'MinElevationAngle', Cfg.Min_elevation_UE);
+    if ~isempty(UE_lats)
+        groundStation(sc, UE_lats, UE_lons, ...
+            'MinElevationAngle', Cfg.Min_elevation_UE);
+    end
 
 
     if show_interactive || save_fig

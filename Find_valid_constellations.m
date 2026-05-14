@@ -14,27 +14,42 @@
 % Press q to quit.
 
 clear; close all; clc;
-%% Force kill the current parallel pool
-delete(gcp('nocreate')); % necessary or it will get stuck
+%% Cleanly reset the parallel environment before starting
+% Order matters: kill workers first (so MathWorksServiceHost state is clean),
+% THEN delete job files (rm-rf without killing first causes Index OOB on next parpool).
+delete(gcp('nocreate'));
+% my_pid = num2str(feature('getpid'));
+% [~,~] = system(['pgrep -f "MATLAB/R2024b" | grep -v ^' my_pid '$ | xargs -r kill -9 2>/dev/null']);
+% pause(1); % let workers fully die before touching job files
+% matlab_dir = fileparts(prefdir);
+% cluster_dir = fullfile(matlab_dir, 'local_cluster_jobs', ['R' version('-release')]);
+% [~, ~] = system(['rm -rf ' cluster_dir '/Job* 2>/dev/null']);
 
 %% Master Configuration
 heights_km                          = 500:10:1200;
-plot_individual_results = true;
-% Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
-Master_config.Lat_range_deg         = [0 83.6];
+Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
+% Master_config.Lat_range_deg         = [0 83.6];
 Master_config.Min_elevation_UE      = 20;
-Master_config.Num_Planes            = 2:32; % Num Planes
-Master_config.Sats_Plane            = 2:32; % Sats per Plane
-Master_config.Inc_vec               = linspace(70, 80, 11); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+Master_config.Num_Planes            = 2:25; % Num Planes
+Master_config.Sats_Plane            = 2:25; % Sats per Plane
+Master_config.Inc_vec               = linspace(70, 80, 81); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
 Master_config.Target_num_candidates = 1;
+Master_config.SampleTime            = 420;
 
 % Sub Run configurations
-Master_config.Ultrafast.Duration_h  = 1;  
-Master_config.Ultrafast.Num_UEs     = 100;
-Master_config.Fast.Duration_h       = 12;  
-Master_config.Fast.Num_UEs          = 300;
-Master_config.Detailed.Duration_h   = 36;      
-Master_config.Detailed.Num_UEs      = 2000;
+Master_config.Ultrafast.Duration_h  = 2;  
+Master_config.Ultrafast.Num_UEs     = 200;
+Master_config.Fast.Duration_h       = 40;  
+Master_config.Fast.Num_UEs          = 800;
+certainty = 99 * 1e-2;
+fractional_area = 0.1 * 1e-2;
+fractional_time = 0.1 * 1e-2;
+required_samples = log(1-certainty)/log(1-fractional_area*fractional_time)
+
+required_time_h = ceil(sqrt(required_samples)) / (3600/Master_config.SampleTime)
+Master_config.Detailed.Duration_h   = required_time_h;
+required_UEs = ceil(sqrt(required_samples))
+Master_config.Detailed.Num_UEs      = required_UEs;
 
 
 
@@ -71,44 +86,20 @@ for i = 1:length(heights_km)
         min_sats = 0; %floor(star_N * 0.6); % Limit search space based on analytical star
     end 
 
-    [best_params, all_delta_sats{i}] = gridsearch(Master_config, heights_km(i), plot_individual_results, min_sats);
+    [best_params, all_delta_sats{i}] = gridsearch(Master_config, heights_km(i), min_sats);
 
     % Keep one best row per altitude in sweep order.
     best_delta_sats = [best_delta_sats; best_params(1, :)];
-    %% Save the Optimized Result
-    % if ~isempty(best_params)
-    %     best_delta_sats(i).Orbit_height = heights_km(i);
-    %     best_delta_sats(i).Total_sats     = best_params.Total_sats;
-    %     best_delta_sats(i).Num_planes     = best_params.Num_planes;
-    %     best_delta_sats(i).Phasing        = best_params.Phasing;
-    %     best_delta_sats(i).Sats_per_plane = best_params.Sats_per_plane;
-    %     best_delta_sats(i).Inclination    = best_params.Inclination;
-    % else
-    %     % if no solutions are found, it deserves to crash
-    %     error_msg = sprintf('FATAL ERROR: Optimizer failed to find a solution at %d km! Halting sweep.', heights_km(i));
-    %     error(error_msg);
-    % end
+
+    % Reset parallel environment between iterations: kill workers first, then purge files.
+    delete(gcp('nocreate'));
+    [~,~] = system(['pgrep -f "MATLAB/R2024b" | grep -v ^' my_pid '$ | xargs -r kill -9 2>/dev/null']);
+    pause(1);
+    [~, ~] = system(['rm -rf ' cluster_dir '/Job* 2>/dev/null']);
+
 end
 
-%% --- 3. Plot the Final Master Curve (Star vs Delta) ---
-star_plot_y  = [star_sats.Total_sats];
-delta_plot_y = [best_delta_sats.Total_sats];
-f1 = figure('Visible', 'off', 'Name', 'Constellation Comparison', 'Color', 'w', 'Position', [100 100 1000 600]); hold on;
-
-% Plot the Analytical Walker Star baseline (Red Line)
-scatter(heights_km, star_plot_y, 36, 'o', 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'DisplayName', 'Analytical Walker Star');
-
-% Plot the Optimized Walker Delta results (Blue Markers)
-% We only plot valid indices in case one of the heights failed
-scatter(heights_km, delta_plot_y, 36, 'o', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'DisplayName', 'Optimized Walker Delta');
-
-xlabel('Orbit Height (km)', 'FontWeight', 'bold');
-ylabel('Total Satellites Required', 'FontWeight', 'bold');
-title(sprintf('Walker Star vs Minimum Walker Delta (Lat: %0.1f°)', minimum_lat_deg));
-legend('Location', 'northeast');
-grid on; hold off;
-
-%% --- 4. Save Outputs ---
+%% --- 3. Save Outputs ---
 date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
 folder_name = sprintf('Master_Sweep_%s', date_str);
 out_dir = fullfile('simulation_output', folder_name);
@@ -117,10 +108,10 @@ if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
 
-% Save the data and the plot
-save(fullfile(out_dir,'Master_Altitude_Sweep_Results.mat'), 'heights_km', 'star_sats', 'best_delta_sats','all_delta_sats');
-exportgraphics(f1, fullfile(out_dir, 'Star_vs_Delta_Comparison.png'), 'Resolution', 300);
-close(f1);
+% Save results for plot regeneration via plotting_scripts/plot_sweep.m
+save(fullfile(out_dir, 'Master_Altitude_Sweep_Results.mat'), ...
+    'heights_km', 'star_sats', 'best_delta_sats', 'all_delta_sats', 'Master_config');
+fprintf('Results saved. Regenerate plots with: plot_sweep(''%s'')\n', out_dir);
 
 % --- RECORD END TIME ---
 end_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');

@@ -1,7 +1,8 @@
-function [best_params, all_candidates] = gridsearch(master_config, orbit_height_km, plot_results, min_sats)
+function [best_params, all_candidates] = gridsearch(master_config, orbit_height_km, min_sats)
     %% 1. Build the Ascending Grid
-    Num_constellations = sum(master_config.Num_Planes-1); %The phasing plus number of planes combinations. For 20 planes 19 phasing factors are possible and the total sum is 190.
-    Num_constellations = Num_constellations*size(master_config.Sats_Plane,1)*size(master_config.Inc_vec,1);
+    % For each p, phase factor f = 0:(p-1) gives p values, so total rows =
+    % sum(Num_Planes) * numel(Sats_Plane) * numel(Inc_vec).
+    Num_constellations = sum(master_config.Num_Planes) * numel(master_config.Sats_Plane) * numel(master_config.Inc_vec);
     grid_data = zeros(Num_constellations,5);
     i = 1;
     for p = master_config.Num_Planes
@@ -66,6 +67,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     min_sats_found = Inf;
     candidates_found = 0;
     runs_completed = 0;
+    worst_accepted_sats = NaN;
 
     q = parallel.pool.PollableDataQueue;
     futures = parallel.FevalFuture.empty(1, 0);
@@ -172,9 +174,28 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
             t_last_update = tic;
         end
 
-        if all(strcmp({futures.State}, 'finished')), break; end
-
         f_states = {futures.State};
+        if all(ismember(f_states, {'finished', 'unavailable'}))
+            % Drain any remaining queue messages (e.g. error reports sent just before worker died)
+            while true
+                [drain_data, got_drain] = poll(q, 0.001);
+                if ~got_drain, break; end
+                if isfield(drain_data, 'is_worker_error') && drain_data.is_worker_error
+                    error('\n[!] WORKER %d ERROR ON RUN %d: %s', drain_data.worker_id, drain_data.run_idx, drain_data.error_message);
+                end
+            end
+            % Check for hard crashes via future error property
+            for fe = 1:numel(futures)
+                if strcmp(futures(fe).State, 'unavailable')
+                    error('\n[!] WORKER %d BECAME UNAVAILABLE (likely hard crash).', fe);
+                end
+                if ~isempty(futures(fe).Error)
+                    error('\n[!] WORKER %d CRASHED: %s', fe, futures(fe).Error.message);
+                end
+            end
+            break;
+        end
+
         if any(strcmp(f_states, 'finished')) || any(strcmp(f_states, 'unavailable'))
             errs = {futures.Error};
             for e = 1:length(errs)
@@ -231,139 +252,17 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         t_faster_all, t_fast_all, t_detailed_all, worker_run_counts, worker_total_math_time, ...
         best_params, all_candidates, search_grid, status_flags);
 
-    %% 8. Prepare Data For Plotting
-    if plot_results
-        %% --- Standardized Plotting Parameters ---
-        set(0, 'DefaultAxesFontSize', 14); 
-        set(0, 'DefaultTextFontSize', 14);
-
-        color_inv  = [0.8 0.8 0.8]; % Standard light grey for invalid
-        color_cand = [0.2 0.6 0.8]; % Blue
-        color_best = [1.0 0.8 0.0]; % Gold
-        
-        sz_inv  = 35;
-        sz_cand = 50;
-        sz_best = 120; 
-        
-        export_dpi = 600; 
-        leg_loc = 'northeast'; 
-
-        fig_pos = [100, 100, 600, 500];
-
-        %% --- Data Preparation ---
-        was_evaluated = ~isnan(evaluated_coverage);
-        eval_grid = search_grid(was_evaluated, :);
-        eval_status = status_flags(was_evaluated); % 0=Invalid, 1=Candidate, 2=Best
-
-        isInvalid = eval_status == 0;
-        isCand = eval_status == 1;
-        isBest = eval_status == 2;
-
-        history_Loss = eval_grid.Total_sats;
-        phasing_deg = (eval_grid.Phasing ./ eval_grid.Num_planes) .* 360;
-        
-        history_X = table(eval_grid.Num_planes, eval_grid.Sats_per_plane, ...
-            eval_grid.Inclination, phasing_deg, ...
-            'VariableNames', {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing_Degrees'});
-
-
-        %% Plot 1: Loss vs Inclination
-        f1 = figure('Visible', 'off', 'Name', 'Sats vs Inclination', 'Color', 'w','Position',fig_pos); hold on;
-        
-        % Inclination (X) is Continuous -> FALSE. Num Sats (Y) is Integer -> TRUE.
-        [jx_inc, jy_loss] = apply_density_jitter(history_X.Inclination, history_Loss, false, true);
-        
-        scatter(jx_inc(isInvalid), jy_loss(isInvalid), sz_inv, color_inv, 'x');
-        scatter(jx_inc(isCand), jy_loss(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jx_inc(isBest), jy_loss(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
-        yline(worst_accepted_sats + 0.5, '--r', 'Exhausted Search Space Below', ...
-            'LineWidth', 1.5, ...
-            'LabelHorizontalAlignment', 'left', ...
-            'LabelVerticalAlignment', 'bottom', ...
-            'FontWeight', 'bold', 'Color', [0.8 0 0 0.7]); % Dark red with some transparency
-        xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Num Sats', 'FontWeight', 'bold');
-        title("Candidate Inclinations @ " + num2str(orbit_height_km) + " km");
-        legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
-        grid on; hold off;
-        exportgraphics(f1, fullfile(out_dir, 'Inclinations_NumSats.png'), 'Resolution', export_dpi);
-        close(f1);
-
-
-        %% Plot 1b: Detailed-only tradeoff (coverage vs total sats)
-        was_detailed = ~isnan(detailed_coverage);
-        det_grid = search_grid(was_detailed, :);
-        det_cov = detailed_coverage(was_detailed);
-        det_status = status_flags(was_detailed); 
-
-        det_inv = det_status == 0;
-        det_cand = det_status == 1;
-        det_best = det_status == 2;
-
-        f_trade = figure('Visible', 'off', 'Name', 'Detailed Tradeoff', 'Color', 'w','Position',fig_pos); hold on;
-        
-        % Num Sats (X) is Integer -> TRUE. Coverage (Y) is Continuous -> FALSE.
-        [jx_sats, jy_cov] = apply_density_jitter(det_grid.Total_sats, det_cov, true, false);
-
-        scatter(jx_sats(det_inv), jy_cov(det_inv), sz_inv, color_inv, 'x', 'LineWidth', 1.0);
-        scatter(jx_sats(det_cand), jy_cov(det_cand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jx_sats(det_best), jy_cov(det_best), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
-        
-        xlabel('Num Sats', 'FontWeight', 'bold'); ylabel('Worst Coverage %', 'FontWeight', 'bold');
-        title("Coverage percentage @ " + num2str(orbit_height_km) + " km");
-        legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
-        grid on; hold off;
-        exportgraphics(f_trade, fullfile(out_dir, 'Detailed_Tradeoff_Coverage_vs_Sats.png'), 'Resolution', export_dpi);
-        close(f_trade);
-
-
-        %% Plot 2: Architecture map (planes vs sats per plane)
-        planes = history_X.Num_planes;
-        sats_pp = history_X.Sats_per_plane;
-
-        f4 = figure('Visible', 'off', 'Name', 'Architecture Map', 'Color', 'w','Position',fig_pos); hold on;
-        
-        % BOTH are Integers -> TRUE, TRUE. (Clouds will form in both directions)
-        [jx_planes, jy_sats_pp] = apply_density_jitter(planes, sats_pp, true, true);
-        
-        scatter(jx_planes(isInvalid), jy_sats_pp(isInvalid), sz_inv, color_inv, 'x');
-        % 2. Map Candidate and Best colors to their Total Satellites (history_Loss)
-        scatter(jx_planes(isCand), jy_sats_pp(isCand), sz_cand, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jx_planes(isBest), jy_sats_pp(isBest), sz_best, history_Loss(isBest), 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
-        
-        colormap('parula');
-        if any(isCand) || any(isBest)
-            cb = colorbar;
-            cb.Label.String = 'Total Satellites';
-        end
-        xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Sats per Plane', 'FontWeight', 'bold');
-        title("Evaluated Constellations @ " + num2str(orbit_height_km) + " km");
-        legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
-        grid on; hold off;
-        exportgraphics(f4, fullfile(out_dir, 'NumPlanes_SatsPerPlane.png'), 'Resolution', export_dpi);
-        close(f4);
-
-
-        %% Plot 3: Phasing vs Number of Planes
-        f_phase = figure('Visible', 'off', 'Name', 'Phasing vs Planes', 'Color', 'w','Position',fig_pos); hold on;
-        
-        % Num Planes (X) is Integer -> TRUE. Phasing (Y) is Continuous -> FALSE.
-        [jx_phase_p, jy_phase_deg] = apply_density_jitter(history_X.Num_planes, history_X.Phasing_Degrees, true, false);
-        
-        scatter(jx_phase_p(isInvalid), jy_phase_deg(isInvalid), sz_inv, color_inv, 'x');
-        scatter(jx_phase_p(isCand), jy_phase_deg(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
-        scatter(jx_phase_p(isBest), jy_phase_deg(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
-        
-        xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Phasing (deg)', 'FontWeight', 'bold');
-        title("Candidate Phasing @ " + num2str(orbit_height_km) + " km");
-        legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
-        
-        ylim([0 360]);
-        yticks(0:45:360);
-        
-        grid on; hold off;
-        exportgraphics(f_phase, fullfile(out_dir, 'NumPlanes_Phasing.png'), 'Resolution', export_dpi);
-        close(f_phase);
-    end
+    %% 8. Save Plot Data
+    plot_data.search_grid           = search_grid;
+    plot_data.status_flags          = status_flags;
+    plot_data.evaluated_coverage    = evaluated_coverage;
+    plot_data.detailed_coverage     = detailed_coverage;
+    plot_data.orbit_height_km       = orbit_height_km;
+    plot_data.worst_accepted_sats   = worst_accepted_sats;
+    plot_data.all_candidates        = all_candidates;
+    plot_data.target_num_candidates = target_num_candidates;
+    save(fullfile(out_dir, 'plot_data.mat'), 'plot_data');
+    fprintf('Plot data saved. Regenerate plots with: plot_gridsearch(''%s'')\n', out_dir);
 end
 
 % =========================================================================
