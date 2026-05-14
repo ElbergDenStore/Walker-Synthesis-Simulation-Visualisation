@@ -7,16 +7,25 @@ Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark
 Master_config.Min_elevation_UE      = 20;
 Master_config.Num_Planes            = 2:20; % Num Planes
 Master_config.Sats_Plane            = 2:20; % Sats per Plane
-Master_config.Inc_vec               = linspace(70, 80, 41); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
-Master_config.Target_num_candidates = 50;
+Master_config.Inc_vec               = linspace(70, 80, 81); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+Master_config.Target_num_candidates = 1;
+Master_config.SampleTime            = 420;
 
 % Sub Run configurations
-Master_config.Ultrafast.Duration_h  = 1;  
+Master_config.Ultrafast.Duration_h  = 2;  
 Master_config.Ultrafast.Num_UEs     = 200;
-Master_config.Fast.Duration_h       = 12;  
-Master_config.Fast.Num_UEs          = 400;
-Master_config.Detailed.Duration_h   = 36;      
-Master_config.Detailed.Num_UEs      = 2000;
+Master_config.Fast.Duration_h       = 40;  
+Master_config.Fast.Num_UEs          = 800;
+certainty = 99 * 1e-2;
+fractional_area = 0.1 * 1e-2;
+fractional_time = 0.1 * 1e-2;
+required_samples = log(1-certainty)/log(1-fractional_area*fractional_time)
+
+required_time_h = ceil(sqrt(required_samples)) / (3600/Master_config.SampleTime)
+Master_config.Detailed.Duration_h   = required_time_h;
+required_UEs = ceil(sqrt(required_samples))
+Master_config.Detailed.Num_UEs      = required_UEs;
+
 
 
 orbit_height_km = 1000;

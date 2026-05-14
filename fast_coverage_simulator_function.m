@@ -4,13 +4,10 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
     tic
 
     %% 2. Constellation & Time Setup
-    persistent cached_sc cached_UE_lats cached_UE_lons cached_ue_pos_ecef last_Cfg
+    persistent cached_sc last_Cfg
     
     if reset_cache
         cached_sc = [];
-        cached_UE_lats = [];
-        cached_UE_lons = [];
-        cached_ue_pos_ecef = [];
         last_Cfg = [];
         fprintf(' [!] Cache manually reset for fresh initialization.\n');
     end
@@ -48,7 +45,7 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
         % Permute to [3 x NumSats x nT] to make our implicit expansion math easy
         sat_pos_ecef = permute(sat_pos_raw, [1, 3, 2]);
     else
-        %% PURE MATH WALKER GENERATOR (0.001 seconds execution time)
+        %% PURE MATH WALKER GENERATOR
         if Cfg.WalkerStar == true
             error('Fast math generator currently only supports Walker Delta.');
         end
@@ -70,28 +67,13 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
     nT = size(sat_pos_ecef, 3);
     
     %% 3. Create UEs Struct Array
-    
-    recon_UEs = false;
-    if isempty(cached_UE_lats)
-        recon_UEs = true;
-    end
-    
-    if recon_UEs
-        if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats') || ~isfield(Cfg.Flat_UE_array, 'Lons')
-            error('Cfg.Flat_UE_array with fields Lats and Lons is required. Generate UEs before calling coverage_simulator_function.');
-        end
-        UE_lats = Cfg.Flat_UE_array.Lats;
-        UE_lons = Cfg.Flat_UE_array.Lons;
-        cached_UE_lats = UE_lats(:);
-        cached_UE_lons = UE_lons(:);
 
-        cached_ue_pos_ecef = lla2ecef([cached_UE_lats, cached_UE_lons, zeros(length(cached_UE_lats), 1)]);
-    else
-        UE_lats = cached_UE_lats;
-        UE_lons = cached_UE_lons;
+    if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats') || ~isfield(Cfg.Flat_UE_array, 'Lons')
+        error('Cfg.Flat_UE_array with fields Lats and Lons is required. Generate UEs before calling coverage_simulator_function.');
     end
-    
-    ue_pos_ecef = cached_ue_pos_ecef;
+    UE_lats = Cfg.Flat_UE_array.Lats(:);
+    UE_lons = Cfg.Flat_UE_array.Lons(:);
+    ue_pos_ecef = lla2ecef([UE_lats, UE_lons, zeros(length(UE_lats), 1)]);
     Cfg.NumUEs = size(ue_pos_ecef, 1);
     
     % Lock in memory for Struct Array

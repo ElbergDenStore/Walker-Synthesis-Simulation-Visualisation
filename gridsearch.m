@@ -6,7 +6,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     i = 1;
     for p = master_config.Num_Planes
         for s = master_config.Sats_Plane
-            for f = 1:(p-1) % Integer Walker Phase Factor. Zero is always bad so not checked
+            for f = 0:(p-1) % Integer Walker Phase Factor.
                 for inc = master_config.Inc_vec
                     grid_data(i,:) = [p, s, inc, f, p*s];
                     i = i + 1;
@@ -154,7 +154,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
                     end
 
                     cheapest_pending_sats = search_grid.Total_sats(first_pending_idx);
-                    if cheapest_pending_sats >= worst_accepted_sats
+                    if cheapest_pending_sats > worst_accepted_sats
                         fprintf('\n--- Deterministic Stop! ---\n');
                         fprintf('Top %d optimal candidates found (worst accepted sats: %d).\n', target_num_candidates, worst_accepted_sats);
                         fprintf('Cheapest pending run has %d sats (cannot improve). Canceling remaining %d runs.\n', ...
@@ -234,6 +234,9 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     %% 8. Prepare Data For Plotting
     if plot_results
         %% --- Standardized Plotting Parameters ---
+        set(0, 'DefaultAxesFontSize', 14); 
+        set(0, 'DefaultTextFontSize', 14);
+
         color_inv  = [0.8 0.8 0.8]; % Standard light grey for invalid
         color_cand = [0.2 0.6 0.8]; % Blue
         color_best = [1.0 0.8 0.0]; % Gold
@@ -244,6 +247,8 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         
         export_dpi = 600; 
         leg_loc = 'northeast'; 
+
+        fig_pos = [100, 100, 600, 500];
 
         %% --- Data Preparation ---
         was_evaluated = ~isnan(evaluated_coverage);
@@ -263,7 +268,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
 
 
         %% Plot 1: Loss vs Inclination
-        f1 = figure('Visible', 'off', 'Name', 'Sats vs Inclination', 'Color', 'w'); hold on;
+        f1 = figure('Visible', 'off', 'Name', 'Sats vs Inclination', 'Color', 'w','Position',fig_pos); hold on;
         
         % Inclination (X) is Continuous -> FALSE. Num Sats (Y) is Integer -> TRUE.
         [jx_inc, jy_loss] = apply_density_jitter(history_X.Inclination, history_Loss, false, true);
@@ -271,7 +276,11 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         scatter(jx_inc(isInvalid), jy_loss(isInvalid), sz_inv, color_inv, 'x');
         scatter(jx_inc(isCand), jy_loss(isCand), sz_cand, color_cand, 'filled', 'MarkerEdgeColor', 'k');
         scatter(jx_inc(isBest), jy_loss(isBest), sz_best, color_best, 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
-        
+        yline(worst_accepted_sats + 0.5, '--r', 'Exhausted Search Space Below', ...
+            'LineWidth', 1.5, ...
+            'LabelHorizontalAlignment', 'left', ...
+            'LabelVerticalAlignment', 'bottom', ...
+            'FontWeight', 'bold', 'Color', [0.8 0 0 0.7]); % Dark red with some transparency
         xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Num Sats', 'FontWeight', 'bold');
         title("Candidate Inclinations @ " + num2str(orbit_height_km) + " km");
         legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
@@ -290,7 +299,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         det_cand = det_status == 1;
         det_best = det_status == 2;
 
-        f_trade = figure('Visible', 'off', 'Name', 'Detailed Tradeoff', 'Color', 'w'); hold on;
+        f_trade = figure('Visible', 'off', 'Name', 'Detailed Tradeoff', 'Color', 'w','Position',fig_pos); hold on;
         
         % Num Sats (X) is Integer -> TRUE. Coverage (Y) is Continuous -> FALSE.
         [jx_sats, jy_cov] = apply_density_jitter(det_grid.Total_sats, det_cov, true, false);
@@ -311,7 +320,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         planes = history_X.Num_planes;
         sats_pp = history_X.Sats_per_plane;
 
-        f4 = figure('Visible', 'off', 'Name', 'Architecture Map', 'Color', 'w'); hold on;
+        f4 = figure('Visible', 'off', 'Name', 'Architecture Map', 'Color', 'w','Position',fig_pos); hold on;
         
         % BOTH are Integers -> TRUE, TRUE. (Clouds will form in both directions)
         [jx_planes, jy_sats_pp] = apply_density_jitter(planes, sats_pp, true, true);
@@ -335,7 +344,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
 
 
         %% Plot 3: Phasing vs Number of Planes
-        f_phase = figure('Visible', 'off', 'Name', 'Phasing vs Planes', 'Color', 'w'); hold on;
+        f_phase = figure('Visible', 'off', 'Name', 'Phasing vs Planes', 'Color', 'w','Position',fig_pos); hold on;
         
         % Num Planes (X) is Integer -> TRUE. Phasing (Y) is Continuous -> FALSE.
         [jx_phase_p, jy_phase_deg] = apply_density_jitter(history_X.Num_planes, history_X.Phasing_Degrees, true, false);
@@ -395,8 +404,8 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     result.t_detailed = 0;
     result.detailed_cov = NaN;
 
-    Cfg.StartTime = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC');
-    Cfg.SampleTime = 60;
+    Cfg.StartTime = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC') + hours((rand - 0.5) * 48);
+    Cfg.SampleTime = master_config.SampleTime;
     Cfg.Min_elevation_UE = master_config.Min_elevation_UE;
     Cfg.WalkerStar = false;
     Cfg.Orbit_height = local_config.Orbit_height_m;
@@ -438,7 +447,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Fast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Fast.Num_UEs);
-    m2 = fast_coverage_simulator_function(Cfg, false, false, true);
+    m2 = fast_coverage_simulator_function(Cfg, false, false, true); % reuse satelliteScenario handle, use SGP4
     result.t_fast = toc(t2);
 
     if m2.worst_coverage_percent < 99.9
@@ -501,9 +510,9 @@ function generate_profiling_report(wall_time, runs_done, n_workers, t1, t2, t3, 
     eff = (sum(w_math) / max(wall_time * n_workers, eps)) * 100;
     fprintf('Wall Time: %.2fs | Efficiency: %.1f%% | Throughput: %.2f r/s\n', ...
         wall_time, eff, runs_done / max(wall_time, eps));
-    fprintf('Phase 1 (Ultra): Avg %.4fs | Count: %d\n', mean(t1(~isnan(t1))), sum(~isnan(t1)));
-    if any(~isnan(t2)), fprintf('Phase 2 (Fast):  Avg %.4fs | Count: %d\n', mean(t2(~isnan(t2))), sum(~isnan(t2))); end
-    if any(~isnan(t3)), fprintf('Phase 3 (Det):   Avg %.4fs | Count: %d\n', mean(t3(~isnan(t3))), sum(~isnan(t3))); end
+    fprintf('Stage 1 (Ultra): Avg %.4fs | Count: %d\n', mean(t1(~isnan(t1))), sum(~isnan(t1)));
+    if any(~isnan(t2)), fprintf('Stage 2 (Fast):  Avg %.4fs | Count: %d\n', mean(t2(~isnan(t2))), sum(~isnan(t2))); end
+    if any(~isnan(t3)), fprintf('Stage 3 (Det):   Avg %.4fs | Count: %d\n', mean(t3(~isnan(t3))), sum(~isnan(t3))); end
     fprintf('Worker Balance: Min %d, Max %d\n', min(w_counts), max(w_counts));
     fprintf('=========================================================\n\n');
 end
@@ -527,15 +536,15 @@ function write_profiling_report_to_file(report_path, base_config, wall_time, run
 
     t1_valid = t1(~isnan(t1));
     if ~isempty(t1_valid)
-        fprintf(fid, 'Phase 1 (Ultra): Avg %.4fs | Count: %d\n', mean(t1_valid), numel(t1_valid));
+        fprintf(fid, 'Stage 1 (Ultra): Avg %.4fs | Count: %d\n', mean(t1_valid), numel(t1_valid));
     end
     t2_valid = t2(~isnan(t2));
     if ~isempty(t2_valid)
-        fprintf(fid, 'Phase 2 (Fast):  Avg %.4fs | Count: %d\n', mean(t2_valid), numel(t2_valid));
+        fprintf(fid, 'Stage 2 (Fast):  Avg %.4fs | Count: %d\n', mean(t2_valid), numel(t2_valid));
     end
     t3_valid = t3(~isnan(t3));
     if ~isempty(t3_valid)
-        fprintf(fid, 'Phase 3 (Det):   Avg %.4fs | Count: %d\n', mean(t3_valid), numel(t3_valid));
+        fprintf(fid, 'Stage 3 (Det):   Avg %.4fs | Count: %d\n', mean(t3_valid), numel(t3_valid));
     end
 
     fprintf(fid, 'Worker Balance: Min %d, Max %d\n', min(w_counts), max(w_counts));
