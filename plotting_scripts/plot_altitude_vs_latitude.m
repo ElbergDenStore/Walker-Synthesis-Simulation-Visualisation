@@ -1,128 +1,98 @@
-function plot_altitude_vs_latitude(HEIGHT_KM, el_min_vec)
+function plot_altitude_vs_latitude(HEIGHT_KM)
 % PLOT_ALTITUDE_VS_LATITUDE
-%   Propagates a single polar satellite with both the 'numerical' propagator
-%   (RK89, J2+J3+J4+drag+SRP) and 'sgp4', and overlays the results so the
-%   SGP4 TLE-conversion artefact is visible against the physically rigorous
-%   numerical solution.
+%   Propagates a single polar satellite with 'numerical' (J2+J3+J4+drag+SRP)
+%   and 'sgp4', showing geodetic altitude (= nadir range) vs latitude and
+%   vs time for one full orbit.
 %
-%   r_earth and ecef2lla match coverage_simulator_function.m exactly.
-%   A 90° polar orbit is used so the full latitude range is visible.
+%   The sawtooth artefact of sorting by latitude is avoided by splitting
+%   the trace into ascending (dlat>0) and descending (dlat<0) passes.
 %
 %   Usage:
-%     plot_altitude_vs_latitude()           % 1000 km, el=[10 25]
+%     plot_altitude_vs_latitude()       % default: 1000 km
 %     plot_altitude_vs_latitude(600)
-%     plot_altitude_vs_latitude(1000, [5 10 20 35])
 
-if nargin < 1 || isempty(HEIGHT_KM),  HEIGHT_KM  = 1000;     end
-if nargin < 2 || isempty(el_min_vec), el_min_vec = [10, 25]; end
+if nargin < 1 || isempty(HEIGHT_KM), HEIGHT_KM = 1000; end
 
-%% ── Shared scenario parameters ───────────────────────────────────────────
-r_earth = 6378.14e3;          % matches coverage_simulator_function.m
+%% ── Propagate ────────────────────────────────────────────────────────────
+r_earth = 6378.14e3;              % matches coverage_simulator_function.m
 a       = r_earth + HEIGHT_KM*1e3;
-T_s     = 2*pi * sqrt(a^3 / 3.986004418e14);   % Keplerian period [s]
+T_s     = 2*pi * sqrt(a^3 / 3.986004418e14);
 
 sc            = satelliteScenario;
 sc.StartTime  = datetime('1-Jun-2025 12:00:00','TimeZone','UTC');
 sc.StopTime   = sc.StartTime + seconds(T_s + 5);
 sc.SampleTime = 5;
 
-%% ── Propagate: numerical (J2+J3+J4+drag+SRP) ────────────────────────────
-sat_num = satellite(sc, a, 0, 90, 0, 0, 0, ...
-    'OrbitPropagator','numerical','Name','Numerical');
+sat_num = satellite(sc, a, 0, 90, 0, 0, 0, 'OrbitPropagator','numerical', 'Name','Numerical');
+sat_sgp = satellite(sc, a, 0, 90, 0, 0, 0, 'OrbitPropagator','sgp4',     'Name','SGP4');
 
-%% ── Propagate: SGP4 (same as coverage_simulator_function.m) ─────────────
-sat_sgp = satellite(sc, a, 0, 90, 0, 0, 0, ...
-    'OrbitPropagator','sgp4','Name','SGP4');
-
-fprintf('Propagating both propagators  (H=%d km, T=%.0f s, dt=%d s)...\n', HEIGHT_KM, T_s, 5);
-pos_num = squeeze(states(sat_num, 'CoordinateFrame','ECEF'))';   % [nT x 3] m
+fprintf('Propagating  (H=%d km, T=%.1f min, dt=%d s)...', HEIGHT_KM, T_s/60, sc.SampleTime);
+tic;
+pos_num = squeeze(states(sat_num, 'CoordinateFrame','ECEF'))';   % [nT×3] m
 pos_sgp = squeeze(states(sat_sgp, 'CoordinateFrame','ECEF'))';
+fprintf(' %.1f s\n', toc);
 
 %% ── Geodetic altitude via ecef2lla ───────────────────────────────────────
-lla_num  = ecef2lla(pos_num);
-lat_num  = lla_num(:,1);
-alt_num  = lla_num(:,3) / 1e3;
+lla_num = ecef2lla(pos_num);  lat_num = lla_num(:,1);  alt_num = lla_num(:,3)/1e3;
+lla_sgp = ecef2lla(pos_sgp);  lat_sgp = lla_sgp(:,1);  alt_sgp = lla_sgp(:,3)/1e3;
 
-lla_sgp  = ecef2lla(pos_sgp);
-lat_sgp  = lla_sgp(:,1);
-alt_sgp  = lla_sgp(:,3) / 1e3;
+nT  = size(pos_num, 1);
+t_m = (0:nT-1)' * sc.SampleTime / 60;   % elapsed time [minutes]
 
-n_asc = round((T_s/4) / sc.SampleTime);
-asc   = 1:n_asc;
+% Split ascending / descending to avoid sawtooth when plotting vs latitude
+asc_n = [false; diff(lat_num) >= 0];
+asc_s = [false; diff(lat_sgp) >= 0];
 
-fprintf('\n%-30s  Equator    Pole    Pole-Eq\n', 'Propagator');
-fprintf('%-30s  %7.2f  %7.2f  %+7.2f km\n', 'Numerical', ...
-    alt_num(1), alt_num(n_asc), alt_num(n_asc)-alt_num(1));
-fprintf('%-30s  %7.2f  %7.2f  %+7.2f km\n', 'SGP4 (simulator)', ...
-    alt_sgp(1), alt_sgp(n_asc), alt_sgp(n_asc)-alt_sgp(1));
-
-%% ── Coverage half-angle (numerical r_sat) ────────────────────────────────
-r_sat_num = sqrt(sum(pos_num.^2, 2));
-r_sat_sgp = sqrt(sum(pos_sgp.^2, 2));
-
-b_wgs = 6356.752e3;
-phi_n = deg2rad(lat_num);
-r_wgs84_num = sqrt( ((r_earth^2.*cos(phi_n)).^2 + (b_wgs^2.*sin(phi_n)).^2) ./ ...
-                    ((r_earth  .*cos(phi_n)).^2 + (b_wgs  .*sin(phi_n)).^2) );
-
-phi_s = deg2rad(lat_sgp);
-r_wgs84_sgp = sqrt( ((r_earth^2.*cos(phi_s)).^2 + (b_wgs^2.*sin(phi_s)).^2) ./ ...
-                    ((r_earth  .*cos(phi_s)).^2 + (b_wgs  .*sin(phi_s)).^2) );
-
-rho_num = zeros(numel(el_min_vec), numel(lat_num));
-rho_sgp = zeros(numel(el_min_vec), numel(lat_sgp));
-for ki = 1:numel(el_min_vec)
-    rho_num(ki,:) = acosd(min(1, r_wgs84_num .* cosd(el_min_vec(ki)) ./ r_sat_num)) - el_min_vec(ki);
-    rho_sgp(ki,:) = acosd(min(1, r_wgs84_sgp .* cosd(el_min_vec(ki)) ./ r_sat_sgp)) - el_min_vec(ki);
-end
+%% ── Summary ──────────────────────────────────────────────────────────────
+n_qtr = round((T_s/4) / sc.SampleTime);
+fprintf('\n%-12s  Equator  N-pole  S-pole  Range\n', 'Propagator');
+fprintf('%-12s  %7.2f  %7.2f  %7.2f  %5.2f km\n', 'Numerical', ...
+    alt_num(1), alt_num(n_qtr), alt_num(3*n_qtr), range(alt_num));
+fprintf('%-12s  %7.2f  %7.2f  %7.2f  %5.2f km\n', 'SGP4', ...
+    alt_sgp(1), alt_sgp(n_qtr), alt_sgp(3*n_qtr), range(alt_sgp));
 
 %% ── Plot ─────────────────────────────────────────────────────────────────
 set(0,'DefaultAxesFontSize',13,'DefaultTextFontSize',13);
-colors = lines(numel(el_min_vec));
+c_num = '#0072BD';
+c_sgp = '#D95319';
 
-f = figure('Name', sprintf('Propagator Comparison  –  %d km orbit', HEIGHT_KM), ...
-    'Color','w','Position',[60 80 1200 460]);
+f = figure('Name', sprintf('Propagator Comparison  –  %d km', HEIGHT_KM), ...
+    'Color','w', 'Position',[60 80 1200 460]);
 
-%% Left: geodetic altitude vs latitude — full orbit, both propagators
-subplot(1,2,1);
-[lat_ns, si_n] = sort(lat_num);
-[lat_ss, si_s] = sort(lat_sgp);
-plot(lat_ns, alt_num(si_n), '-',  'Color','#0072BD', 'LineWidth',2.2, 'DisplayName','Numerical');
-hold on;
-plot(lat_ss, alt_sgp(si_s), '--', 'Color','#D95319', 'LineWidth',1.8, 'DisplayName','SGP4 (simulator)');
-yline(HEIGHT_KM, ':', 'Color',[0.55 0.55 0.55], 'LineWidth',1.4, ...
+%% Left: altitude vs latitude — ascending (solid) and descending (dashed)
+subplot(1,2,1); hold on;
+plot(lat_num(asc_n),  alt_num(asc_n),  '-',  'Color',c_num, 'LineWidth',2.0, 'DisplayName','Numerical asc');
+plot(lat_num(~asc_n), alt_num(~asc_n), '--', 'Color',c_num, 'LineWidth',1.3, 'DisplayName','Numerical desc');
+plot(lat_sgp(asc_s),  alt_sgp(asc_s),  '-',  'Color',c_sgp, 'LineWidth',2.0, 'DisplayName','SGP4 asc');
+plot(lat_sgp(~asc_s), alt_sgp(~asc_s), '--', 'Color',c_sgp, 'LineWidth',1.3, 'DisplayName','SGP4 desc');
+yline(HEIGHT_KM, ':', 'Color',[0.5 0.5 0.5], 'LineWidth',1.2, ...
     'DisplayName', sprintf('Nominal %d km', HEIGHT_KM));
 xlabel('Geodetic latitude (°)');
 ylabel('Geodetic altitude / nadir range (km)');
-title(sprintf('Nadir slant range  (H = %d km nominal)', HEIGHT_KM), 'FontWeight','bold');
-legend('Location','north');
+title('Altitude vs latitude', 'FontWeight','bold');
+legend('Location','north', 'NumColumns',2);
 grid on; xlim([-90 90]);
 
-%% Right: coverage half-angle, ascending pass, numerical only
-subplot(1,2,2);
-hold on;
-for ki = 1:numel(el_min_vec)
-    plot(lat_num(asc), rho_num(ki,asc), '-',  'Color',colors(ki,:), 'LineWidth',2, ...
-        'DisplayName', sprintf('Numerical  el=%d°', el_min_vec(ki)));
-    plot(lat_sgp(asc), rho_sgp(ki,asc), '--', 'Color',colors(ki,:), 'LineWidth',1.4, ...
-        'HandleVisibility','off');
-end
-% dummy entry for SGP4 line style in legend
-plot(NaN, NaN, 'k--', 'LineWidth',1.4, 'DisplayName','SGP4 (dashed)');
-xlabel('Geodetic latitude (°)');
-ylabel('Coverage half-angle \rho (°)');
-title('Footprint half-angle  (ascending pass)', 'FontWeight','bold');
-legend('Location','southeast');
-grid on; xlim([0 90]);
+%% Right: altitude vs time
+subplot(1,2,2); hold on;
+plot(t_m, alt_num, '-',  'Color',c_num, 'LineWidth',2.0, 'DisplayName','Numerical');
+plot(t_m, alt_sgp, '--', 'Color',c_sgp, 'LineWidth',1.6, 'DisplayName','SGP4');
+yline(HEIGHT_KM, ':', 'Color',[0.5 0.5 0.5], 'LineWidth',1.2, ...
+    'DisplayName', sprintf('Nominal %d km', HEIGHT_KM));
+xlabel('Time (min)');
+ylabel('Geodetic altitude / nadir range (km)');
+title('Altitude vs time  (one orbit)', 'FontWeight','bold');
+legend('Location','best');
+grid on; xlim([0 t_m(end)]);
 
 sgtitle(sprintf('Numerical vs SGP4  —  %d km orbit', HEIGHT_KM), ...
-    'FontWeight','bold','FontSize',14);
+    'FontWeight','bold', 'FontSize',14);
 
 %% Save
 script_dir = fileparts(mfilename('fullpath'));
 out_dir    = fullfile(script_dir, 'figures');
 if ~exist(out_dir,'dir'), mkdir(out_dir); end
-fname = fullfile(out_dir, sprintf('simulator_geometry_%dkm_num_vs_sgp4.png', HEIGHT_KM));
+fname = fullfile(out_dir, sprintf('propagator_comparison_%dkm.png', HEIGHT_KM));
 exportgraphics(f, fname, 'Resolution',300);
-fprintf('\nSaved to %s\n', fname);
+fprintf('\nSaved → %s\n', fname);
 end
