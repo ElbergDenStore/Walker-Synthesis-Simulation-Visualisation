@@ -13,6 +13,7 @@ function plot_altitude_vs_latitude(HEIGHT_KM)
 
 if nargin < 1 || isempty(HEIGHT_KM), HEIGHT_KM = 1000; end
 
+
 %% ── Propagate ────────────────────────────────────────────────────────────
 r_earth = 6378.14e3;              % matches coverage_simulator_function.m
 a       = r_earth + HEIGHT_KM*1e3;
@@ -20,7 +21,7 @@ T_s     = 2*pi * sqrt(a^3 / 3.986004418e14);
 
 sc            = satelliteScenario;
 sc.StartTime  = datetime('1-Jun-2025 12:00:00','TimeZone','UTC');
-sc.StopTime   = sc.StartTime + seconds(T_s + 5);
+sc.StopTime   = sc.StartTime + seconds(T_s*4 + 5);
 sc.SampleTime = 5;
 
 sat_num = satellite(sc, a, 0, 90, 0, 0, 0, 'OrbitPropagator','numerical', 'Name','Numerical');
