@@ -32,14 +32,14 @@ Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark
 Master_config.Min_elevation_UE      = 20;
 Master_config.Num_Planes            = 2:25; % Num Planes
 Master_config.Sats_Plane            = 2:25; % Sats per Plane
-Master_config.Inc_vec               = linspace(70, 80, 81); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+Master_config.Inc_vec               = linspace(70, 80, 111); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
 Master_config.Target_num_candidates = 1;
-Master_config.SampleTime            = 420;
+Master_config.SampleTime            = 660;
 
 % Sub Run configurations
-Master_config.Ultrafast.Duration_h  = 2;  
+Master_config.Ultrafast.Duration_h  = 3;  
 Master_config.Ultrafast.Num_UEs     = 200;
-Master_config.Fast.Duration_h       = 40;  
+Master_config.Fast.Duration_h       = 50;  
 Master_config.Fast.Num_UEs          = 800;
 certainty = 99 * 1e-2;
 fractional_area = 0.1 * 1e-2;
@@ -60,9 +60,17 @@ fprintf('STARTING CONSTELLATION SWEEP AT: %s\n', char(start_time));
 fprintf('=======================================================\n');
 
 
+% Create master sweep output folder up-front so gridsearch runs nest inside it
+date_str_start = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+folder_name    = sprintf('Master_Sweep_%s', date_str_start);
+out_dir        = fullfile('simulation_output', folder_name);
+if ~exist(out_dir, 'dir'), mkdir(out_dir); end
+gridsearch_base = fullfile(out_dir, 'gridsearch_runs');
+
 star_sats = [];
 best_delta_sats = table();
 all_delta_sats = [];
+gridsearch_dirs = cell(length(heights_km), 1);
 
 % Runs through all orbit heights from top to bottom
 heights_km = sort(heights_km,"descend");
@@ -86,32 +94,30 @@ for i = 1:length(heights_km)
         min_sats = 0; %floor(star_N * 0.6); % Limit search space based on analytical star
     end 
 
-    [best_params, all_delta_sats{i}] = gridsearch(Master_config, heights_km(i), min_sats);
+    [best_params, all_delta_sats{i}, gridsearch_dirs{i}] = gridsearch(Master_config, heights_km(i), min_sats, gridsearch_base);
 
     % Keep one best row per altitude in sweep order.
     best_delta_sats = [best_delta_sats; best_params(1, :)];
 
     % Reset parallel environment between iterations: kill workers first, then purge files.
-    delete(gcp('nocreate'));
-    [~,~] = system(['pgrep -f "MATLAB/R2024b" | grep -v ^' my_pid '$ | xargs -r kill -9 2>/dev/null']);
-    pause(1);
-    [~, ~] = system(['rm -rf ' cluster_dir '/Job* 2>/dev/null']);
+    % delete(gcp('nocreate'));
+    % [~,~] = system(['pgrep -f "MATLAB/R2024b" | grep -v ^' my_pid '$ | xargs -r kill -9 2>/dev/null']);
+    % pause(1);
+    % [~, ~] = system(['rm -rf ' cluster_dir '/Job* 2>/dev/null']);
 
 end
 
 %% --- 3. Save Outputs ---
-date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-folder_name = sprintf('Master_Sweep_%s', date_str);
-out_dir = fullfile('simulation_output', folder_name);
-            
-if ~exist(out_dir, 'dir')
-    mkdir(out_dir);
-end
+% (out_dir was already created before the loop)
 
 % Save results for plot regeneration via plotting_scripts/plot_sweep.m
 save(fullfile(out_dir, 'Master_Altitude_Sweep_Results.mat'), ...
-    'heights_km', 'star_sats', 'best_delta_sats', 'all_delta_sats', 'Master_config');
+    'heights_km', 'star_sats', 'best_delta_sats', 'all_delta_sats', 'Master_config', 'gridsearch_dirs');
 fprintf('Results saved. Regenerate plots with: plot_sweep(''%s'')\n', out_dir);
+
+% Save optimal constellations to workspace root so get_cfg.m can load them
+save('optimal_constellations.mat', 'heights_km', 'star_sats', 'best_delta_sats');
+fprintf('Optimal constellations saved to optimal_constellations.mat\n');
 
 % --- RECORD END TIME ---
 end_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');

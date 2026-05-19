@@ -42,7 +42,9 @@ delta_plot_y = best_delta_sats.Total_sats';
 
 if isfield(loaded, 'Master_config')
     minimum_lat_deg = min(loaded.Master_config.Lat_range_deg);
-    title_str = sprintf('Walker Star vs Minimum Walker Delta (Lat: %0.1f\x00B0)', minimum_lat_deg);
+    maximum_lat_deg = max(loaded.Master_config.Lat_range_deg);
+    title_str = sprintf('Optimal Walker Constellations | Lat: %0.1f^{\\circ} - %0.1f^{\\circ} | \\epsilon_{min}: %0.1f^{\\circ}', ...
+    minimum_lat_deg, maximum_lat_deg, loaded.Master_config.Min_elevation_UE);
 else
     title_str = 'Walker Star vs Minimum Walker Delta';
 end
@@ -50,10 +52,10 @@ end
 set(0, 'DefaultAxesFontSize', 14);
 set(0, 'DefaultTextFontSize', 14);
 
-f1 = figure('Visible', 'off', 'Name', 'Constellation Comparison', 'Color', 'w', 'Position', [100 100 1000 600]);
+f1 = figure('Visible', 'off', 'Name', 'Constellation Comparison', 'Color', 'w', 'Position', [100 100 700 450]);
 hold on;
-scatter(heights_km, star_plot_y,  36, 'o', 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'DisplayName', 'Analytical Walker Star');
-scatter(heights_km, delta_plot_y, 36, 'o', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'DisplayName', 'Optimized Walker Delta');
+scatter(heights_km, star_plot_y,  36, 'o', 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'DisplayName', 'Walker Star');
+scatter(heights_km, delta_plot_y, 36, 'o', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'DisplayName', 'Walker Delta');
 xlabel('Orbit Height (km)', 'FontWeight', 'bold');
 ylabel('Total Satellites Required', 'FontWeight', 'bold');
 title(title_str);

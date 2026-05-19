@@ -35,7 +35,7 @@ if ~exist(out_dir, 'dir')
 end
 
 % Create figure with a white background
-f1 = figure('Color', 'w', 'Position', [100, 100, 900, 600]);
+f1 = figure('Color', 'w', 'Position', [100, 100, 700, 450]);
 
 % --- Left Axis (Planes & Sats/Plane) ---
 yyaxis left;
@@ -44,7 +44,7 @@ plot(heights_km, planes, '-', 'Color', '#D95319', 'LineWidth', 1.5); hold on;
 plot(heights_km, sats, '-', 'Color', '#0072BD', 'LineWidth', 1.5);
 
 % Make the left axis and label neutral (black) since it tracks two different variables
-ylabel('Count', 'Color', 'k'); 
+ylabel('Planes | Sats/Plane', 'Color', 'k'); 
 ax = gca;
 ax.YAxis(1).Color = 'k'; 
 ylim([0, max(sats)]);
@@ -59,8 +59,7 @@ ylim([0, max(total_sats)*1.5]);
 grid on;
 ax.GridAlpha = 0.25; % Softer grid lines to keep focus on the data
 xlabel('Orbit Height (km)');
-title(sprintf('Walker-Star Configuration | Min Elevation: %d° | Min Latitude: %0.1f°', Min_elevation_UE, minimum_lat_deg));
-
+title(sprintf('Walker-Star Configuration | Lat: %0.1f^{\\circ} | \\epsilon_{min}: %0.1f^{\\circ}', Min_elevation_UE, minimum_lat_deg));
 % Legend improvements
 lgd = legend('Planes', 'Sats/Plane', 'Total Satellites', 'Location', 'best');
 % lgd.Box = 'off'; % Removes the distracting border around the legend

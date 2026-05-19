@@ -4,26 +4,33 @@ clear; close all; clc;
 % Deleting files while workers are alive leaves MathWorksServiceHost with stale
 % in-memory references, causing 'Index exceeds array bounds' on the next parpool().
 delete(gcp('nocreate'));
-my_pid = num2str(feature('getpid'));
-[~,~] = system(['pgrep -f "MATLAB/R2024b" | grep -v ^' my_pid '$ | xargs -r kill -9 2>/dev/null']);
-pause(1); % let workers fully die
-matlab_dir = fileparts(prefdir);
-cluster_dir = fullfile(matlab_dir, 'local_cluster_jobs', ['R' version('-release')]);
-[~, ~] = system(['rm -rf ' cluster_dir '/Job* 2>/dev/null']);
+% my_pid = num2str(feature('getpid'));
+% [~,~] = system(['pgrep -f "MATLAB/R2024b" | grep -v ^' my_pid '$ | xargs -r kill -9 2>/dev/null']);
+% pause(1); % let workers fully die
+% matlab_dir = fileparts(prefdir);
+% cluster_dir = fullfile(matlab_dir, 'local_cluster_jobs', ['R' version('-release')]);
+% [~, ~] = system(['rm -rf ' cluster_dir '/Job* 2>/dev/null']);
 
 
 Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
 Master_config.Min_elevation_UE      = 20;
-Master_config.Num_Planes            = 2:32; % Num Planes
-Master_config.Sats_Plane            = 2:32; % Sats per Plane
-Master_config.Inc_vec               = linspace(70, 80, 81); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+% Master_config.Num_Planes            = 2:20; % Num Planes
+% Master_config.Sats_Plane            = 5:25; % Sats per Plane
+% Master_config.Inc_vec               = linspace(70, 80, 111); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+% Master_config.WalkerStar            = false;                 % Locks phasing to floor(P/2)
+
+Master_config.Num_Planes            = 2:10;
+Master_config.Sats_Plane            = 5:30;
+Master_config.Inc_vec               = 87;       % Fixed at 87° for Walker Star
+Master_config.WalkerStar            = true;     % Locks phasing to floor(P/2)
+
 Master_config.Target_num_candidates = 1;
-Master_config.SampleTime            = 420;
+Master_config.SampleTime            = 660;
 
 % Sub Run configurations
-Master_config.Ultrafast.Duration_h  = 2;  
+Master_config.Ultrafast.Duration_h  = 3;  
 Master_config.Ultrafast.Num_UEs     = 200;
-Master_config.Fast.Duration_h       = 40;  
+Master_config.Fast.Duration_h       = 50;  
 Master_config.Fast.Num_UEs          = 800;
 certainty = 99 * 1e-2;
 fractional_area = 0.1 * 1e-2;
@@ -38,6 +45,6 @@ Master_config.Detailed.Num_UEs      = required_UEs;
 
 
 orbit_height_km = 1000;
-min_sats = 55;
+min_sats = 40;
 plot_individual_results = true;
-[best_params, all_delta_sats] = gridsearch(Master_config, orbit_height_km, plot_individual_results, min_sats);
+[best_params, all_delta_sats] = gridsearch(Master_config, orbit_height_km, min_sats);

@@ -2,25 +2,49 @@ function plot_gridsearch(target)
 % PLOT_GRIDSEARCH  Regenerate gridsearch plots from saved plot_data.mat files.
 %
 % Usage:
-%   plot_gridsearch()                    - all runs in simulation_output/gridsearch_runs/
-%   plot_gridsearch('path/to/run')       - one specific run folder
-%   plot_gridsearch({'path1', 'path2'})  - list of run folders
+%   plot_gridsearch()                            - most recent Master_Sweep_*/gridsearch_runs/
+%   plot_gridsearch('path/to/sweep')             - all runs inside a Master_Sweep folder
+%   plot_gridsearch('path/to/run')               - one specific gridsearch run folder
+%   plot_gridsearch({'path1', 'path2'})          - list of run folders
 
 script_dir     = fileparts(mfilename('fullpath'));
 workspace_root = fileparts(script_dir);
 addpath(genpath(fullfile(workspace_root, 'functions')));
 
-runs_root = fullfile(workspace_root, 'simulation_output', 'gridsearch_runs');
+sim_dir   = fullfile(workspace_root, 'simulation_output');
+runs_root = fullfile(sim_dir, 'gridsearch_runs');
 
 if nargin == 0
-    hits = dir(fullfile(runs_root, '*', 'plot_data.mat'));
+    % Prefer the most recent Master_Sweep folder's nested gridsearch_runs;
+    % fall back to the legacy top-level gridsearch_runs directory.
+    sweep_hits = dir(fullfile(sim_dir, 'Master_Sweep_*'));
+    sweep_hits = sweep_hits([sweep_hits.isdir]);
+    if ~isempty(sweep_hits)
+        [~, best] = max([sweep_hits.datenum]);
+        search_root = fullfile(sim_dir, sweep_hits(best).name, 'gridsearch_runs');
+        fprintf('Searching within most recent sweep: %s\n', search_root);
+    else
+        search_root = runs_root;
+    end
+    hits = dir(fullfile(search_root, '*', 'plot_data.mat'));
     if isempty(hits)
-        error('No plot_data.mat files found under:\n  %s', runs_root);
+        error('No plot_data.mat files found under:\n  %s', search_root);
     end
     folders = unique({hits.folder});
     fprintf('Found %d run(s) with plot data.\n', numel(folders));
 elseif ischar(target) || isstring(target)
-    folders = {char(target)};
+    target = char(target);
+    if target(1) ~= '/' && ~(numel(target) > 1 && target(2) == ':')
+        target = fullfile(workspace_root, target);
+    end
+    % If target is a Master_Sweep folder, expand to all nested runs.
+    nested_hits = dir(fullfile(target, 'gridsearch_runs', '*', 'plot_data.mat'));
+    if ~isempty(nested_hits)
+        folders = unique({nested_hits.folder});
+        fprintf('Master_Sweep folder: found %d run(s) with plot data.\n', numel(folders));
+    else
+        folders = {target};
+    end
 elseif iscell(target)
     folders = target;
 else

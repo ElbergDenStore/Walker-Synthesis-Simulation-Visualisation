@@ -24,13 +24,13 @@ if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 %% ── Load optimal constellations ─────────────────────────────────────────
 project_root = fileparts(script_dir);
 opt          = load(fullfile(project_root, 'optimal_constellations.mat'));
-target_h_km  = 1000;
+target_h_km  = 840;
 idx          = find(opt.heights_km == target_h_km, 1, 'first');
 if isempty(idx)
     error('No entry for %d km in optimal_constellations.mat', target_h_km);
 end
 
-delta_raw = opt.best_delta_sats(idx);
+delta_raw = opt.best_delta_sats(idx, :);
 star_raw  = opt.star_sats(idx);
 
 fprintf('Walker Delta  – planes: %d  sats/plane: %d  inc: %g°  total: %d\n', ...

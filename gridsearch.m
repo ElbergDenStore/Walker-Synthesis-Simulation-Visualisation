@@ -1,13 +1,26 @@
-function [best_params, all_candidates] = gridsearch(master_config, orbit_height_km, min_sats)
+function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbit_height_km, min_sats, base_out_dir)
+    if nargin < 4 || isempty(base_out_dir)
+        base_out_dir = fullfile('simulation_output', 'gridsearch_runs');
+    end
     %% 1. Build the Ascending Grid
-    % For each p, phase factor f = 0:(p-1) gives p values, so total rows =
-    % sum(Num_Planes) * numel(Sats_Plane) * numel(Inc_vec).
-    Num_constellations = sum(master_config.Num_Planes) * numel(master_config.Sats_Plane) * numel(master_config.Inc_vec);
+    % Walker Star mode: phasing fixed at p/2 (can be non-integer); no phasing loop.
+    % Walker Delta mode: phase factor f = 0:(p-1) gives p values per plane count.
+    walker_star_mode = isfield(master_config, 'WalkerStar') && master_config.WalkerStar;
+    if walker_star_mode
+        Num_constellations = numel(master_config.Num_Planes) * numel(master_config.Sats_Plane) * numel(master_config.Inc_vec);
+    else
+        Num_constellations = sum(master_config.Num_Planes) * numel(master_config.Sats_Plane) * numel(master_config.Inc_vec);
+    end
     grid_data = zeros(Num_constellations,5);
     i = 1;
     for p = master_config.Num_Planes
         for s = master_config.Sats_Plane
-            for f = 0:(p-1) % Integer Walker Phase Factor.
+            if walker_star_mode
+                phasing_vec = p/2;
+            else
+                phasing_vec = 0:(p-1);
+            end
+            for f = phasing_vec
                 for inc = master_config.Inc_vec
                     grid_data(i,:) = [p, s, inc, f, p*s];
                     i = i + 1;
@@ -71,6 +84,12 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
 
     q = parallel.pool.PollableDataQueue;
     futures = parallel.FevalFuture.empty(1, 0);
+    worker_assigned_indices = cell(1, num_workers); % tracks which run indices each worker owns
+    worker_input_queues = cell(1, num_workers);     % back-channel queue (client -> worker)
+    runs_skipped = 0;                               % counts runs dropped due to worker death
+    runs_skipped_threshold = 0;                     % runs skipped because they exceed worst-accepted sats
+    threshold_broadcast = false;                    % becomes true once skip-threshold is sent
+    skip_above_sats = Inf;                          % cached threshold for late-registering workers
 
     %% 4. Submit Interleaved Chunks (Glass Cockpit model)
     fprintf('\nSubmitting interleaved chunks to %d workers...\n\n', num_workers);
@@ -79,6 +98,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
         % Interleave indices so all workers start from cheaper architectures.
         indices = w:num_workers:total_runs;
         if ~isempty(indices)
+            worker_assigned_indices{w} = indices;
             worker_grid = search_grid(indices, :);
             futures(w) = parfeval(pool, @evaluate_chunk, 0, ...
                 q, master_config, orbit_height_km, worker_grid, indices, w);
@@ -96,11 +116,29 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
 
         if gotMsg
             wid = data.worker_id;
-            w_runs(wid) = data.run_idx;
             w_last_msg_s(wid) = toc(t_run_start);
+
+            if isfield(data, 'is_registration') && data.is_registration
+                worker_input_queues{wid} = data.queue_handle;
+                % If threshold was already broadcast before this worker registered, send it now.
+                if threshold_broadcast
+                    send(worker_input_queues{wid}, struct('skip_above_sats', skip_above_sats));
+                end
+                continue;
+            end
+
+            w_runs(wid) = data.run_idx;
 
             if isfield(data, 'is_worker_error') && data.is_worker_error
                 error('\n[!] WORKER %d ERROR ON RUN %d: %s', wid, data.run_idx, data.error_message);
+            end
+
+            if isfield(data, 'is_skipped') && data.is_skipped
+                runs_completed = runs_completed + 1;
+                runs_skipped_threshold = runs_skipped_threshold + 1;
+                is_completed(data.run_idx) = true;
+                w_states(wid) = "Skip";
+                continue;
             end
 
             if isfield(data, 'is_heartbeat') && data.is_heartbeat
@@ -145,7 +183,7 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
                     end
                 end
 
-                % --- DETERMINISTIC STOPPING LOGIC ---
+                % --- DETERMINISTIC STOPPING / THRESHOLD BROADCAST ---
                 if candidates_found >= target_num_candidates
                     sorted_candidates = sortrows(all_candidates, 'Total_sats', 'ascend');
                     worst_accepted_sats = sorted_candidates.Total_sats(target_num_candidates);
@@ -155,14 +193,21 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
                         break;
                     end
 
-                    cheapest_pending_sats = search_grid.Total_sats(first_pending_idx);
-                    if cheapest_pending_sats > worst_accepted_sats
-                        fprintf('\n--- Deterministic Stop! ---\n');
-                        fprintf('Top %d optimal candidates found (worst accepted sats: %d).\n', target_num_candidates, worst_accepted_sats);
-                        fprintf('Cheapest pending run has %d sats (cannot improve). Canceling remaining %d runs.\n', ...
-                            cheapest_pending_sats, total_runs - runs_completed);
-                        cancel(futures);
-                        break;
+                    % Broadcast (or update) the skip threshold to all workers so they
+                    % skip remaining runs above the worst-accepted satellite count.
+                    % Workers that pass the threshold continue normally; if everything
+                    % left in a worker's chunk is above the threshold, it exits early.
+                    if ~threshold_broadcast || worst_accepted_sats < skip_above_sats
+                        skip_above_sats = worst_accepted_sats;
+                        for wq = 1:numel(worker_input_queues)
+                            if ~isempty(worker_input_queues{wq})
+                                send(worker_input_queues{wq}, struct('skip_above_sats', skip_above_sats));
+                            end
+                        end
+                        if ~threshold_broadcast
+                            fprintf('\n--- Skip threshold broadcast: drop runs with > %d sats (workers idle once chunk drained) ---\n', skip_above_sats);
+                        end
+                        threshold_broadcast = true;
                     end
                 end
             end
@@ -184,26 +229,33 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
                     error('\n[!] WORKER %d ERROR ON RUN %d: %s', drain_data.worker_id, drain_data.run_idx, drain_data.error_message);
                 end
             end
-            % Check for hard crashes via future error property
+            % Check for crashes — skip dead workers' remaining runs instead of aborting
             for fe = 1:numel(futures)
-                if strcmp(futures(fe).State, 'unavailable')
-                    error('\n[!] WORKER %d BECAME UNAVAILABLE (likely hard crash).', fe);
-                end
-                if ~isempty(futures(fe).Error)
-                    error('\n[!] WORKER %d CRASHED: %s', fe, futures(fe).Error.message);
+                is_dead = strcmp(futures(fe).State, 'unavailable') || ~isempty(futures(fe).Error);
+                if is_dead && ~isempty(worker_assigned_indices{fe})
+                    msg = 'unavailable';
+                    if ~isempty(futures(fe).Error), msg = futures(fe).Error.message; end
+                    incomplete_idx = worker_assigned_indices{fe}(~is_completed(worker_assigned_indices{fe}));
+                    is_completed(incomplete_idx) = true;
+                    runs_skipped = runs_skipped + numel(incomplete_idx);
+                    worker_assigned_indices{fe} = []; % prevent double-processing
+                    fprintf('\n[!] WORKER %d DIED: %s. Skipped %d remaining runs.\n', fe, msg, numel(incomplete_idx));
                 end
             end
             break;
         end
 
-        if any(strcmp(f_states, 'finished')) || any(strcmp(f_states, 'unavailable'))
-            errs = {futures.Error};
-            for e = 1:length(errs)
-                if strcmp(f_states{e}, 'unavailable')
-                    error('\n[!] WORKER %d BECAME UNAVAILABLE (likely hard crash).', e);
-                end
-                if ~isempty(errs{e})
-                    error('\n[!] WORKER %d CRASHED: %s', e, errs{e}.message);
+        if any(strcmp(f_states, 'unavailable'))
+            for e = 1:numel(futures)
+                is_dead = strcmp(f_states{e}, 'unavailable') || ~isempty(futures(e).Error);
+                if is_dead && ~isempty(worker_assigned_indices{e})
+                    msg = 'unavailable';
+                    if ~isempty(futures(e).Error), msg = futures(e).Error.message; end
+                    incomplete_idx = worker_assigned_indices{e}(~is_completed(worker_assigned_indices{e}));
+                    is_completed(incomplete_idx) = true;
+                    runs_skipped = runs_skipped + numel(incomplete_idx);
+                    worker_assigned_indices{e} = []; % prevent double-processing
+                    fprintf('\n[!] WORKER %d DIED: %s. Skipped %d remaining runs.\n', e, msg, numel(incomplete_idx));
                 end
             end
         end
@@ -215,8 +267,16 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
                     last_s = 0;
                 end
                 if (toc(t_run_start) - last_s) > stall_timeout_s
-                    error('\n[!] WORKER %d STALLED > %.0fs (state=%s, run=%d). Set master_config.Worker_stall_timeout_s to adjust timeout.', ...
+                    fprintf('\n[!] WORKER %d STALLED > %.0fs (state=%s, run=%d). Cancelling and skipping its runs.\n', ...
                         w, stall_timeout_s, w_states(w), w_runs(w));
+                    cancel(futures(w));
+                    if ~isempty(worker_assigned_indices{w})
+                        incomplete_idx = worker_assigned_indices{w}(~is_completed(worker_assigned_indices{w}));
+                        is_completed(incomplete_idx) = true;
+                        runs_skipped = runs_skipped + numel(incomplete_idx);
+                        worker_assigned_indices{w} = []; % prevent double-processing
+                        fprintf('[!] Skipped %d runs for stalled worker %d.\n', numel(incomplete_idx), w);
+                    end
                 end
             end
         end
@@ -228,7 +288,16 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
 
     generate_profiling_report(run_time, runs_completed, num_workers, ...
         t_faster_all, t_fast_all, t_detailed_all, worker_run_counts, worker_total_math_time);
+    if runs_skipped > 0
+        fprintf('[!] %d runs skipped due to worker failure(s) (%.1f%% of filtered grid).\n', ...
+            runs_skipped, 100*runs_skipped/max(total_runs,1));
+    end
+    if runs_skipped_threshold > 0
+        fprintf('[i] %d runs skipped because total_sats exceeded worst-accepted (%d).\n', ...
+            runs_skipped_threshold, skip_above_sats);
+    end
 
+    out_dir = ''; % initialised here; assigned in section 7 when a candidate is found
     if isempty(best_params)
         fprintf('\n[!] GRID SEARCH EXHAUSTED [!]\n');
         fprintf('No constellation achieved 99.999%% coverage within limits.\n');
@@ -244,15 +313,20 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     %% 7. Create Output Directory (report + plots)
     date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
     folder_name = sprintf('%.0f_%d_%s', orbit_height_km, best_params.Total_sats, date_str);
-    out_dir = fullfile('simulation_output/gridsearch_runs', folder_name);
+    out_dir = fullfile(base_out_dir, folder_name);
     if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 
     report_path = fullfile(out_dir, 'deep_profile_report.txt');
     write_profiling_report_to_file(report_path, master_config, run_time, runs_completed, num_workers, ...
         t_faster_all, t_fast_all, t_detailed_all, worker_run_counts, worker_total_math_time, ...
-        best_params, all_candidates, search_grid, status_flags);
+        best_params, all_candidates, search_grid, status_flags, Num_constellations, total_runs);
 
     %% 8. Save Plot Data
+    t1_valid = t_faster_all(~isnan(t_faster_all));
+    t2_valid = t_fast_all(~isnan(t_fast_all));
+    t3_valid = t_detailed_all(~isnan(t_detailed_all));
+    n1 = numel(t1_valid); n2 = numel(t2_valid); n3 = numel(t3_valid);
+
     plot_data.search_grid           = search_grid;
     plot_data.status_flags          = status_flags;
     plot_data.evaluated_coverage    = evaluated_coverage;
@@ -261,6 +335,19 @@ function [best_params, all_candidates] = gridsearch(master_config, orbit_height_
     plot_data.worst_accepted_sats   = worst_accepted_sats;
     plot_data.all_candidates        = all_candidates;
     plot_data.target_num_candidates = target_num_candidates;
+    % Multi-stage profiling stats (consumed by summarize_sweep)
+    plot_data.n_full_grid           = Num_constellations;
+    plot_data.n_total_grid          = total_runs;
+    plot_data.n_stage1              = n1;
+    plot_data.n_stage2              = n2;
+    plot_data.n_stage3              = n3;
+    plot_data.avg_t1_s              = sum(t1_valid) / max(n1, 1);
+    plot_data.avg_t2_s              = sum(t2_valid) / max(n2, 1);
+    plot_data.avg_t3_s              = sum(t3_valid) / max(n3, 1);
+    plot_data.wall_time_s           = run_time;
+    plot_data.num_workers           = num_workers;
+    plot_data.candidates_found      = candidates_found;
+    plot_data.runs_skipped          = runs_skipped;
     save(fullfile(out_dir, 'plot_data.mat'), 'plot_data');
     fprintf('Plot data saved. Regenerate plots with: plot_gridsearch(''%s'')\n', out_dir);
 end
@@ -272,7 +359,33 @@ function evaluate_chunk(q, master_config, orbit_height_km, worker_grid, original
     % Force workers to one thread to avoid oversubscription.
     maxNumCompThreads(1);
 
+    % Back-channel queue so the client can broadcast a skip threshold.
+    % worker_grid is a sorted-ascending stride of search_grid, so once a row
+    % exceeds the threshold every remaining row does too -> safe to early-exit.
+    q_in = parallel.pool.PollableDataQueue;
+    send(q, struct('worker_id', worker_id, 'is_registration', true, 'queue_handle', q_in));
+    skip_above_sats = Inf;
+
     for i = 1:height(worker_grid)
+        % Drain any pending threshold updates (keep the most recent / smallest).
+        while true
+            [msg, gotMsg] = poll(q_in, 0);
+            if ~gotMsg, break; end
+            if isfield(msg, 'skip_above_sats')
+                skip_above_sats = min(skip_above_sats, msg.skip_above_sats);
+            end
+        end
+
+        if worker_grid.Total_sats(i) > skip_above_sats
+            % All remaining rows are >= this one (sorted ascending) -> skip them all.
+            for j = i:height(worker_grid)
+                send(q, struct('worker_id', worker_id, ...
+                    'run_idx', original_indices(j), ...
+                    'is_skipped', true));
+            end
+            return;
+        end
+
         local_config.Orbit_height_m = orbit_height_km * 1e3;
         local_config.Num_planes = worker_grid.Num_planes(i);
         local_config.Sats_per_plane = worker_grid.Sats_per_plane(i);
@@ -306,7 +419,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     Cfg.StartTime = datetime('1-Jun-2025 00:00:00', 'TimeZone', 'UTC') + hours((rand - 0.5) * 48);
     Cfg.SampleTime = master_config.SampleTime;
     Cfg.Min_elevation_UE = master_config.Min_elevation_UE;
-    Cfg.WalkerStar = false;
+    Cfg.WalkerStar = isfield(master_config, 'WalkerStar') && master_config.WalkerStar;
     Cfg.Orbit_height = local_config.Orbit_height_m;
     Cfg.Num_planes = local_config.Num_planes;
     Cfg.Sats_per_plane = local_config.Sats_per_plane;
@@ -417,7 +530,7 @@ function generate_profiling_report(wall_time, runs_done, n_workers, t1, t2, t3, 
 end
 
 function write_profiling_report_to_file(report_path, base_config, wall_time, runs_done, n_workers, ...
-    t1, t2, t3, w_counts, w_math, best_params, all_candidates, search_grid, status_flags)
+    t1, t2, t3, w_counts, w_math, best_params, all_candidates, search_grid, status_flags, n_full_grid, n_filtered_grid)
     fid = fopen(report_path, 'w');
     if fid == -1
         warning('Could not open deep profile report file: %s', report_path);
@@ -447,6 +560,14 @@ function write_profiling_report_to_file(report_path, base_config, wall_time, run
     end
 
     fprintf(fid, 'Worker Balance: Min %d, Max %d\n', min(w_counts), max(w_counts));
+    n_s1 = numel(t1(~isnan(t1)));
+    fprintf(fid, '----- Search Space Coverage -----\n');
+    fprintf(fid, 'Full grid:        %d constellations\n', n_full_grid);
+    fprintf(fid, 'Filtered grid:    %d constellations (>= min_sats)\n', n_filtered_grid);
+    fprintf(fid, 'Stage 1 eval:     %d  (%.1f%% of filtered grid)\n', n_s1, 100*n_s1/max(n_filtered_grid,1));
+    fprintf(fid, 'Early stopping:   skipped %d evals (%.1f%%)\n', ...
+        n_filtered_grid - n_s1, 100*(n_filtered_grid - n_s1)/max(n_filtered_grid,1));
+    fprintf(fid, 'Worker failures:  %d runs skipped\n', runs_done - n_s1); % positive if a worker died
     fprintf(fid, '=========================================================\n\n');
 
     fprintf(fid, '---------------- BASE CONFIG PARAMETERS ----------------\n');

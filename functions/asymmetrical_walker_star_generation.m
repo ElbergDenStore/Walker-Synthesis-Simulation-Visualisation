@@ -22,7 +22,7 @@ function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclinatio
     lambda_max = deg2rad(180 - (90 + min_elevation_deg + alpha));
     
     S = (2 * pi) / sats_per_plane;
-    lambda_street = acos(cos(lambda_max) / cos(S / 2));
+    lambda_street = acos(min(1, cos(lambda_max) / cos(S / 2)));
     
     D_maxCounter = 2 * lambda_street;
     D_maxSame = lambda_street + lambda_max;

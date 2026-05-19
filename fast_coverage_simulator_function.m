@@ -47,19 +47,33 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
     else
         %% PURE MATH WALKER GENERATOR
         if Cfg.WalkerStar == true
-            error('Fast math generator currently only supports Walker Delta.');
+            % Pure-math generator only supports Walker Delta; fall back to SGP4.
+            fprintf(' [!] WalkerStar requested in pure-math mode – falling back to SGP4.\n');
+            if isempty(cached_sc) || ~isvalid(cached_sc)
+                cached_sc = satelliteScenario;
+            else
+                if ~isempty(cached_sc.Satellites),     delete(cached_sc.Satellites);     end
+                if ~isempty(cached_sc.GroundStations), delete(cached_sc.GroundStations); end
+            end
+            sc = cached_sc;
+            sc.StartTime  = Cfg.StartTime;
+            sc.StopTime   = Cfg.StopTime;
+            sc.SampleTime = Cfg.SampleTime;
+            sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE);
+            [sat_pos_raw, ~, simTimes] = states(sats, "CoordinateFrame", "ECEF");
+            sat_pos_ecef = permute(sat_pos_raw, [1, 3, 2]);
+        else
+            % Build the exact time vector using double math
+            total_duration_sec = seconds(Cfg.StopTime - Cfg.StartTime);
+            time_steps_sec = 0 : Cfg.SampleTime : total_duration_sec;
+
+            simTimes = Cfg.StartTime + seconds(time_steps_sec);
+            simTimes.TimeZone = 'UTC';
+
+            sat_pos_ecef = fast_walker_ecef(Cfg.Orbit_height, Cfg.Inclination, ...
+                                            Cfg.Num_planes, Cfg.Sats_per_plane, ...
+                                            Cfg.Phasing, time_steps_sec, Cfg.StartTime);
         end
-        
-        % Build the exact time vector using double math
-        total_duration_sec = seconds(Cfg.StopTime - Cfg.StartTime);
-        time_steps_sec = 0 : Cfg.SampleTime : total_duration_sec;
-        
-        simTimes = Cfg.StartTime + seconds(time_steps_sec);
-        simTimes.TimeZone = 'UTC';
-        
-        sat_pos_ecef = fast_walker_ecef(Cfg.Orbit_height, Cfg.Inclination, ...
-                                        Cfg.Num_planes, Cfg.Sats_per_plane, ...
-                                        Cfg.Phasing, time_steps_sec, Cfg.StartTime);
     end
     
     % Cache the dimensions for the math loop

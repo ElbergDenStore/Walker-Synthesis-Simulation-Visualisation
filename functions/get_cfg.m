@@ -22,7 +22,8 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
 
         switch requested_constellation
             case 'walkerdelta'
-                Cfg = optimal_constellation.best_delta_sats(constellation_idx);
+                Cfg = optimal_constellation.best_delta_sats(constellation_idx, :);
+                Cfg = table2struct(Cfg);
                 Cfg.WalkerStar = false;
             case 'walkerstar'
                 Cfg = optimal_constellation.star_sats(constellation_idx);
