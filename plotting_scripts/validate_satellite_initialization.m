@@ -149,9 +149,18 @@ end
 %% --------------------------------------------------------------------
 function plot_traces(s, col, name)
     asc = [false; diff(s.lat) >= 0];
-    plot(s.lat( asc), s.alt( asc), '-',  'Color',col, 'LineWidth',1.7, ...
+
+    % Sort by latitude before plotting so MATLAB connects points in spatial
+    % order, not time order.  Without this, the two polar regions (Q1 top
+    % and Q4 top) are connected by a long horizontal line that visually
+    % dominates the figure — especially when the orbit is symmetric and
+    % both poles have the same altitude.
+    [la, ia] = sort(s.lat( asc)); aa = s.alt( asc); aa = aa(ia);
+    [ld, id] = sort(s.lat(~asc)); ad = s.alt(~asc); ad = ad(id);
+
+    plot(la, aa, '-',  'Color',col, 'LineWidth',1.7, ...
         'DisplayName', sprintf('%s ascending',  name));
-    plot(s.lat(~asc), s.alt(~asc), '--', 'Color',col, 'LineWidth',1.7, ...
+    plot(ld, ad, '--', 'Color',col, 'LineWidth',1.7, ...
         'DisplayName', sprintf('%s descending', name));
 end
 
