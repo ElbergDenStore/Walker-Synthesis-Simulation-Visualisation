@@ -1,133 +1,147 @@
-function plot_altitude_vs_latitude()
+function plot_altitude_vs_latitude(HEIGHT_KM_vec, el_min_vec, inc_deg)
 % PLOT_ALTITUDE_VS_LATITUDE
-%   Illustrates the WGS84 geometric altitude effect for a 90° polar orbit
-%   at 1000 km nominal height.
+%   Shows what coverage_simulator_function.m actually experiences when you
+%   specify "H km circular orbit, e=0".
 %
-%   WHY IS ALTITUDE HIGHEST AT THE POLES?
-%   The WGS84 ellipsoid has an equatorial radius of 6378.137 km but a polar
-%   radius of only 6356.752 km — a difference of ~21.4 km.  A satellite
-%   flying at constant orbital radius therefore sits ~21.4 km farther above
-%   the WGS84 surface at the poles than at the equator.  This effect is
-%   perfectly symmetric about the equator (same deviation at ±90°).
+%   The precision simulator places satellites at:
+%       r_sat = 6378.14 km  +  H km      (spherical orbit, constant radius)
+%   and places UEs on the WGS84 ellipsoid via lla2ecef(alt=0).
+%   Elevation angles are computed relative to the WGS84 surface normal.
 %
-%   The WGS84 deviation is isolated by locking |r| = a_design (removing
-%   any real orbit perturbation) and converting with ecef2lla.
+%   Two effects shift the effective nadir slant range away from H:
 %
-%   The "combined" curve uses real SGP4 positions with ecef2lla.  It may
-%   show a small north-south asymmetry (~1-3 km) from J2 perturbation, but
-%   the dominant ~21 km effect is purely geometric.
+%   (1) WGS84 GEOMETRY (~21 km, dominant, always present)
+%       The WGS84 polar radius is 21.385 km shorter than the equatorial
+%       radius.  The satellite orbit is spherical; the Earth surface is not.
+%       Nadir range increases from 0 km extra at equator to +21.4 km at poles.
 %
-%   Figure 1: full orbital period    (all latitudes)
-%   Figure 2: ascending pass only    (equator → north pole)
+%   (2) J2 ORBITAL PERTURBATION (~8-9 km, correlated with latitude)
+%       Earth's equatorial bulge deflects the circular orbit: the satellite
+%       flies ~9 km LOWER at the equator and ~9 km HIGHER at the poles.
+%       Analytical: dr = -(3/2) J2 (R_E/a)^2 a sin^2(i) cos(2*lat)
+%       Compounds with WGS84 at poles; partially cancels at equator.
+%
+%   Combined:  equator  ~  H - 9 km   (J2 reduces nadir range)
+%              poles    ~  H + 30 km  (WGS84 +21 km, J2 +9 km)
+%
+%   Usage:
+%     plot_altitude_vs_latitude()
+%     plot_altitude_vs_latitude([600 1000 1200], [10 25], 87)
 
-HEIGHT_KM = 1000;
-r_sphere  = 6378.14e3;          % spherical Earth used for orbit design [m]
-a_design  = r_sphere + HEIGHT_KM*1e3;
+if nargin < 1 || isempty(HEIGHT_KM_vec), HEIGHT_KM_vec = [600, 1000, 1200]; end
+if nargin < 2 || isempty(el_min_vec),    el_min_vec    = [10, 25];          end
+if nargin < 3 || isempty(inc_deg),       inc_deg       = 87;                end
 
-%% ── 1. Propagate one full orbit with SGP4 ───────────────────────────────
-T_orbit_s  = 2*pi * sqrt(a_design^3 / 3.986004418e14);
-sample_s   = 5;
+%% Constants matching coverage_simulator_function.m exactly
+r_earth = 6378.14e3;    % r_earth used in simulator  [m]
+b_wgs   = 6356.752e3;   % WGS84 polar semi-minor axis [m]
+J2      = 1.08263e-3;
 
-sc            = satelliteScenario;
-sc.StartTime  = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-sc.StopTime   = sc.StartTime + seconds(T_orbit_s + sample_s);
-sc.SampleTime = sample_s;
+fprintf('r_earth = %.3f km  (as in coverage_simulator_function.m)\n', r_earth/1e3);
+fprintf('WGS84 equatorial - polar = %.3f km\n', (r_earth - b_wgs)/1e3);
 
-sat = satellite(sc, a_design, 0, 90, 0, 0, 0, ...
-    'OrbitPropagator', 'sgp4', 'Name', 'PolarSat');
+%% Latitude grid
+lat_deg = linspace(-90, 90, 3601);
+phi     = deg2rad(lat_deg);
 
-fprintf('Propagating (%.0f s period, %d s sample)...\n', T_orbit_s, sample_s);
-[pos_raw, ~, ~] = states(sat, "CoordinateFrame", "ECEF");
-pos = squeeze(pos_raw)';   % [nT x 3] metres
+% Geocentric radius of WGS84 ellipsoid at geodetic latitude
+r_wgs84 = sqrt( ((r_earth^2 .* cos(phi)).^2 + (b_wgs^2 .* sin(phi)).^2) ./ ...
+                ((r_earth   .* cos(phi)).^2 + (b_wgs   .* sin(phi)).^2) );
 
-%% ── 2. Compute altitude effects ─────────────────────────────────────────
-r_actual = sqrt(sum(pos.^2, 2));   % real SGP4 orbital radius [m]
+eq_idx   = ceil(numel(lat_deg)/2);
+pole_idx = numel(lat_deg);
 
-% COMBINED: real SGP4 orbit + WGS84 geodetic conversion
-lla_real     = ecef2lla(pos);
-lat          = lla_real(:,1);
-alt_combined = lla_real(:,3) / 1e3;
+%% Figure 1: Nadir slant range vs latitude
+set(0,'DefaultAxesFontSize',13,'DefaultTextFontSize',13);
+f1 = figure('Name','Precision Simulator: Effective Nadir Range', ...
+    'Color','w','Position',[60 80 1100 480]);
+hold on;
+colors = lines(numel(HEIGHT_KM_vec));
 
-% WGS84 ONLY: lock |r| = a_design (no J2 perturbation), then apply ecef2lla.
-% This isolates the purely geometric effect of the oblate reference ellipsoid:
-% the WGS84 polar radius (6356.75 km) is ~21.4 km shorter than the equatorial
-% radius, so a satellite at constant orbital radius reads higher altitude over
-% the poles.  Effect is perfectly symmetric about the equator.
-pos_const_r    = pos ./ r_actual .* a_design;
-lla_const      = ecef2lla(pos_const_r);
-alt_wgs84_only = lla_const(:,3) / 1e3;
+fprintf('\n%-10s  %-14s  %-14s  %-14s  %-14s\n', ...
+    'Height', 'Equator(WGS)', 'Pole(WGS)', 'Equator(+J2)', 'Pole(+J2)');
 
-% Deviations from nominal HEIGHT_KM (always >= 0: WGS84 surface dips below
-% the sphere at all latitudes except the equator)
-dev_wgs84    = alt_wgs84_only - HEIGHT_KM;
-dev_combined = alt_combined   - HEIGHT_KM;
+for ki = 1:numel(HEIGHT_KM_vec)
+    H_m   = HEIGHT_KM_vec(ki) * 1e3;
+    r_sat = r_earth + H_m;
 
-% Ascending pass: nu=0 at epoch → equator northbound.  First T/4 = pole.
-n_asc = round((T_orbit_s/4) / sample_s);
-asc   = 1:n_asc;
+    % WGS84 geometry: nadir range = r_sat - r_WGS84(lat)
+    nadir_wgs = (r_sat - r_wgs84) / 1e3;
 
-fprintf('WGS84    p-p: %.4f km  (symmetric; WGS84 polar radius ~21.4 km below equatorial)\n', range(dev_wgs84));
-fprintf('Combined p-p: %.4f km  (small asymmetry from real J2 orbital perturbation)\n', range(dev_combined));
+    % J2 analytical short-period radial deviation (approximate: lat ~ arg-of-lat)
+    % dr = -(3/2) J2 (R_E/a)^2 a sin^2(i) cos(2*lat)
+    dr_j2    = -(3/2) * J2 * (r_earth/r_sat)^2 * r_sat * sind(inc_deg)^2 .* cos(2*phi);
+    nadir_j2 = nadir_wgs + dr_j2/1e3;
 
-%% ── 3. Plotting ──────────────────────────────────────────────────────────
-set(0, 'DefaultAxesFontSize', 13);
-set(0, 'DefaultTextFontSize', 13);
-c_wgs  = '#0072BD';
-c_comb = '#000000';
+    fprintf('%-10s  %-14.1f  %-14.1f  %-14.1f  %-14.1f\n', ...
+        sprintf('%d km', HEIGHT_KM_vec(ki)), ...
+        nadir_wgs(eq_idx), nadir_wgs(pole_idx), ...
+        nadir_j2(eq_idx),  nadir_j2(pole_idx));
 
-    function draw_panel(lat_v, devs, names, clrs, ttl)
-        hold on;
-        for ki = 1:numel(devs)
-            [ls, si] = sort(lat_v);
-            plot(ls, devs{ki}(si), '-', 'Color', clrs{ki}, ...
-                'LineWidth', 1.8, 'DisplayName', names{ki});
-        end
-        yline(0, 'k--', 'LineWidth', 1, 'HandleVisibility', 'off');
-        xlabel('Geodetic latitude (°)');
-        ylabel('Deviation from nominal (km)');
-        title(ttl);
-        legend('Location', 'best');
-        grid on;
-    end
+    % Solid = WGS84 geometry only
+    plot(lat_deg, nadir_wgs, '-', 'Color', colors(ki,:), 'LineWidth', 2.2, ...
+        'DisplayName', sprintf('H=%d km  (WGS84 geom)', HEIGHT_KM_vec(ki)));
 
-%% Figure 1 – full orbit
-f1 = figure('Name', 'Altitude Effects – Full Orbit', ...
-    'Color', 'w', 'Position', [60 80 1100 430]);
+    % Dashed = WGS84 + J2
+    plot(lat_deg, nadir_j2, '--', 'Color', colors(ki,:), 'LineWidth', 1.2, ...
+        'DisplayName', sprintf('H=%d km  (+J2, i=%d\xB0)', HEIGHT_KM_vec(ki), inc_deg));
 
-subplot(1,2,1);
-draw_panel(lat, {dev_wgs84}, {'WGS84 geometric'}, {c_wgs}, ...
-    sprintf('WGS84 effect  (p-p: %.3f km)', range(dev_wgs84)));
+    % Shaded band between the two
+    fill([lat_deg, fliplr(lat_deg)], [nadir_wgs, fliplr(nadir_j2)], ...
+        colors(ki,:), 'FaceAlpha', 0.12, 'EdgeColor', 'none', 'HandleVisibility', 'off');
 
-subplot(1,2,2);
-draw_panel(lat, {dev_wgs84, dev_combined}, ...
-    {'WGS84 geometric', 'Combined (SGP4 + WGS84)'}, ...
-    {c_wgs, c_comb}, 'Combined effect');
+    % Nominal horizontal reference
+    yline(HEIGHT_KM_vec(ki), ':', 'Color', [0.55 0.55 0.55], 'LineWidth', 1, ...
+        'HandleVisibility', 'off');
+end
 
-sgtitle(sprintf('Altitude variation – 90° polar orbit, %d km nominal (full orbit)', HEIGHT_KM), ...
-    'FontWeight', 'bold', 'FontSize', 14);
+text(-83, HEIGHT_KM_vec(1) - 12, 'Nominal (specified)', ...
+    'Color', [0.55 0.55 0.55], 'FontSize', 10);
 
-%% Figure 2 – ascending pass
-f2 = figure('Name', 'Altitude Effects – Ascending Pass', ...
-    'Color', 'w', 'Position', [60 560 1100 430]);
+xlabel('Geodetic latitude (\circ)');
+ylabel('Nadir slant range (km)');
+title(sprintf(['Effective nadir range in coverage\\_simulator\\_function.m\n' ...
+    'Solid = WGS84 geometry only   |   Dashed = +J2 (i = %d\xB0)'], inc_deg), ...
+    'FontWeight','bold');
+legend('Location','north','NumColumns',2);
+grid on;
 
-subplot(1,2,1);
-draw_panel(lat(asc), {dev_wgs84(asc)}, {'WGS84 geometric'}, {c_wgs}, ...
-    sprintf('WGS84 effect  (p-p: %.3f km)', range(dev_wgs84(asc))));
+%% Figure 2: Coverage footprint half-angle vs latitude
+%   rho = acos(r_WGS84(lat) * cos(el_min) / r_sat) - el_min
+H_ref  = HEIGHT_KM_vec(ceil(numel(HEIGHT_KM_vec)/2));
+r_ref  = r_earth + H_ref * 1e3;
+colors2 = lines(numel(el_min_vec));
 
-subplot(1,2,2);
-draw_panel(lat(asc), {dev_wgs84(asc), dev_combined(asc)}, ...
-    {'WGS84 geometric', 'Combined (SGP4 + WGS84)'}, ...
-    {c_wgs, c_comb}, 'Combined effect');
+f2 = figure('Name', sprintf('Footprint Half-Angle  (H=%d km)', H_ref), ...
+    'Color','w','Position',[60 580 900 420]);
+hold on;
 
-sgtitle(sprintf('Altitude variation – 90° polar orbit, %d km nominal (ascending pass)', HEIGHT_KM), ...
-    'FontWeight', 'bold', 'FontSize', 14);
+fprintf('\nCoverage half-angle  (H=%d km, WGS84 geometry):\n', H_ref);
+fprintf('%-14s  %-12s  %-12s  %-12s\n', 'Min elev', 'Equator', 'Pole', 'Pole-Equator');
 
-%% ── Save ─────────────────────────────────────────────────────────────────
+for ki = 1:numel(el_min_vec)
+    eps = el_min_vec(ki);
+    rho = acosd(min(1, r_wgs84 .* cosd(eps) / r_ref)) - eps;
+
+    fprintf('%-14s  %-12.3f  %-12.3f  %+.3f\n', ...
+        sprintf('%d\xB0', eps), rho(eq_idx), rho(pole_idx), rho(pole_idx)-rho(eq_idx));
+
+    plot(lat_deg, rho, '-', 'Color', colors2(ki,:), 'LineWidth', 2, ...
+        'DisplayName', sprintf('Min elev = %d\xB0', eps));
+end
+
+xlabel('Geodetic latitude (\circ)');
+ylabel('Coverage half-angle \rho (\circ)');
+title(sprintf('Coverage footprint half-angle vs latitude  (H = %d km)', H_ref), ...
+    'FontWeight','bold');
+legend('Location','north');
+grid on;
+
+%% Save
 script_dir = fileparts(mfilename('fullpath'));
 out_dir    = fullfile(script_dir, 'figures');
 if ~exist(out_dir, 'dir'), mkdir(out_dir); end
-
-exportgraphics(f1, fullfile(out_dir, 'altitude_vs_latitude_full_orbit.png'),     'Resolution', 300);
-exportgraphics(f2, fullfile(out_dir, 'altitude_vs_latitude_ascending_pass.png'),  'Resolution', 300);
-fprintf('Saved to %s\n', out_dir);
+exportgraphics(f1, fullfile(out_dir, 'nadir_range_vs_latitude.png'),       'Resolution',300);
+exportgraphics(f2, fullfile(out_dir, 'coverage_halfangle_vs_latitude.png'), 'Resolution',300);
+fprintf('\nSaved to %s\n', out_dir);
 end
