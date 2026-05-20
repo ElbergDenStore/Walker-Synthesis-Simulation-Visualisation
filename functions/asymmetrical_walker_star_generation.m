@@ -1,16 +1,23 @@
-function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclination, planes, sats_per_plane, min_elevation_deg)
+function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclination, planes, sats_per_plane, min_elevation_deg, propagator)
     arguments
         sc (1,1) satelliteScenario
         orbit_height (1,1) double % Assumed to be in meters based on r_earth = 6378.14e3
         inclination (1,1) double
         planes (1,1) double {mustBeInteger, mustBePositive}
         sats_per_plane (1,1) double {mustBeInteger, mustBePositive}
-        min_elevation_deg (1,1) double 
+        min_elevation_deg (1,1) double
+        propagator (1,1) string = "sgp4"
     end
 
     r_earth = 6378.14e3;
     a = r_earth + orbit_height;
-    e = 0;
+
+    % No eccentricity prewarping: SGP4 interprets the elements as Brouwer
+    % mean elements, so e=0 already maps to a near-circular mean orbit.
+    % The numerical propagator treats them as osculating, but prewarping does
+    % not help there either.  The custom RK4+J2 propagator handles its own
+    % frozen-orbit initialization internally.
+    e      = 0;
     argPer = 0;
 
     %  Calculate EXACT Seam Ratio for equal overlap ---
@@ -46,7 +53,7 @@ function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclinatio
             name = sprintf('S4D_%d', sat_num);
 
             new_sat = satellite(sc, a, e, inclination, raan, argPer, nu, ...
-                'Name', name, 'OrbitPropagator', 'sgp4');
+                'Name', name, 'OrbitPropagator', propagator);
 
             sat_array = [sat_array, new_sat];
         end
