@@ -12,11 +12,11 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
     r_earth = 6378.14e3;
     fprintf("Constructing Satellites\n")
     if Cfg.WalkerStar == true
-        sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE);
+        sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE, "two-body-keplerian");
     else
         sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
         Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
-        Name="S4D", OrbitPropagator="sgp4");
+        Name="S4D", OrbitPropagator="two-body-keplerian");
     end
 
     % Get the massive ECEF matrix instantly from SGP4

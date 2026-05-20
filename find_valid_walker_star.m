@@ -58,17 +58,17 @@ ylim([0, max(total_sats)*1.5]);
 % --- Formatting & Aesthetics ---
 grid on;
 ax.GridAlpha = 0.25; % Softer grid lines to keep focus on the data
-xlabel('Orbit Height (km)');
+xlabel('Orbital altitude (km)');
 title(sprintf('Walker-Star Configuration | Lat: %0.1f^{\\circ} | \\epsilon_{min}: %0.1f^{\\circ}', Min_elevation_UE, minimum_lat_deg));
 % Legend improvements
 lgd = legend('Planes', 'Sats/Plane', 'Total Satellites', 'Location', 'best');
 % lgd.Box = 'off'; % Removes the distracting border around the legend
 
 % IEEE Standard Fonts
-set(gca, 'FontName', 'Times New Roman', 'FontSize', 12);
+set(gca, 'FontName', 'Times New Roman', 'FontSize', 14);
 
 % Export
-exportgraphics(f1, fullfile(out_dir, 'Walker-Star.png'), 'Resolution', 600);
+exportgraphics(f1, fullfile(out_dir, 'Walker-Star.png'), 'Resolution', 300);
 close(f1);
 
 

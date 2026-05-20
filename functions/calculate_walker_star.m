@@ -1,9 +1,18 @@
 function [optimal_planes, optimal_sats_per_plane, total_sats] = calculate_walker_star(orbit_height_km, min_latitude_deg, min_elevation_deg)
-    Re = 6378.14;
-    Rs = Re + orbit_height_km;
+    % WGS84 ellipsoid parameters (km)
+    a = 6378.137;       % semi-major axis (equatorial radius)
+    b = 6356.7523142;   % semi-minor axis (polar radius)
+
+    % Orbital radius: circular orbit defined from the equatorial surface
+    Rs = a + orbit_height_km;
+
+    % WGS84 Earth radius at the target latitude
+    lat_rad = deg2rad(min_latitude_deg);
+    Re_lat = sqrt((a^4 * cos(lat_rad)^2 + b^4 * sin(lat_rad)^2) / ...
+                  (a^2 * cos(lat_rad)^2 + b^2 * sin(lat_rad)^2));
 
     % Calculate Earth Central Angle (lambda_max) in radians
-    alpha = asind((Re / Rs) * cosd(min_elevation_deg));
+    alpha = asind((Re_lat / Rs) * cosd(min_elevation_deg));
     lambda_max = deg2rad(180 - (90 + min_elevation_deg + alpha));
 
     % Define search bounds for satellites per plane
@@ -29,7 +38,7 @@ function [optimal_planes, optimal_sats_per_plane, total_sats] = calculate_walker
         D_maxCounter = 2 * lambda_street;
         D_maxSame = lambda_street + lambda_max;
         
-        P = ceil((((cosd(min_latitude_deg)*pi) - D_maxCounter) / D_maxSame) + 1);
+        P = ceil((((a / Re_lat) * cosd(min_latitude_deg)*pi) - D_maxCounter) / D_maxSame) + 1;
         total_sats = P * s;
         
         % Store the configuration if it is the new minimum
