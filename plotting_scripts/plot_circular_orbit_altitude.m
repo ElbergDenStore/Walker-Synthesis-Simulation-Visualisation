@@ -70,14 +70,13 @@ function plot_circular_orbit_altitude(HEIGHT_KM, INC_DEG)
 
     f1 = figure('Color','w', 'Position',[80 120 500 250]);
     hold on;
-    plot(lat_s, alt_s, '-', 'Color',[0.00 0.45 0.74], 'LineWidth',2.0, ...
-        'DisplayName','Orbital altitude');
+    plot(lat_s, alt_s, '-', 'Color',[0.00 0.45 0.74], 'LineWidth',2.0);
     yline(HEIGHT_KM, ':k', 'LineWidth',1.0, 'HandleVisibility','off');
     xlabel('Geodetic latitude (deg)');
     ylabel('Geodetic altitude (km)');
-    title(sprintf('Circular orbit: altitude vs latitude   (h = %g km, i = %g°)', ...
+    title(sprintf('Constant Equatorial Orbital Altitude | h = %g km, i = %g°', ...
         HEIGHT_KM, INC_DEG), 'FontWeight','bold');
-    legend('Location','best');
+    % legend('Location','best');
     grid on; xlim([-90 90]);
 
     fname1 = fullfile(out_dir, sprintf('circular_orbit_altitude_%dkm_i%.0f.png', ...
@@ -91,7 +90,7 @@ function plot_circular_orbit_altitude(HEIGHT_KM, INC_DEG)
     ax_left = axes(f2);
     hold(ax_left, 'on');
     p_alt = plot(ax_left, lat_s, alt_s, '-', 'Color',[0.00 0.45 0.74], ...
-        'LineWidth',2.0, 'DisplayName','Orbital altitude');
+        'LineWidth',2.0,'DisplayName','Circular orbit');
     yline(ax_left, HEIGHT_KM, ':k', 'LineWidth',1.0, 'HandleVisibility','off');
     ylabel(ax_left, 'Geodetic altitude (km)');
     xlabel(ax_left, 'Geodetic latitude (deg)');

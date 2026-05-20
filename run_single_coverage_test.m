@@ -2,7 +2,7 @@
 % /opt/VirtualGL/bin/vglrun matlab & - run it interactively with GPU rendering
 function run_single_coverage_test()
 clear all; close all; clc;
-Cfg = get_cfg(1000,"walkerdelta","medium","medium");
+Cfg = get_cfg(1000,"walkerdelta","medium","long");
 Cfg.FRF = 3;
 Cfg.RU = 1;
 
