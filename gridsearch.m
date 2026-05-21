@@ -426,6 +426,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     Cfg.Inclination = local_config.Inclination;
     Cfg.Phasing = local_config.Phasing;
     Cfg.Total_sats = local_config.Total_sats;
+    Cfg.Lat_range_deg = master_config.Lat_range_deg;
 
     p = Cfg.Num_planes;
     s = Cfg.Sats_per_plane;

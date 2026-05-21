@@ -14,10 +14,10 @@ delete(gcp('nocreate'));
 heights_km                          = 500:10:1200;
 Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)];
 Master_config.Min_elevation_UE      = 20;
-Master_config.Num_Planes            = 2:10;
-Master_config.Sats_Plane            = 5:30;
-Master_config.Inc_vec               = 87;       % Fixed at 87° for Walker Star
-Master_config.WalkerStar            = true;     % Locks phasing to floor(P/2)
+Master_config.Num_Planes            = 2:15;
+Master_config.Sats_Plane            = 5:35;
+Master_config.Inc_vec               = 90; 
+Master_config.WalkerStar            = true; 
 Master_config.Target_num_candidates = 1;
 Master_config.SampleTime            = 660;
 
@@ -66,7 +66,7 @@ for i = 1:length(heights_km)
     star_sats(i).Total_sats     = Total_sats;
     star_sats(i).Num_planes     = Num_planes;
     star_sats(i).Phasing        = Num_planes/2;
-    star_sats(i).Inclination    = 87;
+    star_sats(i).Inclination    = 90;
     star_sats(i).Sats_per_plane = Sats_per_plane;
 
     if i > 1
