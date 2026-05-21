@@ -5,11 +5,13 @@
 *.tif
 *.png
 
+
 log.txt
 
 # Large Data files (Keep these local!)
-*.mat
+# *.mat
 *.tar.gz
+*.tif
 
 # Folders to ignore
 Litterature/
