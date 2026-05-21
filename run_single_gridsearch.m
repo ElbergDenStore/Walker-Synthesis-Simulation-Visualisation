@@ -19,10 +19,10 @@ Master_config.Min_elevation_UE      = 20;
 % Master_config.Inc_vec               = linspace(70, 80, 111); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
 % Master_config.WalkerStar            = false;                 % Locks phasing to floor(P/2)
 
-Master_config.Num_Planes            = 2:10;
-Master_config.Sats_Plane            = 5:30;
-Master_config.Inc_vec               = 87;       % Fixed at 87° for Walker Star
-Master_config.WalkerStar            = true;     % Locks phasing to floor(P/2)
+Master_config.Num_Planes            = 2:15;
+Master_config.Sats_Plane            = 5:35;
+Master_config.Inc_vec               = 90;
+Master_config.WalkerStar            = true;
 
 Master_config.Target_num_candidates = 1;
 Master_config.SampleTime            = 660;
@@ -44,7 +44,7 @@ Master_config.Detailed.Num_UEs      = required_UEs;
 
 
 
-orbit_height_km = 1000;
-min_sats = 40;
+orbit_height_km = 510;
+min_sats = 160;
 plot_individual_results = true;
 [best_params, all_delta_sats] = gridsearch(Master_config, orbit_height_km, min_sats);
