@@ -4,14 +4,14 @@ function run_single_coverage_test()
 clear all; close all; clc;
 % Cfg = get_cfg(1000,"walkerdelta","medium","long");
 
-height_km        = 510;
+height_km        = 1200;
 min_elevation_UE = 20;
 
 Lat_range_deg = [54+(35/60), 83+(40/60)];
 % Lon_range_deg = [-(73+(10/60)), 33+(30/60)];
 Lon_range_deg = [-180, 180];
 StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-StopTime  = datetime('1-Jun-2025 12:59:59', 'TimeZone', 'UTC'); % 48 hours
+StopTime  = datetime('3-Jun-2025 12:59:59', 'TimeZone', 'UTC'); % 48 hours
 
 % Ku-band link budget
 f_DL           = 12e9;
@@ -23,7 +23,7 @@ Target_PFD_MHz = -115;      % dBW/m²/MHz
 FRF = 3;
 RU  = 1;
 
-NumUEs = 200;
+NumUEs = 5000;
 
 [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
 
@@ -62,8 +62,8 @@ CfgStar.WalkerStar = true;
 
 % 4               14              90            2           56             1100      
 % [Num_planes_star, Sats_per_plane_star, ~] = calculate_walker_star(height_km, min(Lat_range_deg), min_elevation_UE);
-CfgStar.Num_planes     = 7;
-CfgStar.Sats_per_plane = 23;
+CfgStar.Num_planes     = 4;
+CfgStar.Sats_per_plane = 12;
 CfgStar.Total_sats     = CfgStar.Num_planes * CfgStar.Sats_per_plane;
 CfgStar.Inclination    = 90; 
 CfgStar.Phasing        = CfgStar.Num_planes / 2;
@@ -79,8 +79,8 @@ fprintf("coverage percentage %0.8f",metrics_star.worst_coverage_percent)
 %% ===== PLOT RESULTS =====
 % plot_simulation(metrics_star,  use_parallel);
 
-show_interactive = true;
-save_fig = false;
-show_constellation(CfgStar, show_interactive, save_fig)
+% show_interactive = true;
+% save_fig = false;
+% show_constellation(CfgStar, show_interactive, save_fig)
 
 end
