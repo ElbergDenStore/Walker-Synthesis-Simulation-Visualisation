@@ -2,44 +2,84 @@
 % /opt/VirtualGL/bin/vglrun matlab & - run it interactively with GPU rendering
 function run_single_coverage_test()
 clear all; close all; clc;
-Cfg = get_cfg(1000,"walkerdelta","medium","long");
-Cfg.FRF = 3;
-Cfg.RU = 1;
+% Cfg = get_cfg(1000,"walkerdelta","medium","long");
 
-Cfg.DL.Direction     = "DL";
-Cfg.DL.G_rx          = 39;  
-Cfg.Target_PFD_MHz   = -128;
-Cfg.DL.G_tx          = get_adjusted_tx_gain(Cfg.Orbit_height, Cfg.Min_elevation_UE, Cfg.DL.f); 
-Cfg.DL.Max_P_tx_dBm  = PFD_calc(Cfg.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
-Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
+height_km        = 1120;
+min_elevation_UE = 20;
 
-4               14              90            2           56             1100     
+Lat_range_deg = [54+(35/60), 83+(40/60)];
+Lon_range_deg = [-(73+(10/60)), 33+(30/60)];
 
+StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
+StopTime  = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC'); % 48 hours
 
-[Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs([54+(35/60), 83+(40/60)], [-(73+(10/60)), 33+(30/60)], 2000);
+% Ku-band link budget
+f_DL           = 12e9;
+B_DL           = 50e6;
+NF_DL          = 5;
+G_rx           = 33;        % dBi, UE receive antenna gain
+Target_PFD_MHz = -115;      % dBW/m²/MHz
 
+FRF = 3;
+RU  = 1;
 
+NumUEs = 2000;
 
+[UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
 
-calc_link = false;
+%% ===== BUILD BASE CFG (fields shared by both constellations) =====
+BaseCfg.Orbit_height             = height_km * 1e3;  % m
+BaseCfg.Min_elevation_UE         = min_elevation_UE;
+BaseCfg.SampleTime               = 60;               % s
+BaseCfg.FRF                      = FRF;
+BaseCfg.RU                       = RU;
+BaseCfg.Use_P618                 = false;
+BaseCfg.Modified_shannon         = true;
+BaseCfg.Simple_Atmospheric_Loss_dB = 1;
+BaseCfg.Share_bandwidth          = false;
+BaseCfg.Target_PFD_MHz           = Target_PFD_MHz;
+BaseCfg.StartTime                = StartTime;
+BaseCfg.StopTime                 = StopTime;
+BaseCfg.Flat_UE_array.Lats       = UE_lats;
+BaseCfg.Flat_UE_array.Lons       = UE_lons;
+
+BaseCfg.DL.Direction     = "DL";
+BaseCfg.DL.f             = f_DL;
+BaseCfg.DL.B             = B_DL;
+BaseCfg.DL.NF            = NF_DL;
+BaseCfg.DL.G_rx          = G_rx;
+BaseCfg.DL.Tx_type       = "array";
+BaseCfg.DL.Rx_type       = "array";
+BaseCfg.DL.G_tx          = get_adjusted_tx_gain(BaseCfg.Orbit_height, min_elevation_UE, f_DL);
+BaseCfg.DL.Max_P_tx_dBm  = PFD_calc(Target_PFD_MHz, BaseCfg.DL.G_tx, B_DL, BaseCfg.Orbit_height, min_elevation_UE);
+BaseCfg.DL.Max_EIRP_dBm  = BaseCfg.DL.Max_P_tx_dBm + BaseCfg.DL.G_tx;
+BaseCfg.DL.Max_EIRP_dBm_Hz = BaseCfg.DL.Max_EIRP_dBm - 10*log10(B_DL);
+BaseCfg.DL.BeamGrid      = calculate_hexagonal_beams(BaseCfg.DL.G_tx, f_DL, BaseCfg.Orbit_height, min_elevation_UE, BaseCfg.DL.Max_EIRP_dBm_Hz, FRF);
+
+%% ===== WALKER STAR CONFIGURATION =====
+CfgStar = BaseCfg;
+CfgStar.WalkerStar = true;
+
+% 4               14              90            2           56             1100      
+% [Num_planes_star, Sats_per_plane_star, ~] = calculate_walker_star(height_km, min(Lat_range_deg), min_elevation_UE);
+CfgStar.Num_planes     = 4;
+CfgStar.Sats_per_plane = 14;
+CfgStar.Total_sats     = CfgStar.Num_planes * CfgStar.Sats_per_plane;
+CfgStar.Inclination    = 90; 
+CfgStar.Phasing        = CfgStar.Num_planes / 2;
+
+%% ===== RUN SIMULATIONS =====
 use_parallel = false;
-% metrics = fast_coverage_simulator_function(Cfg,false,false,false);
+calc_link    = true;
 
-metrics = coverage_simulator_function(Cfg,use_parallel,calc_link);
+fprintf('\nRunning Walker Star simulation...\n');
+metrics_star = coverage_simulator_function(CfgStar, use_parallel, calc_link);
 
-% Num_UEs = length(metrics.UEs);
-% plot_simulation(metrics, use_parallel);
+%% ===== PLOT RESULTS =====
+plot_simulation(metrics_star,  use_parallel);
 
-% save('last_run.mat', 'metrics')
-% load('last_run.mat') 
+% show_interactive = true;
+% save_fig = false;
+% show_constellation(CfgStar, show_interactive, save_fig)
 
-show_interactive = false;
-save_fig = true;
-% 
-if ~isempty(getenv('DISPLAY'))
-    show_constellation(Cfg, show_interactive, save_fig)
-else
-    disp('Skipping show_constellation because no display is available');
-end
-% fprintf("Worst Coverage percentage " + metrics.worst_coverage_percent);
 end

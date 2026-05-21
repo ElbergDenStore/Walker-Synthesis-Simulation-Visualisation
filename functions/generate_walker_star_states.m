@@ -27,6 +27,7 @@ function [r0, v0] = generate_walker_star_states(orbit_height_m, inclination, pla
         planes            (1,1) double {mustBeInteger, mustBePositive}
         sats_per_plane    (1,1) double {mustBeInteger, mustBePositive}
         min_elevation_deg (1,1) double
+        min_latitude_deg  (1,1) double = 0  % coverage reference latitude (deg); 0 = equatorial
     end
 
     mu   = 3.986004418e14;
@@ -37,7 +38,11 @@ function [r0, v0] = generate_walker_star_states(orbit_height_m, inclination, pla
 
     %% --- Asymmetric RAAN spacing (seam-ratio, same as asymmetrical_walker_star_generation) ---
     Rs_km      = a / 1e3;
-    Re_km      = Re_m / 1e3;
+    % WGS84 surface radius at the minimum coverage latitude (for seam geometry)
+    a_wgs_km = 6378.137; b_wgs_km = 6356.7523142;
+    lat_r_cov = deg2rad(min_latitude_deg);
+    Re_km = sqrt((a_wgs_km^4*cos(lat_r_cov)^2 + b_wgs_km^4*sin(lat_r_cov)^2) / ...
+                 (a_wgs_km^2*cos(lat_r_cov)^2 + b_wgs_km^2*sin(lat_r_cov)^2));
     alpha      = asind((Re_km / Rs_km) * cosd(min_elevation_deg));
     lambda_max = deg2rad(180 - (90 + min_elevation_deg + alpha));
     S          = (2*pi) / sats_per_plane;

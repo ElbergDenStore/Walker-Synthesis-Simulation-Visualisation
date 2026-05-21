@@ -222,6 +222,11 @@ end
 %% ---- Multi-stage filtering table ---------------------------------------
 print_multistage_table(loaded, sweep_folder, workspace_root);
 
+%% ---- Coverage gap analysis at target latitude --------------------------
+if isfield(loaded, 'Master_config')
+    print_gap_table(heights_km, best_star_sats, loaded.Master_config);
+end
+
 end
 
 %% ========================================================================
@@ -332,5 +337,121 @@ k = length(s) - 3;
 while k > 0
     s = [s(1:k) ',' s(k+1:end)];
     k = k - 3;
+end
+end
+
+
+function print_gap_table(heights_km, best_star_sats, cfg)
+% Print an ASCII table of the street-of-coverage gap at the target latitude
+% for every numerical Walker Star constellation in the sweep.
+%
+% Gap = coverage_requirement - coverage_available  (Earth Central Angle, rad)
+%   > 0  => uncovered strip of that angular width exists at the target lat
+%   <= 0 => full continuous coverage (no gap)
+%
+% Gap(deg)  : Earth Central Angle of the uncovered strip, in degrees
+% Gap(km)   : corresponding surface arc length
+% Gap0 lat  : lowest geographic latitude >= target lat at which gap closes
+
+a        = 6378.137;      % WGS84 semi-major axis (km)
+b        = 6356.7523142;  % WGS84 semi-minor axis (km)
+min_lat  = min(cfg.Lat_range_deg);
+min_elev = cfg.Min_elevation_UE;
+n        = numel(heights_km);
+
+sep = repmat('=', 1, 80);
+fprintf('\n%s\n', sep);
+fprintf('  Coverage Gap Analysis  |  Target lat = %.4f deg  |  eps_min = %.1f deg\n', ...
+    min_lat, min_elev);
+fprintf('  Numerical Walker Star constellations evaluated with the\n');
+fprintf('  street-of-coverage formula (same equations as calculate_walker_star).\n');
+fprintf('%s\n', sep);
+fprintf('  Gap(deg/km) = uncovered Earth Central Angle arc between adjacent planes\n');
+fprintf('                at the target latitude.\n');
+fprintf('  Gap0 lat    = lowest latitude at which the gap closes completely.\n');
+fprintf('%s\n\n', repmat('-', 1, 80));
+
+hdr_fmt  = '%-8s  %-3s  %-3s  %-4s  %-9s  %-10s  %-10s  %-14s\n';
+row_fmt  = '%-8d  %-3d  %-3d  %-4d  %-9.4f  %-10.4f  %-10.2f  %-14.4f\n';
+row0_fmt = '%-8d  %-3d  %-3d  %-4d  %-9.4f  %-10s  %-10s  %-14s\n';
+
+fprintf(hdr_fmt, 'Alt(km)', 'P', 'S', 'T', 'lmax(deg)', 'Gap(deg)', 'Gap(km)', 'Gap0 lat(deg)');
+fprintf('%s\n', repmat('-', 1, 80));
+
+for k = 1:n
+    P   = best_star_sats.Num_planes(k);
+    S_n = best_star_sats.Sats_per_plane(k);
+    T   = best_star_sats.Total_sats(k);
+    h   = heights_km(k);
+
+    [lmax_deg, ~]        = lmax_at_lat(h, min_lat, min_elev, a, b);
+    [gap_rad, Re_at_lat] = gap_at_lat(P, S_n, h, min_lat, min_elev, a, b);
+
+    if isinf(gap_rad)
+        % S/2 >= lambda_max: satellites too widely spaced within a plane
+        fprintf(row0_fmt, h, P, S_n, T, lmax_deg, 'INF', 'INF', 'INF');
+    elseif gap_rad <= 0
+        fprintf(row0_fmt, h, P, S_n, T, lmax_deg, '0', '0', ...
+            sprintf('<= %.4f', min_lat));
+    else
+        gap_deg = rad2deg(gap_rad);
+        gap_km  = gap_rad * Re_at_lat;
+        g0_lat  = find_gap_closure_lat(P, S_n, h, min_lat, min_elev, a, b);
+        fprintf(row_fmt, h, P, S_n, T, lmax_deg, gap_deg, gap_km, g0_lat);
+    end
+end
+
+fprintf('%s\n', repmat('-', 1, 80));
+fprintf('  lmax(deg) : coverage radius (ECA) at target lat for this altitude\n');
+fprintf('  Gap(deg)  : ECA of uncovered strip  |  Gap(km) : surface arc length\n');
+fprintf('  Gap0 lat  : geographic lat where gap first closes (scan to 90 deg)\n\n');
+end
+
+
+function [lmax_deg, Re_lat] = lmax_at_lat(h_km, lat_deg, min_elev, a, b)
+% Earth Central Angle of the coverage circle at lat_deg (degrees).
+Rs      = a + h_km;
+lat_rad = deg2rad(lat_deg);
+Re_lat  = sqrt((a^4*cos(lat_rad)^2 + b^4*sin(lat_rad)^2) / ...
+               (a^2*cos(lat_rad)^2 + b^2*sin(lat_rad)^2));
+alpha    = asind((Re_lat / Rs) * cosd(min_elev));
+lmax_deg = 180 - (90 + min_elev + alpha);
+end
+
+
+function [gap_rad, Re_lat] = gap_at_lat(P, S_n, h_km, lat_deg, min_elev, a, b)
+% Coverage gap (radians ECA) of a Walker Star (P planes, S_n sats/plane)
+% at geographic latitude lat_deg.
+% Positive => uncovered strip exists; <= 0 => full continuous coverage.
+[lmax_deg, Re_lat] = lmax_at_lat(h_km, lat_deg, min_elev, a, b);
+lmax = deg2rad(lmax_deg);
+S    = 2 * pi / S_n;
+
+if (S / 2) >= lmax
+    gap_rad = Inf;   % S spacing too wide: no in-plane continuous coverage
+    return;
+end
+
+ls        = acos(cos(lmax) / cos(S / 2));   % lambda_street (half street-overlap)
+D_counter = 2 * ls;                          % max inter-plane gap, counter-rotating
+D_same    = ls + lmax;                       % max inter-plane gap, co-rotating
+
+need      = (a / Re_lat) * cosd(lat_deg) * pi;   % coverage requirement (ECA rad)
+avail     = (P - 1) * D_same + D_counter;         % total coverage available (ECA rad)
+gap_rad   = need - avail;                          % positive => gap
+end
+
+
+function g0 = find_gap_closure_lat(P, S_n, h_km, min_lat, min_elev, a, b)
+% Lowest geographic latitude >= min_lat at which the inter-plane gap closes.
+% Scans toward the pole in 10 000 equal steps.
+lats = linspace(min_lat, 90, 10000);
+g0   = 90;   % default: gap never fully closes before the pole
+for i = 1:numel(lats)
+    [g, ~] = gap_at_lat(P, S_n, h_km, lats(i), min_elev, a, b);
+    if g <= 0
+        g0 = lats(i);
+        return;
+    end
 end
 end

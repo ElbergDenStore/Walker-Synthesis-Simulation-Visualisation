@@ -10,9 +10,15 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
     sc.SampleTime = Cfg.SampleTime;
 
     r_earth = 6378.14e3;
+    % Coverage reference latitude for seam-ratio geometry
+    if isfield(Cfg, 'Lat_range_deg')
+        min_lat_cov = min(Cfg.Lat_range_deg);
+    else
+        min_lat_cov = 0;
+    end
     fprintf("Constructing Satellites\n")
     if Cfg.WalkerStar == true
-        sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE, "two-body-keplerian");
+        sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE, "two-body-keplerian", min_lat_cov);
     else
         sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
         Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...

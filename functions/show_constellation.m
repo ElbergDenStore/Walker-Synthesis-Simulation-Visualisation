@@ -19,7 +19,12 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
     r_earth = 6378.14e3;
     
     if Cfg.WalkerStar == true
-        sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height,  Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE);
+        if isfield(Cfg, 'Lat_range_deg')
+            min_lat_cov = min(Cfg.Lat_range_deg);
+        else
+            min_lat_cov = 0;
+        end
+        sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height,  Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE, "sgp4", min_lat_cov);
     else
         sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
         Cfg.Inclination, ...

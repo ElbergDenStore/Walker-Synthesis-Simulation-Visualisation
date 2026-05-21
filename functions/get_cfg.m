@@ -46,6 +46,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     Cfg.Total_sats = Cfg.Sats_per_plane * Cfg.Num_planes;
     Cfg.SampleTime = 60; % seconds
     Cfg.Min_elevation_UE = min_elevation_UE;
+    Cfg.Lat_range_deg = Lat_range_deg;
     Cfg.Orbit_height = height_km*1e3;
     Cfg.FRF = 3;
     Cfg.RU = 1;
