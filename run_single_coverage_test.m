@@ -13,7 +13,10 @@ Cfg.DL.G_tx          = get_adjusted_tx_gain(Cfg.Orbit_height, Cfg.Min_elevation_
 Cfg.DL.Max_P_tx_dBm  = PFD_calc(Cfg.Target_PFD_MHz, Cfg.DL.G_tx, Cfg.DL.B, Cfg.Orbit_height, Cfg.Min_elevation_UE);
 Cfg.DL.Max_EIRP_dBm  = Cfg.DL.Max_P_tx_dBm + Cfg.DL.G_tx;
 
-[Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs([54+(35/60), 83+(40/60)], [-(73+(10/60)), 33+(30/60)], 200);
+4               14              90            2           56             1100     
+
+
+[Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs([54+(35/60), 83+(40/60)], [-(73+(10/60)), 33+(30/60)], 2000);
 
 
 

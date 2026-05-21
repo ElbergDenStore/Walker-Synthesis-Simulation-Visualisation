@@ -14,9 +14,9 @@ delete(gcp('nocreate'));
 heights_km                          = 500:10:1200;
 Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)];
 Master_config.Min_elevation_UE      = 20;
-Master_config.Num_Planes            = 2:10;
-Master_config.Sats_Plane            = 5:30;
-Master_config.Inc_vec               = 87;       % Fixed at 87° for Walker Star
+Master_config.Num_Planes            = 2:15;
+Master_config.Sats_Plane            = 5:35;
+Master_config.Inc_vec               = 90;       % Fixed at 87° for Walker Star
 Master_config.WalkerStar            = true;     % Locks phasing to floor(P/2)
 Master_config.Target_num_candidates = 1;
 Master_config.SampleTime            = 660;
