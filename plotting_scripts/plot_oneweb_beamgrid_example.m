@@ -106,7 +106,7 @@ if ~exist(fig_dir, 'dir')
 end
 
 %% Plot 1: 3D Surf Plot
-fig1 = figure('Name', 'OneWeb Normalized Gain 3D Surf', 'Position', [100, 100, 1000, 550]);
+fig1 = figure('Name', 'OneWeb Normalized Gain 3D Surf', 'Position', [100, 100, 600, 400]);
 surf(U, V, Max_Normalized_Map, 'EdgeColor', 'none');
 colormap(gca, 'turbo');
 caxis([-15, 0]); % Bound the colormap limits for readability
@@ -127,10 +127,10 @@ zlim([-15, 0]);
 view(-30, 45); % adjust angle for 3D
 
 fig1_filename = fullfile(fig_dir, 'oneweb_surf_gain');
-exportgraphics(fig1, [fig1_filename, '.png'], 'Resolution', 600);
+exportgraphics(fig1, [fig1_filename, '.png'], 'Resolution', 300);
 
 %% Plot 2: 2D Contours Only
-fig2 = figure('Name', 'OneWeb Beams -3dB Contours', 'Position', [100, 100, 1000, 550]);
+fig2 = figure('Name', 'OneWeb Beams -3dB Contours', 'Position', [100, 100, 600, 400]);
 hold on;
 for b = 1:num_beams
     contour(U, V, Normalized_Gain_3D(:,:,b), [-3, -3], 'LineWidth', 1.5, 'LineColor', 'b');
@@ -146,10 +146,10 @@ ylim(v_lims);
 grid on;
 
 fig2_filename = fullfile(fig_dir, 'oneweb_contours_only');
-exportgraphics(fig2, [fig2_filename, '.png'], 'Resolution', 600);
+exportgraphics(fig2, [fig2_filename, '.png'], 'Resolution', 300);
 
 %% Plot 3: Geographic Projection over Denmark
-fig3 = figure('Color', 'w', 'Name', 'Geographic Projection Denmark', 'Position', [100, 100, 900, 900]);
+fig3 = figure('Color', 'w', 'Name', 'Geographic Projection Denmark', 'Position', [100, 100, 600, 400]);
 gx = geoaxes('Basemap', 'satellite');
 hold(gx, 'on');
 
@@ -210,7 +210,7 @@ title(gx, 'OneWeb Beams -3dB footprints');
 drawnow;
 pause(5); % wait for wide view tiles
 fig3_filename_wide = fullfile(fig_dir, 'oneweb_projection_wide');
-exportgraphics(fig3, [fig3_filename_wide, '.png'], 'Resolution', 600);
+exportgraphics(fig3, [fig3_filename_wide, '.png'], 'Resolution', 300);
 
 % Shot 2: Northern Jutland / Aalborg Zoom
 geolimits(gx, [lat - 0.8, lat + 0.8], [lon - 1.5, lon + 1.5]);
@@ -218,7 +218,7 @@ title(gx, 'OneWeb Beams -3dB footprints');
 drawnow;
 pause(3); % wait for zoomed tiles
 fig3_filename_zoom = fullfile(fig_dir, 'oneweb_projection_zoom');
-exportgraphics(fig3, [fig3_filename_zoom, '.png'], 'Resolution', 600);
+exportgraphics(fig3, [fig3_filename_zoom, '.png'], 'Resolution', 300);
 
 %% Plot 4: 3D Surf Plot in Steering Angle Space
 % Convert u, v to steering angles (degrees)
@@ -229,7 +229,7 @@ theta_v_lims = asind(v_lims);
 theta_u_center = asind(BeamGrid.u_center);
 theta_v_center = asind(BeamGrid.v_center);
 
-fig4 = figure('Name', 'OneWeb Normalized Gain', 'Position', [100, 100, 1000, 550]);
+fig4 = figure('Name', 'OneWeb Normalized Gain', 'Position', [100, 100, 600, 400]);
 surf(Theta_U, Theta_V, Max_Normalized_Map, 'EdgeColor', 'none');
 colormap(gca, 'turbo');
 caxis([-15, 0]);
@@ -249,10 +249,10 @@ zlim([-15, 0]);
 view(-30, 45);
 
 fig4_filename = fullfile(fig_dir, 'oneweb_surf_gain_steering');
-exportgraphics(fig4, [fig4_filename, '.png'], 'Resolution', 600);
+exportgraphics(fig4, [fig4_filename, '.png'], 'Resolution', 300);
 
 %% Plot 5: 2D Contours Only in Steering Angle Space
-fig5 = figure('Name', 'OneWeb Beams -3dB Contours (Steering Angle)', 'Position', [100, 100, 1000, 550]);
+fig5 = figure('Name', 'OneWeb Beams -3dB Contours (Steering Angle)', 'Position', [100, 100, 600, 400]);
 hold on;
 for b = 1:num_beams
     contour(Theta_U, Theta_V, Normalized_Gain_3D(:,:,b), [-3, -3], 'LineWidth', 1.5, 'LineColor', 'b');
@@ -268,6 +268,6 @@ ylim(theta_v_lims);
 grid on;
 
 fig5_filename = fullfile(fig_dir, 'oneweb_contours_only_steering');
-exportgraphics(fig5, [fig5_filename, '.png'], 'Resolution', 600);
+exportgraphics(fig5, [fig5_filename, '.png'], 'Resolution', 300);
 
 fprintf("Validation plots generated and saved successfully to %s.\n", fig_dir);

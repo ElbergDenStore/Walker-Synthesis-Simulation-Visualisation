@@ -1,5 +1,6 @@
 function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_based_UEs(lat_vec, lon_vec, people_per_ue)
     % 1. Load the population data
+    
     filename = 'ppp_2020_1km_Aggregated.tif';
     fprintf('Loading GeoTIFF for UE generation...\n');
 
@@ -8,7 +9,7 @@ function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_based_UEs
     tif_path = which(filename);
     
     if isempty(tif_path)
-        error('Could not find %s anywhere on the MATLAB path. Ensure the parent directory is added (e.g. by running path_setup).', filename);
+        error('Could not find %s anywhere on the MATLAB path. Ensure the parent directory is added (e.g. by running path_setup). FILE IS HUGE AND CAN BE DOWNLOADED FROM https://data.worldpop.org/GIS/Population/Global_2000_2020/2020/0_Mosaicked/ppp_2020_1km_Aggregated.tif.', filename);
     end
 
     [pop_data, R] = readgeoraster(tif_path);

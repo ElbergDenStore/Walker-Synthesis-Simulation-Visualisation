@@ -8,11 +8,11 @@ center_lat = 57.0;
 center_lon = 9.3;
 latlim = [center_lat - 0.8, center_lat + 0.8];
 lonlim = [center_lon - 1.5, center_lon + 1.5];
-
+%%% FILE IS HUGE AND CAN BE DOWNLOADED FROM https://data.worldpop.org/GIS/Population/Global_2000_2020/2020/0_Mosaicked/ppp_2020_1km_Aggregated.tif
 filename = 'ppp_2020_1km_Aggregated.tif';
-proj = currentProject;
-repo_root = proj.RootFolder;
 script_dir = fileparts(mfilename('fullpath'));
+repo_root = fullfile(script_dir, '..');  % matlab_code/
+path_setup();
 
 candidate_files = {
     fullfile(repo_root, filename)
@@ -60,7 +60,7 @@ pixel_area_km2 = (km_per_deg_lat * dlat_deg) .* (km_per_deg_lon * dlon_deg);
 pop_density_km2 = zoom_data ./ pixel_area_km2;
 pop_density_km2(~isfinite(pop_density_km2)) = NaN;
 
-fig = figure('Name', 'Population Density - Jutland Zoom', 'Color', 'w', 'Position', [100, 100, 1000, 700]);
+fig = figure('Name', 'Population Density - Jutland Zoom', 'Color', 'w', 'Position', [100, 100, 600, 400]);
 worldmap(latlim, lonlim);
 geoshow(pop_density_km2, zoom_R, 'DisplayType', 'surface');
 load coastlines;
@@ -78,7 +78,7 @@ colormap(turbo);
 cb = colorbar;
 cb.Label.String = 'People per km^2';
 
-title(sprintf('Population Density (people/km^2) | Jutland Zoom [%.1f to %.1f N, %.1f to %.1f E]', ...
+title(sprintf('Population Density (people/km^2) | [%.1f to %.1f N, %.1f to %.1f E]', ...
     latlim(1), latlim(2), lonlim(1), lonlim(2)), 'FontWeight', 'bold');
 
 out_dir = fullfile(repo_root, 'figures', 'population_density');
@@ -86,6 +86,6 @@ if ~isfolder(out_dir)
     mkdir(out_dir);
 end
 out_file = fullfile(out_dir, 'jutland_population_density_km2.png');
-exportgraphics(fig, out_file, 'Resolution', 600);
+exportgraphics(fig, out_file, 'Resolution', 300);
 
 fprintf('Saved: %s\n', out_file);

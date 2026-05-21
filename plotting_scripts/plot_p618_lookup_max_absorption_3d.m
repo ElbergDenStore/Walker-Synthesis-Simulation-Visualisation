@@ -8,7 +8,7 @@ function plot_p618_lookup_map_20deg(lutMatFile, target_el)
 % Example:
 %   plot_p618_lookup_map_20deg();
 %   plot_p618_lookup_map_20deg("p618_lookup_global_1deg_10degel_20260424_090000.mat", 20);
-
+    path_setup()
     if nargin < 1 || strlength(string(lutMatFile)) == 0
         files = dir("p618_lookup_*.mat");
         if isempty(files)
@@ -46,7 +46,7 @@ function plot_p618_lookup_map_20deg(lutMatFile, target_el)
     is_global = isequal(lat_lim, [-90, 90]) && isequal(lon_lim, [-180, 180]);
 
     % 2. Initialize figure for headless (-nodisplay) execution
-    f = figure('Visible', 'off', 'Color', 'w', 'Position', [100, 100, 1400, 800]);
+    f = figure('Visible', 'off', 'Color', 'w', 'Position', [100, 100, 600, 400]);
 
     % 3. Set up the map projection dynamically
     if is_global
