@@ -460,7 +460,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Fast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Fast.Num_UEs);
-    m2 = fast_coverage_simulator_function(Cfg, false, false, true); % reuse satelliteScenario handle, use SGP4
+    m2 = fast_coverage_simulator_function(Cfg, false, false, false); % reuse satelliteScenario handle, dont use SGP4
     result.t_fast = toc(t2);
 
     if m2.worst_coverage_percent < 99.9
