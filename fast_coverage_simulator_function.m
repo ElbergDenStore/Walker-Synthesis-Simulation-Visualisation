@@ -43,7 +43,7 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
         else
             sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
                 Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
-                Name="S4D", OrbitPropagator="sgp4");
+                Name="S4D", OrbitPropagator="two-body-keplerian");
         end
         
         % Get the massive ECEF matrix instantly from SGP4
@@ -66,7 +66,7 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
             sc.StartTime  = Cfg.StartTime;
             sc.StopTime   = Cfg.StopTime;
             sc.SampleTime = Cfg.SampleTime;
-            sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE, "sgp4", min_lat_cov);
+            sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE, "two-body-keplerian", min_lat_cov);
             [sat_pos_raw, ~, simTimes] = states(sats, "CoordinateFrame", "ECEF");
             sat_pos_ecef = permute(sat_pos_raw, [1, 3, 2]);
         else

@@ -3,25 +3,34 @@ clc; clear; close all;
 
 % Configuration
 Cfg.Orbit_height = 550e3;
-Cfg.Inclination = 75;
-Cfg.Num_planes = 8;
-Cfg.Sats_per_plane = 8;
+Cfg.Inclination = 90;
+Cfg.Num_planes = 7;
+Cfg.Sats_per_plane = 23;
 Cfg.Total_sats = Cfg.Num_planes * Cfg.Sats_per_plane;
-Cfg.Phasing = 1;
-Cfg.WalkerStar = false;
+Cfg.Phasing = Cfg.Num_planes/2;
+Cfg.WalkerStar = true;
 Cfg.Min_elevation_UE = 20;
 Cfg.SampleTime = 60;
-Cfg.Lat_vec = linspace(50, 60, 5); % Fewer UEs for faster iteration
-Cfg.Lon_vec = linspace(5, 15, 5);
-Cfg.Equal_UE_area = false;
-Cfg.Accept_Flat_UE_array = false;
+Lat_range_deg = [54+(35/60), 83+(40/60)];
+% Lon_range_deg = [-(73+(10/60)), 33+(30/60)];
+Lon_range_deg = [-180, 180];
+StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
+StopTime  = datetime('3-Jun-2025 12:59:59', 'TimeZone', 'UTC'); % 48 hours
+
+
+
+NumUEs = 200;
+
+[UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
+Cfg.Flat_UE_array.Lats       = UE_lats;
+Cfg.Flat_UE_array.Lons       = UE_lons;
 Cfg.StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
 
 %% TEST 1: Short-term accuracy (10 Minutes)
 fprintf('\n--- TEST 1: Short-term accuracy (10 Minutes) ---\n');
 Cfg.StopTime = Cfg.StartTime + minutes(10);
-m1_sgp  = fast_coverage_simulator_function(Cfg, true, false, false, true);
-m1_math = fast_coverage_simulator_function(Cfg, true, false, false, false);
+m1_sgp  = fast_coverage_simulator_function(Cfg, true, false, true);
+m1_math = fast_coverage_simulator_function(Cfg, true, false, false);
 
 % Max Range Diff
 max_r = 0;
