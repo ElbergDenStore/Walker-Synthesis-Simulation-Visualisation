@@ -69,7 +69,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
     if isfield(master_config, 'Worker_stall_timeout_s')
         stall_timeout_s = master_config.Worker_stall_timeout_s;
     else
-        stall_timeout_s = 500;
+        stall_timeout_s = 3600; % 1 hour — low-altitude runs with many sats can take >500s
     end
 
     evaluated_coverage = NaN(total_runs, 1);
@@ -286,16 +286,10 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
                     last_s = 0;
                 end
                 if (toc(t_run_start) - last_s) > stall_timeout_s
-                    fprintf('\n[!] WORKER %d STALLED > %.0fs (state=%s, run=%d). Cancelling and skipping its runs.\n', ...
+                    error('[FATAL] Worker %d stalled for >%.0fs (state=%s, run=%d). ' ...
+                        'Crashing to preserve optimality guarantee. ' ...
+                        'Increase Worker_stall_timeout_s if runs legitimately take this long.', ...
                         w, stall_timeout_s, w_states(w), w_runs(w));
-                    cancel(futures(w));
-                    if ~isempty(worker_assigned_indices{w})
-                        incomplete_idx = worker_assigned_indices{w}(~is_completed(worker_assigned_indices{w}));
-                        is_completed(incomplete_idx) = true;
-                        runs_skipped = runs_skipped + numel(incomplete_idx);
-                        worker_assigned_indices{w} = []; % prevent double-processing
-                        fprintf('[!] Skipped %d runs for stalled worker %d.\n', numel(incomplete_idx), w);
-                    end
                 end
             end
         end

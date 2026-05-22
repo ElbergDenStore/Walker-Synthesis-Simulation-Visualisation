@@ -35,6 +35,9 @@ required_time_h = ceil(sqrt(required_samples)) / (3600/Master_config.SampleTime)
 Master_config.Detailed.Duration_h  = required_time_h;
 required_UEs = ceil(sqrt(required_samples))
 Master_config.Detailed.Num_UEs     = required_UEs;
+% Stall timeout: must be >> the longest legitimate detailed run.
+% At low altitudes (500 km) with 150+ sats the run can take >600s.
+Master_config.Worker_stall_timeout_s = 3600; % 1 hour
 
 % Record start time
 % Set resume_dir to a previous Master_Sweep_WalkerStar folder to continue
