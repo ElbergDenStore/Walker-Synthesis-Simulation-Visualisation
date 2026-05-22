@@ -35,9 +35,10 @@ function constellation_altitude_spread(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLAN
     [bins_sgp4, ~,        diag_sgp4] = run_propagator(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, MIN_EL_DEG, T_s, 'sgp4',               'SGP4');
     [bins_num,  ~,        diag_num ] = run_propagator(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, MIN_EL_DEG, T_s, 'numerical',          'numerical');
     [bins_rk4,  ~,        diag_rk4 ] = run_rk4_propagator(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, MIN_EL_DEG, T_s);
+    [bins_fast, ~,        diag_fast ] = run_fast_math_propagator(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, MIN_EL_DEG, T_s);
 
     %% Side-by-side comparison table ----------------------------------------
-    print_comparison_table({'Kepler','SGP4','numerical','RK4+J2 (own)'}, {diag_kep, diag_sgp4, diag_num, diag_rk4});
+    print_comparison_table({'Kepler','SGP4','numerical','RK4+J2 (own)','Fast Math'}, {diag_kep, diag_sgp4, diag_num, diag_rk4, diag_fast});
 
     script_dir = fileparts(mfilename('fullpath'));
     out_dir    = fullfile(script_dir, 'figures');
@@ -62,6 +63,11 @@ function constellation_altitude_spread(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLAN
     plot_and_save(bins_rk4, lat_ctrs, total_sats, HEIGHT_KM, INC_DEG, ...
         'RK4+J2 (own)', [0.47 0.67 0.19], out_dir, ...
         sprintf('altitude_spread_rk4j2_%dp%ds_%dkm_i%.0f.png', PLANES, SATS_PER_PLANE, HEIGHT_KM, INC_DEG));
+
+    %% Plot Fast Math (own pure-math Walker Star) ----------------------------
+    plot_and_save(bins_fast, lat_ctrs, total_sats, HEIGHT_KM, INC_DEG, ...
+        'Fast Math (own)', [0.93 0.69 0.13], out_dir, ...
+        sprintf('altitude_spread_fastmath_%dp%ds_%dkm_i%.0f.png', PLANES, SATS_PER_PLANE, HEIGHT_KM, INC_DEG));
 end
 
 %% =========================================================================
@@ -169,6 +175,45 @@ function [bins, lat_ctrs, diag] = run_rk4_propagator(HEIGHT_KM, INC_DEG, PLANES,
         sat_lat_cell{k} = lat_mat(k,:).';
         sat_alt_cell{k} = alt_mat(k,:).';
     end
+
+    [bins, lat_ctrs] = bin_altitudes(all_lat, all_alt);
+    diag = compute_diagnostics(sat_lat_cell, sat_alt_cell, HEIGHT_KM, label);
+end
+
+%% =========================================================================
+function [bins, lat_ctrs, diag] = run_fast_math_propagator(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, MIN_EL_DEG, T_s)
+% Same output schema as run_propagator but uses fast_walker_star_ecef:
+% the pure-math two-body Walker Star generator (no Toolbox required).
+
+    label = 'Fast Math';
+    Nsat  = PLANES * SATS_PER_PLANE;
+    fprintf('  [%s] Building + propagating %d satellites...\n', label, Nsat);
+
+    start_time     = datetime('1-Jun-2025 12:00:00','TimeZone','UTC');
+    sample_step    = 30.0;
+    time_steps_sec = 0 : sample_step : (T_s + 30);
+
+    tic;
+    sat_pos_ecef = fast_walker_star_ecef(HEIGHT_KM*1e3, INC_DEG, PLANES, SATS_PER_PLANE, ...
+        MIN_EL_DEG, 0, time_steps_sec, start_time);
+    t_gen = toc;
+    fprintf('  [%s] Generation + propagation:  %.2f s\n', label, t_gen);
+
+    % sat_pos_ecef is [3 x Nsat x nT] -> convert each satellite to LLA
+    tic;
+    nT           = size(sat_pos_ecef, 3);
+    sat_lat_cell = cell(Nsat, 1);
+    sat_alt_cell = cell(Nsat, 1);
+    for k = 1:Nsat
+        pos_ecef = squeeze(sat_pos_ecef(:, k, :))'; % [nT x 3]
+        lla = ecef2lla(pos_ecef);
+        sat_lat_cell{k} = lla(:, 1);
+        sat_alt_cell{k} = lla(:, 3) / 1e3;         % m -> km
+    end
+    all_lat = vertcat(sat_lat_cell{:});
+    all_alt = vertcat(sat_alt_cell{:});
+    t_conv  = toc;
+    fprintf('  [%s] ECEF->LLA: %.2f s\n', label, t_conv);
 
     [bins, lat_ctrs] = bin_altitudes(all_lat, all_alt);
     diag = compute_diagnostics(sat_lat_cell, sat_alt_cell, HEIGHT_KM, label);

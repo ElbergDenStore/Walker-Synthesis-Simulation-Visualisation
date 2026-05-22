@@ -84,7 +84,7 @@ for i = 1:length(heights_km)
     star_sats(i).Total_sats     = Total_sats;
     star_sats(i).Num_planes     = Num_planes;
     star_sats(i).Phasing        = Num_planes/2;
-    star_sats(i).Inclination    = 87;
+    star_sats(i).Inclination    = 90;
     star_sats(i).Sats_per_plane = Sats_per_plane;
 
 
