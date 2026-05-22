@@ -53,27 +53,69 @@ Master_config.Detailed.Num_UEs      = required_UEs;
 
 
 
+% Set resume_dir to a previous Master_Sweep folder to continue from where it
+% left off, e.g. resume_dir = 'simulation_output/Master_Sweep_20260522_105447';
+% Leave empty to start a fresh run.
+resume_dir = '';
+
 % Record start time for the sweep
 start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
 fprintf('=======================================================\n');
 fprintf('STARTING CONSTELLATION SWEEP AT: %s\n', char(start_time));
 fprintf('=======================================================\n');
 
+% Create master sweep output folder (or reuse existing one when resuming)
+if ~isempty(resume_dir) && exist(resume_dir, 'dir')
+    out_dir = resume_dir;
+    checkpoint_file = fullfile(out_dir, 'Master_Altitude_Sweep_Results.mat');
+    if ~exist(checkpoint_file, 'file')
+        error('resume_dir specified but no checkpoint .mat found in: %s', out_dir);
+    end
+    ck = load(checkpoint_file);
+    best_delta_sats = ck.best_delta_sats;
+    star_sats       = ck.star_sats;
 
-% Create master sweep output folder up-front so gridsearch runs nest inside it
-date_str_start = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-folder_name    = sprintf('Master_Sweep_%s', date_str_start);
-out_dir        = fullfile('simulation_output', folder_name);
-if ~exist(out_dir, 'dir'), mkdir(out_dir); end
+    % Build altitude -> gridsearch_dir map from the checkpoint.
+    % Using a map avoids index-mismatch crashes when the sweep range changes
+    % between runs (gridsearch_dirs and heights_km can have different lengths).
+    n_ck = min(numel(ck.heights_km), numel(ck.gridsearch_dirs));
+    ck_dir_map = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    for ck_i = 1:n_ck
+        if ~isempty(ck.gridsearch_dirs{ck_i})
+            ck_dir_map(ck.heights_km(ck_i)) = ck.gridsearch_dirs{ck_i};
+        end
+    end
+
+    % Re-build gridsearch_dirs and all_delta_sats indexed for the CURRENT heights_km
+    heights_km_sorted = sort(heights_km, 'descend');
+    gridsearch_dirs = cell(length(heights_km_sorted), 1);
+    all_delta_sats  = cell(length(heights_km_sorted), 1);
+    for ck_i = 1:length(heights_km_sorted)
+        h = heights_km_sorted(ck_i);
+        if isKey(ck_dir_map, h)
+            gridsearch_dirs{ck_i} = ck_dir_map(h);
+        end
+    end
+
+    completed_heights = heights_km_sorted(~cellfun(@isempty, gridsearch_dirs));
+    fprintf('Resuming from: %s\n', out_dir);
+    fprintf('Already completed %d altitudes. Skipping: %s km\n', ...
+        numel(completed_heights), num2str(completed_heights));
+else
+    date_str_start = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+    folder_name    = sprintf('Master_Sweep_%s', date_str_start);
+    out_dir        = fullfile('simulation_output', folder_name);
+    if ~exist(out_dir, 'dir'), mkdir(out_dir); end
+    star_sats       = [];
+    best_delta_sats = table();
+    all_delta_sats  = {};
+    gridsearch_dirs = cell(length(heights_km), 1);
+    completed_heights = [];
+end
 gridsearch_base = fullfile(out_dir, 'gridsearch_runs');
 
-star_sats = [];
-best_delta_sats = table();
-all_delta_sats = [];
-gridsearch_dirs = cell(length(heights_km), 1);
-
 % Runs through all orbit heights from top to bottom
-heights_km = sort(heights_km,"descend");
+heights_km = sort(heights_km, 'descend');
 for i = 1:length(heights_km) 
     current_h_meters = heights_km(i) * 1000;
   
@@ -88,16 +130,27 @@ for i = 1:length(heights_km)
     star_sats(i).Sats_per_plane = Sats_per_plane;
 
 
-    if i > 1
-        min_sats = best_delta_sats.Total_sats(i-1); % Limit search space based on previous result
+    % Skip altitudes already completed in a previous (or current) run
+    if ismember(heights_km(i), completed_heights)
+        fprintf('Skipping already-completed altitude %d km\n', heights_km(i));
+        continue;
+    end
+
+    if i > 1 && height(best_delta_sats) > 0
+        min_sats = best_delta_sats.Total_sats(end); % Limit search space based on previous result
     else
-        min_sats = 0; %floor(star_N * 0.6); % Limit search space based on analytical star
-    end 
+        min_sats = 0;
+    end
 
     [best_params, all_delta_sats{i}, gridsearch_dirs{i}] = gridsearch(Master_config, heights_km(i), min_sats, gridsearch_base);
 
     % Keep one best row per altitude in sweep order.
     best_delta_sats = [best_delta_sats; best_params(1, :)];
+
+    % --- CHECKPOINT: save after every completed altitude ---
+    save(fullfile(out_dir, 'Master_Altitude_Sweep_Results.mat'), ...
+        'heights_km', 'star_sats', 'best_delta_sats', 'all_delta_sats', 'Master_config', 'gridsearch_dirs');
+    fprintf('[Checkpoint] Saved after altitude %d km\n', heights_km(i));
 
     % Reset parallel environment between iterations: kill workers first, then purge files.
     % delete(gcp('nocreate'));

@@ -1,5 +1,9 @@
-function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
+function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link, cancel_queue)
 % RUN_SATELLITE_SIM Simulates satellite coverage and link budget.
+% cancel_queue: optional parallel.pool.PollableDataQueue; when provided the
+% main UE loop runs as a regular for-loop and polls for {cancel_detailed:true}
+% every 50 UEs, returning early with metrics.cancelled=true if triggered.
+    if nargin < 4, cancel_queue = []; end
     fprintf('\n Starting Simulation: %d Sats, %.1f deg Inclination\n', Cfg.Total_sats, Cfg.Inclination);
     tic
 
@@ -123,81 +127,175 @@ function metrics = coverage_simulator_function(Cfg, use_parallel, calc_link)
     Cfg.Num_workers = num_workers; % Will be used in link calculation
     
     tic
-    parfor (idx = 1:Cfg.NumUEs, num_workers)
-        ue_xyz = ue_pos_ecef(idx, :)'; % 3x1 vector
-        lat = UE_lats(idx);
-        lon = UE_lons(idx);
-        
-        % 2. Vector from UE to ALL satellites at ALL times [3 x NumSats x nT]
-        vec_ecef = sat_pos_ecef - ue_xyz;
-        
-        % ===============================================================
-        % 3. ECEF TO ENU ROTATION (To get perfect Azimuth and Elevation)
-        % ===============================================================
-        slat = sind(lat); clat = cosd(lat);
-        slon = sind(lon); clon = cosd(lon);
-        
-        % Standard transformation matrix from Earth-Centered to Local East-North-Up
-        R_ecef_to_enu = [
-            -slon,           clon,          0;
-            -slat*clon,     -slat*slon,     clat;
-             clat*clon,      clat*slon,     slat
-        ];
-        
-        % Flatten the vectors, rotate them all instantly, and re-fold the matrix
-        vec_ecef_flat = reshape(vec_ecef, 3, []);
-        vec_enu_flat = R_ecef_to_enu * vec_ecef_flat;
-        vec_enu = reshape(vec_enu_flat, 3, num_sats, nT);
-        
-        % Extract East, North, and Up components (Safely reshaping to preserve dimensions)
-        E = reshape(vec_enu(1, :, :), num_sats, nT);
-        N = reshape(vec_enu(2, :, :), num_sats, nT);
-        U = reshape(vec_enu(3, :, :), num_sats, nT);
-        
-        % ===============================================================
-        % 4. EXTRACT AER (Azimuth, Elevation, Range)
-        % ===============================================================
-        r_mat = sqrt(E.^2 + N.^2 + U.^2);
-        el_mat = asind(U ./ r_mat);
-        
-        az_mat = atan2d(E, N);
-        az_mat(az_mat < 0) = az_mat(az_mat < 0) + 360;
+    metrics.cancelled = false;
+    min_consumed_threshold = Inf; % tracks any skip_above_sats messages consumed from cancel_queue
+    if isempty(cancel_queue)
+        parfor (idx = 1:Cfg.NumUEs, num_workers)
+            ue_xyz = ue_pos_ecef(idx, :)'; % 3x1 vector
+            lat = UE_lats(idx);
+            lon = UE_lons(idx);
+            
+            % 2. Vector from UE to ALL satellites at ALL times [3 x NumSats x nT]
+            vec_ecef = sat_pos_ecef - ue_xyz;
+            
+            % ===============================================================
+            % 3. ECEF TO ENU ROTATION (To get perfect Azimuth and Elevation)
+            % ===============================================================
+            slat = sind(lat); clat = cosd(lat);
+            slon = sind(lon); clon = cosd(lon);
+            
+            % Standard transformation matrix from Earth-Centered to Local East-North-Up
+            R_ecef_to_enu = [
+                -slon,           clon,          0;
+                -slat*clon,     -slat*slon,     clat;
+                 clat*clon,      clat*slon,     slat
+            ];
+            
+            % Flatten the vectors, rotate them all instantly, and re-fold the matrix
+            vec_ecef_flat = reshape(vec_ecef, 3, []);
+            vec_enu_flat = R_ecef_to_enu * vec_ecef_flat;
+            vec_enu = reshape(vec_enu_flat, 3, num_sats, nT);
+            
+            % Extract East, North, and Up components (Safely reshaping to preserve dimensions)
+            E = reshape(vec_enu(1, :, :), num_sats, nT);
+            N = reshape(vec_enu(2, :, :), num_sats, nT);
+            U = reshape(vec_enu(3, :, :), num_sats, nT);
+            
+            % ===============================================================
+            % 4. EXTRACT AER (Azimuth, Elevation, Range)
+            % ===============================================================
+            r_mat = sqrt(E.^2 + N.^2 + U.^2);
+            el_mat = asind(U ./ r_mat);
+            
+            az_mat = atan2d(E, N);
+            az_mat(az_mat < 0) = az_mat(az_mat < 0) + 360;
 
-        % ue = groundStation(sc, UEs(idx).Lat, UEs(idx).Lon);
-        % 
-        % [az_mat, el_mat, r_mat, simTimes] = aer(ue, sats);
-        % 
-
-        valid_mask = el_mat >= min_elevation_UE;
-        Num_visible = sum(valid_mask,1); 
-        has_service = Num_visible > 0;
-        
-        r_temp = r_mat;
-        r_temp(~valid_mask) = Inf; 
-        [best_ranges, best_sat_idx] = min(r_temp, [], 1); 
-        
-        % Write directly to pre-allocated slice
-        UEs(idx).SimData.Num_visible = Num_visible;
-        UEs(idx).SimData.Time = simTimes;
-        
-        
-        if any(has_service)
-            UEs(idx).SimData.Range(has_service) = best_ranges(has_service);
+            valid_mask = el_mat >= min_elevation_UE;
+            Num_visible = sum(valid_mask,1); 
+            has_service = Num_visible > 0;
             
-            best_sats_valid = best_sat_idx(has_service);
-            UEs(idx).SimData.SatID(has_service) = best_sats_valid;
+            r_temp = r_mat;
+            r_temp(~valid_mask) = Inf; 
+            [best_ranges, best_sat_idx] = min(r_temp, [], 1); 
             
-            valid_cols = find(has_service);
-            num_rows = size(el_mat, 1);
-            lin_idxs = best_sats_valid + (valid_cols - 1) * num_rows;
+            % Write directly to pre-allocated slice
+            UEs(idx).SimData.Num_visible = Num_visible;
+            UEs(idx).SimData.Time = simTimes;
             
-            UEs(idx).SimData.Elevation_deg(has_service) = el_mat(lin_idxs);
-            UEs(idx).SimData.Azimuth_deg(has_service)   = az_mat(lin_idxs);
+            
+            if any(has_service)
+                UEs(idx).SimData.Range(has_service) = best_ranges(has_service);
+                
+                best_sats_valid = best_sat_idx(has_service);
+                UEs(idx).SimData.SatID(has_service) = best_sats_valid;
+                
+                valid_cols = find(has_service);
+                num_rows = size(el_mat, 1);
+                lin_idxs = best_sats_valid + (valid_cols - 1) * num_rows;
+                
+                UEs(idx).SimData.Elevation_deg(has_service) = el_mat(lin_idxs);
+                UEs(idx).SimData.Azimuth_deg(has_service)   = az_mat(lin_idxs);
+            end
+            
+            send(dq, []);
         end
-        
-        send(dq, []);
+    else
+        % Cancellable serial loop (used when called from gridsearch workers).
+        % Polls cancel_queue every 100 UEs.
+        % Handles both explicit cancel_detailed and skip_above_sats threshold updates.
+        for idx = 1:Cfg.NumUEs
+            if mod(idx, 100) == 0
+                while true
+                    [cm, gc] = poll(cancel_queue, 0);
+                    if ~gc, break; end
+                    if isfield(cm, 'skip_above_sats')
+                        min_consumed_threshold = min(min_consumed_threshold, cm.skip_above_sats);
+                        if Cfg.Total_sats > min_consumed_threshold
+                            fprintf('\n[cancel] W auto-cancelled at UE %d/%d (%d sats > threshold %d).\n', ...
+                                idx, Cfg.NumUEs, Cfg.Total_sats, min_consumed_threshold);
+                            metrics.cancelled = true;
+                            metrics.consumed_threshold = min_consumed_threshold;
+                            metrics.worst_coverage_percent = NaN;
+                            metrics.Num_visible = [];
+                            metrics.SimData = [];
+                            metrics.throughput_10pct = NaN;
+                            metrics.throughput_mean = NaN;
+                            return;
+                        end
+                    end
+                    if isfield(cm, 'cancel_detailed') && cm.cancel_detailed
+                        fprintf('\n[cancel] Detailed sim cancelled at UE %d/%d.\n', idx, Cfg.NumUEs);
+                        metrics.cancelled = true;
+                        metrics.consumed_threshold = min_consumed_threshold;
+                        metrics.worst_coverage_percent = NaN;
+                        metrics.Num_visible = [];
+                        metrics.SimData = [];
+                        metrics.throughput_10pct = NaN;
+                        metrics.throughput_mean = NaN;
+                        return;
+                    end
+                end
+            end
+
+            ue_xyz = ue_pos_ecef(idx, :)'; % 3x1 vector
+            lat = UE_lats(idx);
+            lon = UE_lons(idx);
+            
+            vec_ecef = sat_pos_ecef - ue_xyz;
+            
+            slat = sind(lat); clat = cosd(lat);
+            slon = sind(lon); clon = cosd(lon);
+            
+            R_ecef_to_enu = [
+                -slon,           clon,          0;
+                -slat*clon,     -slat*slon,     clat;
+                 clat*clon,      clat*slon,     slat
+            ];
+            
+            vec_ecef_flat = reshape(vec_ecef, 3, []);
+            vec_enu_flat = R_ecef_to_enu * vec_ecef_flat;
+            vec_enu = reshape(vec_enu_flat, 3, num_sats, nT);
+            
+            E = reshape(vec_enu(1, :, :), num_sats, nT);
+            N = reshape(vec_enu(2, :, :), num_sats, nT);
+            U = reshape(vec_enu(3, :, :), num_sats, nT);
+            
+            r_mat = sqrt(E.^2 + N.^2 + U.^2);
+            el_mat = asind(U ./ r_mat);
+            
+            az_mat = atan2d(E, N);
+            az_mat(az_mat < 0) = az_mat(az_mat < 0) + 360;
+
+            valid_mask = el_mat >= min_elevation_UE;
+            Num_visible = sum(valid_mask,1);
+            has_service = Num_visible > 0;
+            
+            r_temp = r_mat;
+            r_temp(~valid_mask) = Inf;
+            [best_ranges, best_sat_idx] = min(r_temp, [], 1);
+            
+            UEs(idx).SimData.Num_visible = Num_visible;
+            UEs(idx).SimData.Time = simTimes;
+            
+            if any(has_service)
+                UEs(idx).SimData.Range(has_service) = best_ranges(has_service);
+                
+                best_sats_valid = best_sat_idx(has_service);
+                UEs(idx).SimData.SatID(has_service) = best_sats_valid;
+                
+                valid_cols = find(has_service);
+                num_rows = size(el_mat, 1);
+                lin_idxs = best_sats_valid + (valid_cols - 1) * num_rows;
+                
+                UEs(idx).SimData.Elevation_deg(has_service) = el_mat(lin_idxs);
+                UEs(idx).SimData.Azimuth_deg(has_service)   = az_mat(lin_idxs);
+            end
+            
+            send(dq, []);
+        end
     end
     fprintf('\nGeometry calculation complete (%.1f sec).\n', toc);
+    metrics.consumed_threshold = min_consumed_threshold; % propagate back to caller
     
     %% Coverage Stats (Fully Vectorized)
     SimDataArray = [UEs.SimData];
