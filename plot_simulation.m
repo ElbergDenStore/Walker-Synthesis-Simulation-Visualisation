@@ -46,8 +46,8 @@ function plot_simulation(metrics, use_parallel)
     end
 
     %% 4. Pre-calculate Shared Map Data
-    lat_lim = [min(Cfg.Flat_UE_array.Lats) max(Cfg.Flat_UE_array.Lats)];
-    lon_lim = [min(Cfg.Flat_UE_array.Lons) max(Cfg.Flat_UE_array.Lons)];
+    lat_lim = [min(Cfg.Flat_UE_array.Lats(:)) max(Cfg.Flat_UE_array.Lats(:))];
+    lon_lim = [min(Cfg.Flat_UE_array.Lons(:)) max(Cfg.Flat_UE_array.Lons(:))];
     nLat = 500; nLon = 500; 
     [LonG, LatG] = meshgrid(linspace(lon_lim(1), lon_lim(2), nLon), linspace(lat_lim(1), lat_lim(2), nLat));
     
@@ -55,7 +55,7 @@ function plot_simulation(metrics, use_parallel)
     land = shaperead('landareas.shp', 'UseGeoCoords', true);
 
     %% 5. Parallel Plot Generation
-    num_tasks = 7;
+    num_tasks = 8;
     fprintf('Generating %d plots in parallel...\n', num_tasks);
     
     % Set up progress bar for parallel pool
@@ -90,6 +90,8 @@ function plot_simulation(metrics, use_parallel)
                     generate_elevation_dist(all_el_deg, out_dir);
                 case 7
                     generate_nadir_dist(all_el_deg, Cfg.Orbit_height, out_dir);
+                case 8
+                    generate_map_ue_distribution(Cfg, lat_vector, lon_vector, lat_lim, lon_lim, land, out_dir);
             end
         catch ME
             fprintf('Task %d failed: %s\n', task_id, ME.message);
@@ -187,7 +189,7 @@ function generate_map_min_sats(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_lim,
     axis off;  
     geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
     surfm(LatG, LonG, ValG, 'FaceAlpha', 0.5);
-    if nUEs < 50
+    if nUEs < 100
         for i = 1:nUEs
             textm(lat_v(i), lon_v(i), sprintf('%d', vals(i)), 'HorizontalAlignment','center', 'VerticalAlignment','middle', 'FontSize', 14, 'FontWeight', 'bold', 'Color', 'k'); 
         end
@@ -205,7 +207,7 @@ function generate_map_mean_sats(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_lim
     axis off;  
     geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
     surfm(LatG, LonG, ValG, 'FaceAlpha', 0.5);
-    if nUEs < 50
+    if nUEs < 100
         for i = 1:nUEs
             textm(lat_v(i), lon_v(i), sprintf('%.1f', vals(i)), 'HorizontalAlignment','center', 'VerticalAlignment','middle', 'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k');
         end
@@ -223,7 +225,7 @@ function generate_map_coverage(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_lim,
     axis off; 
     geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
     surfm(LatG, LonG, ValG, 'FaceAlpha', 0.5);
-    if nUEs < 50
+    if nUEs < 100
         for i = 1:nUEs
             textm(lat_v(i), lon_v(i), sprintf('%.0f', vals(i)), 'HorizontalAlignment','center', 'VerticalAlignment','middle', 'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k'); 
         end
@@ -247,7 +249,7 @@ function generate_map_throughput(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_li
     axis off;  
     geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
     surfm(LatG, LonG, ValG, 'FaceAlpha', 0.5);
-    if nUEs < 50
+    if nUEs < 100
         for i = 1:length(lats)
             textm(lats(i), lons(i), sprintf('%.1f', thpt_vals(i)), 'HorizontalAlignment','center', 'VerticalAlignment','middle', 'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k');
         end
@@ -281,5 +283,24 @@ function generate_nadir_dist(all_el_deg, orbit_height, out_dir)
     ylabel('Number of Occurrences', 'FontWeight', 'bold');
     title('Distribution of Nadir Angles', 'FontSize', 14);
     exportgraphics(f, fullfile(out_dir, 'nadir_steering_distribution.png'), 'Resolution', 300);
+    close(f);
+end
+
+function generate_map_ue_distribution(Cfg, lat_v, lon_v, lat_lim, lon_lim, land, out_dir)
+    f = figure('Visible', 'off', 'Name', 'UE Distribution', 'Color', 'w', 'Position', [100, 100, 600, 600]);
+    axesm('lambertstd', 'MapLatLimit', lat_lim, 'MapLonLimit', lon_lim, ...
+        'Frame', 'on', 'Grid', 'on', 'MeridianLabel', 'on', 'ParallelLabel', 'on');
+    axis off;
+    geoshow([land.Lat], [land.Lon], 'DisplayType', 'polygon', 'FaceColor', [0.8 0.8 0.8]);
+    scatterm(lat_v, lon_v, 30, 'r', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+    nUEs = length(lat_v);
+    if isfield(Cfg, 'Total_Pop') && Cfg.Total_Pop > 0
+        title_str = sprintf('UE Distribution\nTotal UEs: %d (1 per %d people)', nUEs, round(Cfg.Total_Pop / nUEs));
+    else
+        title_str = sprintf('UE Distribution\nTotal UEs: %d', nUEs);
+    end
+    title(title_str, 'FontWeight', 'bold', 'FontSize', 14);
+    set(gca, 'FontSize', 14);
+    exportgraphics(f, fullfile(out_dir, 'Map_UE_Distribution.png'), 'Resolution', 300);
     close(f);
 end

@@ -59,9 +59,9 @@ ylim([0, max(total_sats)*1.5]);
 grid on;
 ax.GridAlpha = 0.25; % Softer grid lines to keep focus on the data
 xlabel('Orbital altitude (km)');
-title(sprintf('Walker-Star Configuration | Lat: %0.1f^{\\circ} | \\epsilon_{min}: %0.1f^{\\circ}', Min_elevation_UE, minimum_lat_deg));
+title(sprintf('Walker-Star Configuration | \\lambda: %0.1f^{\\circ} | \\epsilon_{min}: %0.1f^{\\circ}', minimum_lat_deg, Min_elevation_UE));
 % Legend improvements
-lgd = legend('Planes', 'Sats/Plane', 'Total Satellites', 'Location', 'best');
+lgd = legend('Planes', 'Sats / Plane', 'Satellite Count', 'Location', 'best');
 % lgd.Box = 'off'; % Removes the distracting border around the legend
 
 % IEEE Standard Fonts

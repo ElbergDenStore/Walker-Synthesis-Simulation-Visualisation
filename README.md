@@ -26,15 +26,11 @@ It has been developed to be easily used for future development.
     - how many UEs are connected or how large part of the area is covered by the satellite (make both plots always)
 
 
-%%%%%%%%%%%%%%%%%%%%%%%% AAAAAAAAAAAAAARHHHHHHHHHHHHHH %%%%%%%%%%%%%%%%%%%%%
-I NEED TO IMPLEMENT A SMARTER SEAM GAP CALCULATION TAKING THE BOWING EFFECT INTO ACCOUNT
 
 
 # TODO
 Changes to code that i want:
-- OneWeb Validation should run and produce nice plots, and be correct
-- Real tles instead of modelling, should be possible
-- Matlab project is a thing that i need to understand to make the scripts run correctly.
+<!-- - OneWeb Validation should run and produce nice plots, and be correct -->
 - FIX INTERFERENCE CALC
 - Follow code style
 - SEARCH FOR ALL TODOs
@@ -44,3 +40,6 @@ Changes to code that i want:
 - Move all the plotting files to the plotting folder
 - Revive UE focus view from the dead?
 - Develop satellite focused view?
+- I need to validate the smarter SOC with lower inclinations to also work for 90 degrees
+- Coverage simulator is ugly due to the early stopping and workers might not be able to not die using it
+

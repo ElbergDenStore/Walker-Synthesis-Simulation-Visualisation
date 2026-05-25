@@ -29,7 +29,10 @@ function BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_Hz, orbit_height_m, Mi
 
     % Generate hex rings up to edge of earth
     du = sqrt(3) * r_beam; % spacing for tight hexagonal packing
-    rings = ceil(sind(eta_max) / du) + 1;
+    % In axial hex coordinates, Q can extend beyond ceil(rho/du) because the
+    % R-axis pitch is 1.5*r_beam (< du). For a circle of radius rho, the max
+    % |Q| is ~rho/(1.5*r_beam) ≈ rho/du * 1.155, so use that as the grid extent.
+    rings = ceil(sind(eta_max) / (1.5 * r_beam)) + 1;
 
     [Q, R] = meshgrid(-rings:rings, -rings:rings);
     Q = Q(:); R = R(:);
