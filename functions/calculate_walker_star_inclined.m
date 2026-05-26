@@ -4,8 +4,8 @@ function [optimal_planes, optimal_sats_per_plane, total_sats] = ...
 % CALCULATE_WALKER_STAR_INCLINED  Minimum-satellite Walker Star for inclination < 90°.
 %
 %   Uses the spherical street-of-coverage model (Rider/Ballard/Walker) extended
-%   for inclined orbits.  Uses a RAAN-budget formulation and does NOT reproduce
-%   the arc-length formula of calculate_walker_star() at i = 90°.
+%   for inclined orbits.  Uses a RAAN-budget formulation that matches the
+%   Walker–SMAD formula in calculate_walker_star.m at i = 90°.
 %
 %   Physics:
 %     At latitude φ a satellite track drifts in longitude (from Napier's Circle):
@@ -13,14 +13,13 @@ function [optimal_planes, optimal_sats_per_plane, total_sats] = ...
 %     Counter-rotating planes at the seam share an ascending-node RAAN.  Their
 %     tracks bow outward by ±Δλ, widening the coverage gap at the seam.
 %
-%     Seam RAAN budget (spherical geometry at critical latitude φ):
-%         R_seam = arccos( (cos(D_ctr) − sin²φ) / cos²φ )
-%     Reduction due to inclination (track bowing):
-%         R_seam_max = R_seam − 2·Δλ(φ,i)          [must be > 0]
-%     Co-rotating RAAN budget per interval:
-%         R_co_max = arccos( (cos(D_same) − sin²φ) / cos²φ )
-%     Number of planes:
-%         P = ceil( (π − R_seam_max) / R_co_max ) + 1
+%     ECA budgets (D_ctr, D_same) are converted to RAAN longitude via the
+%     WGS84-corrected latitude-circle approximation:
+%         R = D · Re_lat / (a · cos φ)
+%     This matches the SMAD total-width formula and avoids the optimism of
+%     the exact great-circle inverse, which maps each ECA step to a slightly
+%     larger longitude interval and produces analytically-marginal
+%     configurations that fail in discrete-time simulation.
 %
 %   Returns [Inf, 0, Inf] if inclination_deg <= min_latitude_deg
 %   (orbit never reaches the coverage latitude).
@@ -72,17 +71,25 @@ function [optimal_planes, optimal_sats_per_plane, total_sats] = ...
         D_ctr  = 2 * lambda_street;         % max ECA budget across counter-rotating seam
         D_same = lambda_street + lmax_rad;  % max ECA budget between co-rotating planes
 
-        % Convert ECA budgets to RAAN budgets on the sphere at latitude φ
-        cos_arg_seam = (cos(D_ctr)  - sin2lat) / cos2lat;
-        cos_arg_same = (cos(D_same) - sin2lat) / cos2lat;
+        % Convert ECA budgets to RAAN budgets using the WGS84-corrected
+        % latitude-circle arc formula: R = D * Re_lat / (a * cos(φ)).
+        %
+        % The exact great-circle inverse (acos((cos(D)-sin²φ)/cos²φ)) maps
+        % each ECA step to a slightly LARGER longitude interval than the
+        % latitude-circle approximation, because the great-circle chord
+        % between two equi-latitude points is shorter than the arc along
+        % the parallel.  The surplus makes the formula optimistic: at large
+        % footprints (low altitudes) it finds constellations whose coverage
+        % margins are only a few tenths of a degree — analytically valid but
+        % reliably missed by discrete-time simulation (660 s sample time).
+        %
+        % The latitude-circle formula matches the Walker–SMAD derivation in
+        % calculate_walker_star.m (total width (a/Re_lat)·cos(φ)·π divided
+        % by D_same ECA steps) and reproduces the numerically verified counts.
+        lon_per_ECA = Re_lat / (a * cos(lat_rad));   % rad RAAN per rad ECA
 
-        if cos_arg_seam < -1 || cos_arg_seam > 1 || ...
-           cos_arg_same < -1 || cos_arg_same > 1
-            continue;
-        end
-
-        R_seam_max = acos(cos_arg_seam) - 2 * delta_lon_rad;
-        R_co_max   = acos(cos_arg_same);
+        R_seam_max = D_ctr  * lon_per_ECA - 2 * delta_lon_rad;
+        R_co_max   = D_same * lon_per_ECA;
 
         if R_seam_max <= 0
             continue;   % inclination drift exceeds available seam RAAN budget

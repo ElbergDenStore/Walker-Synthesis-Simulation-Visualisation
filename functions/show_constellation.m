@@ -10,7 +10,14 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
 
 
     sc = satelliteScenario;
-    sc.StartTime  = Cfg.StartTime;
+    % EpochTime: if provided, satellites are initialised at this epoch so that their
+    % orbital elements match the original simulation (not the viewer window start).
+    % The viewer then jumps to Cfg.StartTime after opening.
+    if isfield(Cfg, 'EpochTime')
+        sc.StartTime = Cfg.EpochTime;
+    else
+        sc.StartTime = Cfg.StartTime;
+    end
     sc.StopTime   = Cfg.StopTime;
     sc.SampleTime = Cfg.SampleTime;
     
@@ -72,6 +79,10 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
         
         % 1. Launch the viewer FIRST so it's ready to receive graphics
         v = satelliteScenarioViewer(sc, 'ShowDetails', show_details);
+        % Jump to the requested start time when epoch differs (e.g. diagnostic mode)
+        if isfield(Cfg, 'EpochTime')
+            v.CurrentTime = Cfg.StartTime;
+        end
 
         for idx = 1:length(sc.GroundStations)
             sc.GroundStations(idx).ShowLabel = false; % even if showdetails is true, remove the UE labels
