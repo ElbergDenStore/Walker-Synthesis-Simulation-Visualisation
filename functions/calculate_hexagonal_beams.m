@@ -41,8 +41,13 @@ function BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_Hz, orbit_height_m, Mi
     U = sqrt(3)*r_beam * (Q + R/2);
     V = 1.5*r_beam * R;
 
-    % Clip to visible bounds
-    valid_mask = (U.^2 + V.^2) <= sind(eta_max)^2;
+    % Clip to visible bounds.
+    % Include beam centers within r_beam *beyond* the eta_max boundary so that
+    % every UE inside the coverage footprint is within the 3 dB half-beamwidth
+    % of at least one beam center. Without this extra margin, UEs near the edge
+    % are assigned to a beam whose center is up to sqrt(3)*r_beam away (>3 dB
+    % off boresight), causing significantly degraded link budgets at the boundary.
+    valid_mask = (U.^2 + V.^2) <= (sind(eta_max) + r_beam)^2;
     b_u = U(valid_mask);
     b_v = V(valid_mask);
     b_q = Q(valid_mask);

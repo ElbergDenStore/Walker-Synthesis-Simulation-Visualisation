@@ -264,8 +264,8 @@ function generate_elevation_dist(all_el_deg, out_dir)
     f = figure('Visible', 'off', 'Color', 'w');
     histogram(all_el_deg);
     grid on; box on;
-    xlabel('Elevation Angle (deg)', 'FontWeight', 'bold');
-    ylabel('Number of Occurrences', 'FontWeight', 'bold');
+    xlabel('Elevation Angle (deg)');
+    ylabel('Number of Occurrences');
     title('Distribution of Elevation Angles', 'FontSize', 14);
     exportgraphics(f, fullfile(out_dir, 'Elevation_distribution.png'), 'Resolution', 300);
     close(f);
@@ -279,8 +279,8 @@ function generate_nadir_dist(all_el_deg, orbit_height, out_dir)
     f = figure('Visible', 'off', 'Color', 'w');
     histogram(eta);
     grid on; box on;
-    xlabel('Nadir Steering Angle (deg)', 'FontWeight', 'bold');
-    ylabel('Number of Occurrences', 'FontWeight', 'bold');
+    xlabel('Nadir Steering Angle (deg)');
+    ylabel('Number of Occurrences');
     title('Distribution of Nadir Angles', 'FontSize', 14);
     exportgraphics(f, fullfile(out_dir, 'nadir_steering_distribution.png'), 'Resolution', 300);
     close(f);
@@ -299,7 +299,7 @@ function generate_map_ue_distribution(Cfg, lat_v, lon_v, lat_lim, lon_lim, land,
     else
         title_str = sprintf('UE Distribution\nTotal UEs: %d', nUEs);
     end
-    title(title_str, 'FontWeight', 'bold', 'FontSize', 14);
+    title(title_str, 'FontSize', 14);
     set(gca, 'FontSize', 14);
     exportgraphics(f, fullfile(out_dir, 'Map_UE_Distribution.png'), 'Resolution', 300);
     close(f);

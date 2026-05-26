@@ -21,7 +21,7 @@ for i = 1:length(orbit_height)
     loss_rx = -10 * log10(cosd(theta_rx).^cos_exponent);
 
 
-    f1 = figure('Color', 'w', 'Visible', 'off', 'Position', [100 100 600 450]);
+    f1 = figure('Color', 'w', 'Visible', 'off', 'Position', [100 100 500 400]);
 
     set(0, 'DefaultAxesFontSize', 14);
     plot(el_vec,loss_tx, "DisplayName", 'Satellite')

@@ -12,7 +12,7 @@ Lat_range_deg = [54+(35/60), 83+(40/60)];
 Lon_range_deg = [-(73+(10/60)), 33+(30/60)];
 % Lon_range_deg = [-180, 180];
 StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-StopTime  = datetime('1-Jun-2025 14:59:59', 'TimeZone', 'UTC'); % 48 hours
+StopTime  = datetime('2-Jun-2025 14:59:59', 'TimeZone', 'UTC'); % 48 hours
 
 % Ku-band link budget
 f_DL           = 12e9;
@@ -24,10 +24,10 @@ Target_PFD_MHz = -123;      % dBW/m²/MHz
 FRF = 3;
 RU  = 1;
 
-NumUEs = 18332;
+NumUEs = 1000;
 
-% [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
-[UE_lats, UE_lons] = generate_population_based_UEs(Lat_range_deg, Lon_range_deg, 3000);
+[UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
+% [UE_lats, UE_lons] = generate_population_based_UEs(Lat_range_deg, Lon_range_deg, 3000);
 %% ===== BUILD BASE CFG (fields shared by both constellations) =====
 BaseCfg.Orbit_height             = height_km * 1e3;  % m
 BaseCfg.Min_elevation_UE         = min_elevation_UE;
@@ -70,7 +70,7 @@ CfgStar.Inclination    = 90;
 CfgStar.Phasing        = CfgStar.Num_planes / 2;
 
 %% ===== RUN SIMULATIONS =====
-use_parallel = true;
+use_parallel = false;
 calc_link    = true;
 
 % fprintf('\nRunning Walker Star simulation...\n');

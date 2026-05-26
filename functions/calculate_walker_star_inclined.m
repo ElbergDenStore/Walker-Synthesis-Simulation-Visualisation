@@ -4,7 +4,8 @@ function [optimal_planes, optimal_sats_per_plane, total_sats] = ...
 % CALCULATE_WALKER_STAR_INCLINED  Minimum-satellite Walker Star for inclination < 90°.
 %
 %   Uses the spherical street-of-coverage model (Rider/Ballard/Walker) extended
-%   for inclined orbits.  For i = 90° the result equals calculate_walker_star().
+%   for inclined orbits.  Uses a RAAN-budget formulation and does NOT reproduce
+%   the arc-length formula of calculate_walker_star() at i = 90°.
 %
 %   Physics:
 %     At latitude φ a satellite track drifts in longitude (from Napier's Circle):

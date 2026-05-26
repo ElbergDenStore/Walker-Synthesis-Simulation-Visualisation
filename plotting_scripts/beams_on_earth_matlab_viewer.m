@@ -3,7 +3,7 @@ clear variables;
 clc;
 
 %% Output Directory
-out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'figures', 'beams_on_earth');
+out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'plotting_scripts/figures', 'beams_on_earth');
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
@@ -17,6 +17,10 @@ f_hz = 12e9;
 G_tx_dBi = 37;
 min_elev_deg = 20;
 frf = 3;
+
+% --- Figure Style ---
+fig_size   = [500, 500];   % [width, height] in pixels
+font_size  = 14;           % axis labels, tick labels, title
 
 %% 2. Scenario & Satellite
 startTime = datetime('now');
@@ -84,7 +88,8 @@ b_az = atan2d(b_v, b_u);
 b_x = b_eta .* cosd(b_az);
 b_y = b_eta .* sind(b_az);
 
-fig = figure('Color', 'w', 'Name', 'Ellipsoidal Beam Footprint (Steering Space)');
+fig = figure('Color', 'w', 'Name', 'Ellipsoidal Beam Footprint (Steering Space)', ...
+             'Position', [100, 100, fig_size(1), fig_size(2)]);
 hold on; axis equal; box on; grid on;
 
 for b = 1:num_beams
@@ -110,9 +115,12 @@ for b = 1:num_beams
 end
 
 plot(eta_max_deg * cos(theta), eta_max_deg * sin(theta), 'k--', 'LineWidth', 1.8);
-xlabel('X Steering Angle (deg off nadir)');
-ylabel('Y Steering Angle (deg off nadir)');
-title(sprintf('Beam Footprints from calculate_hexagonal_beams | f=%.1f GHz, Gtx=%.1f dBi, FRF=%d', f_hz/1e9, G_tx_dBi, frf));
+xlabel('X Steering Angle (deg off nadir)', 'FontSize', font_size);
+ylabel('Y Steering Angle (deg off nadir)', 'FontSize', font_size);
+title({'Beam Footprints from calculate\_hexagonal\_beams', ...
+       sprintf('f = %.1f GHz  |  Gtx = %.1f dBi  |  FRF = %d', f_hz/1e9, G_tx_dBi, frf)}, ...
+    'FontSize', font_size);
+set(gca, 'FontSize', font_size);
 
 exportgraphics(fig, fullfile(out_dir, 'beams_ellipsoidal_steering_space.png'), 'Resolution', 600);
 fprintf('Saved plot: %s\n', fullfile(out_dir, 'beams_ellipsoidal_steering_space.png'));
@@ -125,8 +133,9 @@ Re_km = 6371;
 h_km = alt_m / 1000;
 rsat_km = Re_km + h_km;
 
-fig_map = figure('Color', 'w', 'Name', 'Geographic Phased Array Footprint', 'Position', [100, 100, 900, 900]);
-gx = geoaxes('Basemap', 'satellite'); 
+fig_map = figure('Color', 'w', 'Name', 'Geographic Phased Array Footprint', ...
+                 'Position', [100, 100, fig_size(1), fig_size(2)]);
+gx = geoaxes('Basemap', 'satellite', 'FontSize', font_size);
 hold on;
 
 % 6a. Plot the individual beams
@@ -182,7 +191,9 @@ else
     lambda_max_deg = asind(1) - asind(Re_km/rsat_km); 
 end
 
-title(gx, sprintf('Phased Array Footprints on Earth | h = %dkm | f = %.1f GHz | G = %.1f dBi', alt_m*1e-3, f_hz/1e9, G_tx_dBi));
+title(gx, {'Phased Array Footprints on Earth', ...
+           sprintf('h = %d km  |  f = %.1f GHz  |  G = %.1f dBi', alt_m*1e-3, f_hz/1e9, G_tx_dBi)}, ...
+    'FontSize', font_size);
 
 % 6c. Export 3 specific zoom levels
 fprintf('Saving figures (pausing between views to allow map tiles to load)...\n');
