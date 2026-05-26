@@ -39,8 +39,19 @@ function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclinatio
     
     D_maxCounter = 2 * lambda_street;
     D_maxSame = lambda_street + lambda_max;
-    
-    seam_ratio = D_maxCounter / D_maxSame; 
+
+    % Compute seam ratio in RAAN space (spherical law of cosines at coverage lat).
+    % Using the ECA ratio D_ctr/D_same would slightly over-allocate RAAN to the
+    % seam at high latitudes, producing a microscopic gap at boundary constellations.
+    sin2lat = sin(lat_r)^2;
+    cos2lat = cos(lat_r)^2;
+    cos_seam = (cos(D_maxCounter) - sin2lat) / cos2lat;
+    cos_co   = (cos(D_maxSame)   - sin2lat) / cos2lat;
+    if cos_seam >= -1 && cos_seam <= 1 && cos_co > -1 && cos_co <= 1
+        seam_ratio = acos(cos_seam) / acos(cos_co);   % exact RAAN-budget ratio
+    else
+        seam_ratio = D_maxCounter / D_maxSame;         % fallback: equatorial / low-lat
+    end
 
     % --- Apply Spacing ---
     co_rotating_spacing = 180 / (planes - 1 + seam_ratio); 

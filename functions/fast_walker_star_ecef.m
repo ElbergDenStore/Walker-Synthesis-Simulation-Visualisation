@@ -50,7 +50,19 @@ function sat_pos_ecef = fast_walker_star_ecef(Orbit_height, Inc_deg, P, S, min_e
     lambda_max  = deg2rad(180 - (90 + min_elevation_deg + alpha));
     S_ang       = (2*pi) / S;
     lambda_str  = acos(min(1, cos(lambda_max) / cos(S_ang / 2)));
-    seam_ratio  = (2 * lambda_str) / (lambda_str + lambda_max);
+    D_ctr  = 2 * lambda_str;
+    D_same = lambda_str + lambda_max;
+    % RAAN-budget seam ratio (exact spherical law of cosines at coverage latitude).
+    % Using the ECA ratio D_ctr/D_same over-allocates seam RAAN at high latitudes.
+    sin2lat = sin(lat_r)^2;
+    cos2lat = cos(lat_r)^2;
+    cos_seam = (cos(D_ctr)  - sin2lat) / cos2lat;
+    cos_co   = (cos(D_same) - sin2lat) / cos2lat;
+    if cos_seam >= -1 && cos_seam <= 1 && cos_co > -1 && cos_co <= 1
+        seam_ratio = acos(cos_seam) / acos(cos_co);   % exact RAAN-budget ratio
+    else
+        seam_ratio = D_ctr / D_same;                   % fallback: equatorial / low-lat
+    end
 
     % RAAN spacing and in-plane phase stagger
     co_rot_spacing   = 180 / (P - 1 + seam_ratio);   % degrees between planes
