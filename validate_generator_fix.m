@@ -145,9 +145,9 @@ for k = 1:n
     results(k).elapsed_s = elapsed;
 
     t_saving = t_smad - t_incl;   % satellites saved vs SMAD
+    if valid; res = 'PASS'; else; res = 'FAIL'; end
     fprintf('%-7d | P=%2d S=%2d T=%3d      | P=%2d S=%2d T=%3d      | %-11.5f | %-9d | %s  (%.0fs)\n', ...
-        h, p_smad, s_smad, t_smad, p_incl, s_incl, t_incl, cov, t_saving, ...
-        char(valid * "PASS" + ~valid * "FAIL"), elapsed);
+        h, p_smad, s_smad, t_smad, p_incl, s_incl, t_incl, cov, t_saving, res, elapsed);
 end
 
 fprintf('%s\n', repmat('-', 1, numel(hdr)));
