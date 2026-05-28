@@ -1,4 +1,4 @@
-# Satcom4Defence Constellation Simulator Matlab Tool
+# Constellation Synthesis Simulation and Visualisation Matlab Tool
 This tool has been developed to help any constellation designer to run high fidelity simulations.
 
 Features: (I have an idea of grouping them into simulation, illustration and validation or something? hmmm i dont know yet)
