@@ -40,6 +40,9 @@ Changes to code that i want:
 - Move all the plotting files to the plotting folder
 - Revive UE focus view from the dead?
 - Develop satellite focused view?
-- I need to validate the smarter SOC with lower inclinations to also work for 90 degrees
+- I need to validate the smarter SOC with lower inclinations to also work for 90 degrees: it did so now i need to remove the old one.
 - Coverage simulator is ugly due to the early stopping and workers might not be able to not die using it
+- The gridsearch is ugly due to all the fallback mechanisms, I need to clean it up in one go.
+- publish to github
+- Create understandable read-me so others can use the code, including the dependencies.
 

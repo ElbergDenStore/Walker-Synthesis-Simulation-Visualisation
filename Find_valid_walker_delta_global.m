@@ -1,6 +1,5 @@
 % How to run through the night:
-% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "Find_valid_constellations" > log.txt
-% xvfb is a virtual display to avoid constellation pictures do not crash server
+% matlab -nosplash -nodesktop -batch "Find_valid_walker_delta_global" > log.txt
 % one ">" overwrites the file
 % Read log during run using tail -f log.txt
 
@@ -26,23 +25,23 @@ delete(gcp('nocreate'));
 % [~, ~] = system(['rm -rf ' cluster_dir '/Job* 2>/dev/null']);
 
 %% Master Configuration
-heights_km                          = 500:10:1200;
-Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
-% Master_config.Lat_range_deg         = [0 83.6];
+heights_km                          = 500:100:1200;
+% Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
+Master_config.Lat_range_deg         = [0 90];
 Master_config.Min_elevation_UE      = 20;
-Master_config.Num_Planes            = 2:25; % Num Planes
-Master_config.Sats_Plane            = 2:25; % Sats per Plane
-Master_config.Inc_vec               = linspace(70, 80, 111); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+Master_config.Num_Planes            = 8:25; % Num Planes
+Master_config.Sats_Plane            = 8:40; % Sats per Plane
+Master_config.Inc_vec               = linspace(70, 80, 11); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
 Master_config.Target_num_candidates = 1;
 Master_config.SampleTime            = 660;
 
 % Sub Run configurations
-Master_config.Ultrafast.Duration_h  = 3;  
-Master_config.Ultrafast.Num_UEs     = 200;
+Master_config.Ultrafast.Duration_h  = 1;  
+Master_config.Ultrafast.Num_UEs     = 1000;
 Master_config.Fast.Duration_h       = 50;  
-Master_config.Fast.Num_UEs          = 800;
+Master_config.Fast.Num_UEs          = 2000;
 certainty = 99 * 1e-2;
-fractional_area = 0.1 * 1e-2;
+fractional_area = 0.05 * 1e-2;
 fractional_time = 0.1 * 1e-2;
 required_samples = log(1-certainty)/log(1-fractional_area*fractional_time)
 
@@ -56,7 +55,7 @@ Master_config.Detailed.Num_UEs      = required_UEs;
 % Set resume_dir to a previous Master_Sweep folder to continue from where it
 % left off, e.g. resume_dir = 'simulation_output/Master_Sweep_20260522_105447';
 % Leave empty to start a fresh run.
-resume_dir = 'simulation_output/Master_Sweep_20260522_172327';
+resume_dir = 'simulation_output/Master_Sweep_20260527_135652';
 
 % Record start time for the sweep
 start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');

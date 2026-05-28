@@ -6,6 +6,23 @@ if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
 
+%% Figure Style Configuration
+% Edit these values to control all figure sizes, fonts, and export resolution.
+FIG.dpi        = 300;       % export DPI
+FIG.font_size  = 14;        % axis label / tick font size
+FIG.title_size = 14;        % title font size (via multiplier)
+FIG.annot_size = 9;         % small annotation / beam-label text
+FIG.lw         = 1.5;       % default line width (where not explicitly overridden)
+FIG.wide    = [100 100 600 400];
+FIG.medium  = [100 100  500 400];
+FIG.square  = [100 100  400 400];
+FIG.compact = [100 100  300 300];
+FIG.tall    = [100 100  400 400];
+set(groot, 'DefaultAxesFontSize',                FIG.font_size);
+set(groot, 'DefaultTextFontSize',                FIG.font_size);
+set(groot, 'DefaultAxesTitleFontSizeMultiplier', FIG.title_size / FIG.font_size);
+set(groot, 'DefaultLineLineWidth',               FIG.lw);
+
 %% 1. Configuration & Region Selection
 % Toggle between 'Nordjylland', 'Denmark', 'Full3000', or 'Full30000'
 REGION = 'Full3000';
@@ -30,8 +47,8 @@ switch REGION
 end
 
 fprintf('Running simulation for %s...\n', REGION);
-Cfg = get_cfg(1000);
-calc_link = false; use_parallel = true;
+Cfg = get_cfg(1000,"walkerdelta");
+calc_link = false; use_parallel = false;
 [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons, Total_Pop] = generate_population_based_UEs(latlim, lonlim, people_per_ue);
 Cfg.NumUEs = length(Cfg.Flat_UE_array.Lats);
 metrics = coverage_simulator_function(Cfg, use_parallel, calc_link);
@@ -59,7 +76,7 @@ for t = 1:nT
 end
 
 %% 3D Surface: Constellation Utilization vs Time
-figure('Color', 'w', 'Name', 'Constellation Load');
+figure('Color', 'w', 'Name', 'Constellation Load', 'Position', FIG.wide);
 [TimeGrid, SatGrid] = meshgrid(time_mins, 1:TotalSats);
 
 s = surf(TimeGrid, SatGrid, SatUtilization);
@@ -74,26 +91,26 @@ ylabel(cb, 'Connected UEs');
 xlabel('Time (minutes from start)');
 ylabel('Satellite ID');
 zlabel('UE Count per Satellite');
-title(sprintf('%s: System-Wide Satellite Utilization', REGION));
-
-exportgraphics(gcf, fullfile(out_dir, 'constellation_surf.png'), 'Resolution', 300);
+% title(sprintf('%s: System-Wide Satellite Utilization', REGION));
+title("System-Wide Satellite Utilization");
+exportgraphics(gcf, fullfile(out_dir, 'constellation_surf.png'), 'Resolution', FIG.dpi);
 
 %% Plot: Constellation Utilization (Active Satellites Only)
-figure('Color', 'w', 'Name', 'Active Satellites Load');
+figure('Color', 'w', 'Name', 'Active Satellites Load', 'Position', FIG.wide);
 
 active_sat_indices = find(max(SatUtilization, [], 2) > 0);
-imagesc(time_mins, active_sat_indices, SatUtilization(active_sat_indices, :));
+imagesc(time_mins, 1:TotalSats, SatUtilization);
 
 xlabel('Time (minutes from start)');
 ylabel('Satellite ID (Constellation Index)');
-title(sprintf('%s: Utilization of Active Satellites', REGION));
+title("Utilization of Satellites");
 
 cb = colorbar;
 ylabel(cb, 'Number of Connected UEs');
 set(gca, 'YDir', 'normal');
 grid on;
 
-exportgraphics(gcf, fullfile(out_dir, 'ActiveSatUtilization.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(out_dir, 'ActiveSatUtilization.png'), 'Resolution', FIG.dpi);
 
 
 % --- Find the Peak Satellite and Time ---
@@ -165,7 +182,7 @@ for t = 1:nT
 end
 
 %% 6. Snapshot at PEAK UTILIZATION (in Degrees)
-fig1 = figure('Color', 'w', 'Visible', 'off'); hold on; axis equal; grid on;
+fig1 = figure('Color', 'w', 'Visible', 'off', 'Position', FIG.square); hold on; axis equal; grid on;
 theta = linspace(0, 2*pi, 100);
 
 b_eta = asind(sqrt(b_u.^2 + b_v.^2)); b_az = atan2d(b_v, b_u);
@@ -181,7 +198,7 @@ scatter(ue_eta.*cosd(ue_az), ue_eta.*sind(ue_az), 3, 'r');
 plot(eta_max*cos(theta), eta_max*sin(theta), 'k--', 'LineWidth', 2);
 title(sprintf('Sat %d Peak Load (%d/%d UEs)\nTime: %s', peakSat, max_val, Cfg.NumUEs, datestr(time_vec(t_peak))));
 xlabel('Degrees off Nadir'); ylabel('Degrees off Nadir');
-exportgraphics(fig1, fullfile(out_dir, 'peak_sat_fov.png'), 'Resolution', 300);
+exportgraphics(fig1, fullfile(out_dir, 'peak_sat_fov.png'), 'Resolution', FIG.dpi);
 
 fprintf('Done! Saved peak analysis for Sat %d.\n', peakSat);
 
@@ -212,7 +229,7 @@ for t = 1:nT
 end
 
 %% Plotting: The Resource Load (Active Beams)
-figA = figure('Color', 'w', 'Position', [100 100 900 450]);
+figA = figure('Color', 'w', 'Position', FIG.medium);
 tiledlayout(2,1, 'TileSpacing', 'compact');
 
 nexttile;
@@ -227,10 +244,10 @@ grid on; ylabel('Max UEs in 1 Beam');
 xlabel('Time (minutes from start)');
 title('Beam Congestion Level');
 
-exportgraphics(figA, fullfile(out_dir, 'peak_sat_resource_load.png'), 'Resolution', 300);
+exportgraphics(figA, fullfile(out_dir, 'peak_sat_resource_load.png'), 'Resolution', FIG.dpi);
 
 %% Waterfall: Spatial Congestion vs Time
-figure('Color', 'w', 'Name', 'Beam Load Waterfall');
+figure('Color', 'w', 'Name', 'Beam Load Waterfall', 'Position', FIG.wide);
 imagesc(time_mins, 1:num_beams, beam_ue_count_matrix);
 colormap(parula);
 cb = colorbar;
@@ -238,7 +255,7 @@ ylabel(cb, 'UEs per Beam');
 xlabel('Time (mins)'); ylabel('Beam ID');
 title(sprintf('Sat %d: Spatial Congestion Waterfall', peakSat));
 
-exportgraphics(gcf, fullfile(out_dir, 'peak_sat_congestion_waterfall.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(out_dir, 'peak_sat_congestion_waterfall.png'), 'Resolution', FIG.dpi);
 
 %% 7. Spatial Load Heatmap (Steering Angle Perspective)
 counts_at_peak = beam_ue_count_matrix(:, t_peak);
@@ -285,7 +302,7 @@ X_active = X_all(:, active_beam_indices);
 Y_active = Y_all(:, active_beam_indices);
 
 % PLOT A: FULL FOV SPATIAL LOAD
-fig_spatial = figure('Color', 'w', 'Visible', 'off', 'Position', [100 100 500 500]);
+fig_spatial = figure('Color', 'w', 'Visible', 'off', 'Position', FIG.square);
 hold on; axis equal; box on;
 
 plot(X_all, Y_all, 'Color', [0.9 0.9 0.9], 'LineWidth', 0.5);
@@ -301,7 +318,7 @@ ylabel('Y Steering Angle (Degrees off Nadir)');
 title(sprintf('Sat %d: FoV Beam Load Heatmap\nTime: %s', peakSat, datestr(time_vec(t_peak))));
 xlim([-eta_max-2, eta_max+2]); ylim([-eta_max-2, eta_max+2]);
 
-exportgraphics(fig_spatial, fullfile(out_dir, 'peak_sat_spatial_full_deg.png'), 'Resolution', 300);
+exportgraphics(fig_spatial, fullfile(out_dir, 'peak_sat_spatial_full_deg.png'), 'Resolution', FIG.dpi);
 
 % PLOT B: ZOOMED "FREQUENCY REUSE" VIEW
 [max_ue_val, max_idx] = max(active_counts);
@@ -311,7 +328,7 @@ center_y_deg = b_y_deg(b_idx_max);
 
 fprintf('Zooming in on the busiest beam: ID %d with %d UEs.\n', b_idx_max, max_ue_val);
 
-fig_zoom = figure('Color', 'w', 'Visible', 'off', 'Position', [100 100 500 500]);
+fig_zoom = figure('Color', 'w', 'Visible', 'off', 'Position', FIG.square);
 hold on; axis equal; box on; grid on;
 
 plot(X_all, Y_all, 'Color', [0.8 0.8 0.8], 'LineWidth', 0.5);
@@ -320,7 +337,7 @@ patch(X_active, Y_active, active_counts', 'EdgeColor', 'k', 'LineWidth', 1.5, 'F
 for i = 1:length(active_beam_indices)
     b_idx = active_beam_indices(i);
     text(b_x_deg(b_idx), b_y_deg(b_idx), sprintf('ID: %d\nUEs: %d', b_idx, counts_at_peak(b_idx)), ...
-        'HorizontalAlignment', 'center', 'FontSize', 8, 'FontWeight', 'bold', 'Color', 'w');
+        'HorizontalAlignment', 'center', 'FontSize', FIG.annot_size, 'FontWeight', 'bold', 'Color', 'w', 'Clipping', 'on');
 end
 
 eta_max_beam = b_eta(b_idx_max);
@@ -342,13 +359,13 @@ colormap(turbo);
 try clim([0 cap_val]); catch; caxis([0 cap_val]); end
 cb_zoom = colorbar; ylabel(cb_zoom, 'Connected UEs');
 
-zoom_radius = 5 * (r_beam_deg * 2);
+zoom_radius = 2 * (r_beam_deg * 2);
 xlim([center_x_deg - zoom_radius, center_x_deg + zoom_radius]);
 ylim([center_y_deg - zoom_radius, center_y_deg + zoom_radius]);
 xlabel('X Steering Angle (deg)'); ylabel('Y Steering Angle (deg)');
 title(sprintf('Zoomed Active Region: Sat %d\nCentered on Peak Beam %d (Max Load)', peakSat, b_idx_max));
 
-exportgraphics(fig_zoom, fullfile(out_dir, 'peak_sat_spatial_zoomed_deg.png'), 'Resolution', 300);
+exportgraphics(fig_zoom, fullfile(out_dir, 'peak_sat_spatial_zoomed_deg.png'), 'Resolution', FIG.dpi);
 
 %% 8. Beam Load Percentile Distribution
 counts_at_peak = beam_ue_count_matrix(:, t_peak);
@@ -363,7 +380,7 @@ else
 end
 total_ues_connected = sum(sorted_counts);
 
-fig_hist = figure('Color', 'w', 'Visible', 'off', 'Position', [100 100 600 400]);
+fig_hist = figure('Color', 'w', 'Visible', 'off', 'Position', FIG.compact);
 area(percentiles, sorted_counts, 'FaceColor', [0.2 0.6 0.8], 'EdgeColor', [0 0.3 0.6], 'LineWidth', 1.5);
 hold on; grid on;
 
@@ -379,7 +396,7 @@ title(sprintf('Sat %d: Beam Load Distribution\nTime: %s | Total Connected UEs: %
 xlim([0 100]);
 ylim([0 max(sorted_counts) * 1.1]);
 
-exportgraphics(fig_hist, fullfile(out_dir, 'peak_sat_load_percentile.png'), 'Resolution', 300);
+exportgraphics(fig_hist, fullfile(out_dir, 'peak_sat_load_percentile.png'), 'Resolution', FIG.dpi);
 fprintf('Percentile Load Distribution plot saved.\n');
 
 
@@ -396,7 +413,7 @@ else
 end
 total_ues_connected = sum(sorted_counts);
 
-fig_cdf = figure('Color', 'w', 'Visible', 'off', 'Position', [200 200 800 500]);
+fig_cdf = figure('Color', 'w', 'Visible', 'off', 'Position', FIG.tall);
 plot(sorted_counts, percentiles, '-', 'LineWidth', 3, 'Color', [0 0.447 0.741]);
 hold on; grid on;
 area(sorted_counts, percentiles, 'FaceColor', [0 0.447 0.741], 'FaceAlpha', 0.1, 'EdgeColor', 'none');
@@ -404,9 +421,9 @@ area(sorted_counts, percentiles, 'FaceColor', [0 0.447 0.741], 'FaceAlpha', 0.1,
 mean_load = mean(sorted_counts);
 p90_load = prctile(sorted_counts, 90);
 xline(mean_load, '--r', sprintf('Mean (%.1f UEs)', mean_load), ...
-    'LineWidth', 2, 'LabelVerticalAlignment', 'bottom', 'LabelHorizontalAlignment', 'right', 'FontSize', 10);
+    'LineWidth', 2, 'LabelVerticalAlignment', 'bottom', 'LabelHorizontalAlignment', 'right', 'FontSize', FIG.annot_size);
 xline(p90_load, '--k', sprintf('90th Percentile (%.1f UEs)', p90_load), ...
-    'LineWidth', 2, 'LabelVerticalAlignment', 'bottom', 'LabelHorizontalAlignment', 'right', 'FontSize', 10);
+    'LineWidth', 2, 'LabelVerticalAlignment', 'bottom', 'LabelHorizontalAlignment', 'right', 'FontSize', FIG.annot_size);
 
 xlabel('Number of Connected UEs per Beam');
 ylabel('Cumulative Percentage of Beams (%)');
@@ -419,6 +436,6 @@ else
 end
 ylim([0 100]);
 
-exportgraphics(fig_cdf, fullfile(out_dir, 'peak_sat_load_cdf.png'), 'Resolution', 300);
+exportgraphics(fig_cdf, fullfile(out_dir, 'peak_sat_load_cdf.png'), 'Resolution', FIG.dpi);
 fprintf('CDF Load Distribution plot saved.\n');
 fprintf('All figures saved to: %s\n', out_dir);

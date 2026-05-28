@@ -71,6 +71,10 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
     else
         stall_timeout_s = 3600; % 1 hour — low-altitude runs with many sats can take >500s
     end
+    % Grace period after cancel_detailed is sent before the worker is force-killed.
+    % coverage_simulator_function polls every 100 UEs; 5 min is ample.
+    cancel_grace_s  = 300;
+    cancel_sent_at  = zeros(1, num_workers); % wall-time when cancel was sent (0 = not sent)
 
     evaluated_coverage = NaN(total_runs, 1);
     detailed_coverage = NaN(total_runs, 1);
@@ -122,7 +126,11 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
                 worker_input_queues{wid} = data.queue_handle;
                 % If threshold was already broadcast before this worker registered, send it now.
                 if threshold_broadcast
-                    send(worker_input_queues{wid}, struct('skip_above_sats', skip_above_sats));
+                    try
+                        send(worker_input_queues{wid}, struct('skip_above_sats', skip_above_sats));
+                    catch
+                        worker_input_queues{wid} = [];
+                    end
                 end
                 continue;
             end
@@ -201,7 +209,13 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
                         skip_above_sats = worst_accepted_sats;
                         for wq = 1:numel(worker_input_queues)
                             if ~isempty(worker_input_queues{wq})
-                                send(worker_input_queues{wq}, struct('skip_above_sats', skip_above_sats));
+                                try
+                                    send(worker_input_queues{wq}, struct('skip_above_sats', skip_above_sats));
+                                catch
+                                    % Worker died before receiving the threshold — clean up its handle
+                                    % so we don't try again; the future-state check will mark it dead.
+                                    worker_input_queues{wq} = [];
+                                end
                             end
                         end
                         if ~threshold_broadcast
@@ -272,8 +286,13 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
                             search_grid.Total_sats(cur_idx) > skip_above_sats
                         fprintf('\n[i] W%02d cancel requested: %d sats > threshold %d\n', ...
                             w, search_grid.Total_sats(cur_idx), skip_above_sats);
-                        send(worker_input_queues{w}, struct('cancel_detailed', true));
+                        try
+                            send(worker_input_queues{w}, struct('cancel_detailed', true));
+                        catch
+                            worker_input_queues{w} = [];
+                        end
                         w_states(w) = "Cancelling";
+                        cancel_sent_at(w) = toc(t_run_start);
                     end
                 end
             end
@@ -281,11 +300,22 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
 
         for w = 1:length(futures)
             if strcmp(f_states{w}, 'running')
-                last_s = w_last_msg_s(w);
-                if last_s == 0
-                    last_s = 0;
-                end
-                if (toc(t_run_start) - last_s) > stall_timeout_s
+                % Force-kill workers that ignored a cancel signal for too long.
+                if strcmp(w_states(w), "Cancelling") && cancel_sent_at(w) > 0
+                    if (toc(t_run_start) - cancel_sent_at(w)) > cancel_grace_s
+                        cancel(futures(w));
+                        incomplete_idx = worker_assigned_indices{w}(~is_completed(worker_assigned_indices{w}));
+                        is_completed(incomplete_idx) = true;
+                        runs_skipped = runs_skipped + numel(incomplete_idx);
+                        worker_assigned_indices{w} = [];
+                        worker_input_queues{w} = [];
+                        cancel_sent_at(w) = 0;
+                        fprintf('\n[!] W%02d ignored cancel for >%.0fs — force-killed. Skipped %d runs.\n', ...
+                            w, cancel_grace_s, numel(incomplete_idx));
+                        w_states(w) = "Killed";
+                    end
+                % Regular stall detection for non-cancelling workers.
+                elseif (toc(t_run_start) - w_last_msg_s(w)) > stall_timeout_s
                     error(['[FATAL] Worker %d stalled for >%.0fs (state=%s, run=%d). ' ...
                         'Crashing to preserve optimality guarantee. ' ...
                         'Increase Worker_stall_timeout_s if runs legitimately take this long.'], ...
