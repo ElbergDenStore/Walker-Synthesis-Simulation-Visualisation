@@ -27,11 +27,12 @@ delete(gcp('nocreate'));
 %% Master Configuration
 heights_km                          = 500:100:1200;
 % Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
-Master_config.Lat_range_deg         = [0 90];
+% Master_config.Lat_range_deg         = [0 90];
+Master_config.Lat_range_deg         = [0 54+(35/60)];
 Master_config.Min_elevation_UE      = 20;
-Master_config.Num_Planes            = 8:25; % Num Planes
+Master_config.Num_Planes            = 4:25; % Num Planes
 Master_config.Sats_Plane            = 8:40; % Sats per Plane
-Master_config.Inc_vec               = linspace(70, 80, 11); % More general -> linspace(max(Lat_range_deg)-15, min(max(Lat_range_deg),80), 21)
+Master_config.Inc_vec               = linspace(max(Master_config.Lat_range_deg)-15, min(max(Master_config.Lat_range_deg),80), 16)
 Master_config.Target_num_candidates = 1;
 Master_config.SampleTime            = 660;
 
@@ -55,7 +56,7 @@ Master_config.Detailed.Num_UEs      = required_UEs;
 % Set resume_dir to a previous Master_Sweep folder to continue from where it
 % left off, e.g. resume_dir = 'simulation_output/Master_Sweep_20260522_105447';
 % Leave empty to start a fresh run.
-resume_dir = 'simulation_output/Master_Sweep_20260527_135652';
+resume_dir = '';
 
 % Record start time for the sweep
 start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
