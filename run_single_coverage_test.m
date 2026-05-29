@@ -2,7 +2,7 @@
 % /opt/VirtualGL/bin/vglrun matlab & - run it interactively with GPU rendering
 function run_single_coverage_test()
 clear all; close all; clc;
-delete(gcp('nocreate'));
+% delete(gcp('nocreate'));
 % Cfg = get_cfg(1000,"walkerdelta","medium","long");
 
 height_km        = 1000;
@@ -12,19 +12,19 @@ Lat_range_deg = [54+(35/60), 83+(40/60)];
 Lon_range_deg = [-(73+(10/60)), 33+(30/60)];
 % Lon_range_deg = [-180, 180];
 StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-StopTime  = datetime('2-Jun-2025 14:59:59', 'TimeZone', 'UTC'); % 48 hours
+StopTime  = datetime('1-Jun-2025 14:59:59', 'TimeZone', 'UTC'); % 48 hours
 
 % Ku-band link budget
 f_DL           = 12e9;
 B_DL           = 250e6;
 NF_DL          = 5;
 G_rx           = 33;        % dBi, UE receive antenna gain
-Target_PFD_MHz = -123;      % dBW/m²/MHz
+Target_PFD_MHz = -125;      % dBW/m²/MHz
 
 FRF = 3;
 RU  = 1;
 
-NumUEs = 1000;
+NumUEs = 100000;
 
 [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
 % [UE_lats, UE_lons] = generate_population_based_UEs(Lat_range_deg, Lon_range_deg, 3000);
@@ -70,7 +70,7 @@ CfgStar.Inclination    = 90;
 CfgStar.Phasing        = CfgStar.Num_planes / 2;
 
 %% ===== RUN SIMULATIONS =====
-use_parallel = false;
+use_parallel = true;
 calc_link    = true;
 
 % fprintf('\nRunning Walker Star simulation...\n');
