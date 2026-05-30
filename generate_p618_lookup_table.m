@@ -16,7 +16,11 @@ function LUT = generate_p618_lookup_table(totalAnnualExceedance, frequency_hz, l
 %   generate_p618_lookup_table();
 %   generate_p618_lookup_table(1);
 %   generate_p618_lookup_table(1, 12e9);
-%   generate_p618_lookup_table(1, 13.5e9, [54.58, 83.67], [-73.17, 33.50]);
+%   generate_p618_lookup_table(1, 12e9, [54.58, 83.67], [-73.17, 33.50]);
+
+    % Ensure the digital maps (maps.mat, p836.mat, etc.) are on the path
+    script_dir_early = fileparts(mfilename('fullpath'));
+    addpath(fullfile(script_dir_early, 'functions', 'data'));
 
     if nargin < 1
         totalAnnualExceedance = 1;
