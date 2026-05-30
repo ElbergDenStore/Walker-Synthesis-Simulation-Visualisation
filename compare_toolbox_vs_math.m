@@ -105,15 +105,15 @@ for ci = 1:numel(configs)
 
     fprintf('\n--- TEST 2: Coverage statistics (3 Hours) ---\n');
     Cfg.StopTime = StartTime + hours(3);
-    m2_toolbox = constellation_simulator(Cfg, false, false, [], true,  true);
-    m2_math    = constellation_simulator(Cfg, false, false, [], false, false);
+    m2_toolbox = constellation_simulator(Cfg, false, false, true);
+    m2_math    = constellation_simulator(Cfg, false, false, false);
     fprintf('Worst Coverage:\n  Toolbox: %.4f%%\n  Math:    %.4f%%\n', ...
         m2_toolbox.worst_coverage_percent, m2_math.worst_coverage_percent);
 
     fprintf('\n--- TEST 3: Coverage statistics (24 Hours) ---\n');
     Cfg.StopTime = StartTime + hours(24);
-    m3_toolbox = constellation_simulator(Cfg, false, false, [], true,  true);
-    m3_math    = constellation_simulator(Cfg, false, false, [], false, false);
+    m3_toolbox = constellation_simulator(Cfg, false, false, true);
+    m3_math    = constellation_simulator(Cfg, false, false, false);
     fprintf('Worst Coverage:\n  Toolbox: %.4f%%\n  Math:    %.4f%%\n', ...
         m3_toolbox.worst_coverage_percent, m3_math.worst_coverage_percent);
 

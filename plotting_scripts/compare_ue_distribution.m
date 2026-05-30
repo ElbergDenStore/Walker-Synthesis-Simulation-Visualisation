@@ -2,7 +2,7 @@
 function compare_ue_distribution()
 clear all; close all; clc;
 delete(gcp('nocreate'));
-
+path_setup();
 %% ===== SHARED PARAMETERS =====
 height_km        = 1000;
 min_elevation_UE = 20;
@@ -68,12 +68,13 @@ function Cfg = build_cfg(UE_lats, UE_lons)
     Cfg.Phasing         = Num_planes / 2;
 end
 
-use_parallel = true;
+use_parallel = false;
 calc_link    = true;
 
 %% ===== SHARED OUTPUT DIRECTORY =====
-date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-run_dir  = fullfile('simulation_output', sprintf('Compare_UE_%s', date_str));
+script_dir = fileparts(mfilename('fullpath'));
+date_str   = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+run_dir    = fullfile(script_dir, 'figures', 'compare_ue_distribution', sprintf('Compare_UE_%s', date_str));
 mkdir(fullfile(run_dir, 'uniform'));
 mkdir(fullfile(run_dir, 'population'));
 fprintf('Saving all outputs to: %s\n', run_dir);

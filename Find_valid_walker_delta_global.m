@@ -51,7 +51,7 @@ Master_config.Detailed.Duration_h   = required_time_h;
 required_UEs = ceil(sqrt(required_samples))
 Master_config.Detailed.Num_UEs      = required_UEs;
 
-
+Master_config.Max_workers = 16;
 
 % Set resume_dir to a previous Master_Sweep folder to continue from where it
 % left off, e.g. resume_dir = 'simulation_output/Master_Sweep_20260522_105447';

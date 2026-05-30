@@ -38,13 +38,14 @@ Master_config.Detailed.Num_UEs     = required_UEs;
 % Stall timeout: must be >> the longest legitimate detailed run.
 % At low altitudes (500 km) with 150+ sats the run can take >600s.
 Master_config.Worker_stall_timeout_s = 3600; % 1 hour
+Master_config.Max_workers = 4;
 
 % Record start time
 % Set resume_dir to a previous Master_Sweep_WalkerStar folder to continue
 % from where it left off, e.g.:
 %   resume_dir = 'simulation_output/Master_Sweep_WalkerStar_20260522_105447';
 % Leave empty to start a fresh run.
-resume_dir = 'simulation_output/Master_Sweep_WalkerStar_20260522_124112';
+resume_dir = '';
 
 start_time = datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss');
 fprintf('=======================================================\n');

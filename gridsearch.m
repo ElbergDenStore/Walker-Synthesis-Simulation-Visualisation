@@ -50,6 +50,10 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
     pool = gcp('nocreate');
     if isempty(pool), pool = parpool(); end
     num_workers = pool.NumWorkers;
+    if isfield(master_config, 'Max_workers') && master_config.Max_workers < num_workers
+        num_workers = master_config.Max_workers;
+        fprintf('Worker count capped at %d (Max_workers).\n', num_workers);
+    end
     total_runs = height(search_grid);
 
     fprintf('Using %d parallel workers for batch processing...\n', num_workers);
@@ -141,11 +145,9 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
                 error('\n[!] WORKER %d ERROR ON RUN %d: %s', wid, data.run_idx, data.error_message);
             end
 
-            if isfield(data, 'is_skipped') && data.is_skipped
-                runs_completed = runs_completed + 1;
-                runs_skipped_threshold = runs_skipped_threshold + 1;
-                is_completed(data.run_idx) = true;
-                w_states(wid) = "Skip";
+            if isfield(data, 'is_batch_skip') && data.is_batch_skip
+                runs_skipped_threshold = runs_skipped_threshold + data.count;
+                w_states(wid) = "Done";
                 continue;
             end
 
@@ -195,16 +197,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
                 if candidates_found >= target_num_candidates
                     sorted_candidates = sortrows(all_candidates, 'Total_sats', 'ascend');
                     worst_accepted_sats = sorted_candidates.Total_sats(target_num_candidates);
-
-                    first_pending_idx = find(~is_completed, 1, 'first');
-                    if isempty(first_pending_idx)
-                        break;
-                    end
-
-                    % Broadcast (or update) the skip threshold to all workers so they
-                    % skip remaining runs above the worst-accepted satellite count.
-                    % Workers that pass the threshold continue normally; if everything
-                    % left in a worker's chunk is above the threshold, it exits early.
+                    % Broadcast (or update) the skip threshold to all workers.
                     if ~threshold_broadcast || worst_accepted_sats < skip_above_sats
                         skip_above_sats = worst_accepted_sats;
                         for wq = 1:numel(worker_input_queues)
@@ -212,16 +205,24 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
                                 try
                                     send(worker_input_queues{wq}, struct('skip_above_sats', skip_above_sats));
                                 catch
-                                    % Worker died before receiving the threshold — clean up its handle
-                                    % so we don't try again; the future-state check will mark it dead.
                                     worker_input_queues{wq} = [];
                                 end
                             end
                         end
                         if ~threshold_broadcast
-                            fprintf('\n--- Skip threshold broadcast: drop runs with > %d sats (workers idle once chunk drained) ---\n', skip_above_sats);
+                            fprintf('\n--- Skip threshold broadcast: drop runs with > %d sats ---\n', skip_above_sats);
                         end
                         threshold_broadcast = true;
+
+                        % Mark above-threshold runs as logically complete immediately.
+                        % Workers currently inside states() for these runs will finish
+                        % in the background — we do NOT need to wait for them.
+                        is_completed(search_grid.Total_sats > skip_above_sats) = true;
+
+                        first_pending_idx = find(~is_completed, 1, 'first');
+                        if isempty(first_pending_idx)
+                            break;  % All below-threshold runs done — exit without waiting
+                        end
                     end
                 end
             end
@@ -229,6 +230,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
 
         % Refresh dashboard every 0.5 s.
         if toc(t_last_update) > 0.5
+            runs_completed = sum(is_completed); % always accurate: bulk marks + individual completions
             print_dashboard(w_states, w_runs, runs_completed, total_runs, toc(t_run_start), event_log, candidates_found, target_num_candidates);
             t_last_update = tic;
         end
@@ -326,8 +328,20 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
     end
 
     %% 6. End-of-loop cleanup
+    % Signal workers to stop, then fire-and-forget.
+    % cancel() is non-blocking (<0.005 s); workers finish their current states()
+    % call in the background and become idle — the pool is not harmed.
+    for w = 1:numel(worker_input_queues)
+        if ~isempty(worker_input_queues{w})
+            try
+                send(worker_input_queues{w}, struct('cancel_detailed', true, 'skip_above_sats', 0));
+            catch
+            end
+        end
+    end
     cancel(futures);
     run_time = toc(t_run_start);
+    runs_completed = sum(is_completed);
 
     generate_profiling_report(run_time, runs_completed, num_workers, ...
         t_faster_all, t_fast_all, t_detailed_all, worker_run_counts, worker_total_math_time);
@@ -420,12 +434,11 @@ function evaluate_chunk(q, master_config, orbit_height_km, worker_grid, original
         end
 
         if worker_grid.Total_sats(i) > skip_above_sats
-            % All remaining rows are >= this one (sorted ascending) -> skip them all.
-            for j = i:height(worker_grid)
-                send(q, struct('worker_id', worker_id, ...
-                    'run_idx', original_indices(j), ...
-                    'is_skipped', true));
-            end
+            % All remaining rows are >= this one (sorted ascending): tell the
+            % client the count in one message instead of flooding the queue.
+            n_skip = height(worker_grid) - i + 1;
+            send(q, struct('worker_id', worker_id, 'run_idx', original_indices(i), ...
+                           'is_batch_skip', true, 'count', n_skip));
             return;
         end
 
@@ -493,7 +506,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Ultrafast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Ultrafast.Num_UEs);
-    m1 = constellation_simulator(Cfg, false, false, [], false);
+    m1 = constellation_simulator(Cfg, false, false, false);
     result.t_faster = toc(t1);
     result.faster_cov = m1.worst_coverage_percent;
 
@@ -510,7 +523,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Fast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Fast.Num_UEs);
-    m2 = constellation_simulator(Cfg, false, false, [], true); % reuse satelliteScenario handle, use matlab two body
+    m2 = constellation_simulator(Cfg, false, false, true); % reuse satelliteScenario handle, use matlab two body
     result.t_fast = toc(t2);
 
     if m2.worst_coverage_percent < 99.9
@@ -547,13 +560,16 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Detailed.Num_UEs);
 
-    m3 = constellation_simulator(Cfg, false, false, q_in, true); % toolbox propagator (accurate, process-pool compatible)
+    % CancelToken bridges the worker's PollableDataQueue to the simulator.
+    % After the run, token.ConsumedThreshold reflects any stricter threshold
+    % we observed mid-simulation.
+    token = CancelToken(q_in, local_config.Total_sats);
+    m3 = constellation_simulator(Cfg, false, false, true, @() token.check()); % toolbox propagator
     result.t_detailed = toc(t3);
     result.t_total = result.t_faster + result.t_fast + result.t_detailed;
 
-    % Propagate any threshold consumed inside coverage_simulator back to our local copy
-    if isfield(m3, 'consumed_threshold') && m3.consumed_threshold < skip_above_sats
-        skip_above_sats = m3.consumed_threshold;
+    if token.ConsumedThreshold < skip_above_sats
+        skip_above_sats = token.ConsumedThreshold;
     end
 
     if isfield(m3, 'cancelled') && m3.cancelled

@@ -314,11 +314,11 @@ ms_tex{end+1} = '    \label{tab:multistage_results}';
 ms_tex{end+1} = '    \begin{tabular}{lccc}';
 ms_tex{end+1} = '        \hline';
 ms_tex{end+1} = '        \textbf{Stage} & \textbf{Constellations} & \textbf{\% of Prev.} & \textbf{Avg.\ Time (s)} \\ \hline';
-ms_tex{end+1} = sprintf('        Full Grid    & %s & -- & -- \\',         fmt_num(total_n_full));
-ms_tex{end+1} = sprintf('        Filtered Grid & %s & %.1f\%% & -- \\',  fmt_num(total_n_filtered), pct_filtered_of_full);
-ms_tex{end+1} = sprintf('        1 & %s & %.1f\%% & %.3f \\',           fmt_num(total_n1), pct_s1_of_filtered, avg_t1_all);
-ms_tex{end+1} = sprintf('        2 & %s & %.1f\%% & %.2f \\',           fmt_num(total_n2), pct_s2_of_s1, avg_t2_all);
-ms_tex{end+1} = sprintf('        3 & %s & %.1f\%% & %.1f \\ \hline',   fmt_num(total_n3), pct_s3_of_s2, avg_t3_all);
+ms_tex{end+1} = sprintf('        Full Grid    & %s & -- & -- \\\\',         fmt_num(total_n_full));
+ms_tex{end+1} = sprintf('        Filtered Grid & %s & %.1f%% & -- \\\\',  fmt_num(total_n_filtered), pct_filtered_of_full);
+ms_tex{end+1} = sprintf('        1 & %s & %.1f%% & %.3f \\\\',           fmt_num(total_n1), pct_s1_of_filtered, avg_t1_all);
+ms_tex{end+1} = sprintf('        2 & %s & %.1f%% & %.2f \\\\',           fmt_num(total_n2), pct_s2_of_s1, avg_t2_all);
+ms_tex{end+1} = sprintf('        3 & %s & %.1f%% & %.1f \\\\ \\hline',   fmt_num(total_n3), pct_s3_of_s2, avg_t3_all);
 ms_tex{end+1} = sprintf('        \\multicolumn{4}{l}{\\small \\textbf{Hardware:} i9-13900K, %d parallel workers.} \\\\', n_workers_rep);
 ms_tex{end+1} = sprintf( ...
     ['        \\multicolumn{4}{l}{\\small \\textbf{Total Wall Time:} %.2f~h' ...

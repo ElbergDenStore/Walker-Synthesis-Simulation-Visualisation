@@ -15,10 +15,10 @@ repo_root = fullfile(script_dir, '..');  % matlab_code/
 path_setup();
 
 candidate_files = {
-    fullfile(repo_root, filename)
-    fullfile(repo_root, 'functions', filename)
-    fullfile(script_dir, filename)
-    fullfile(pwd, filename)
+    % fullfile(repo_root, filename)
+    fullfile(repo_root, 'functions/data', filename)
+    % fullfile(script_dir, filename)
+    % fullfile(pwd, filename)
 };
 
 tif_path = '';

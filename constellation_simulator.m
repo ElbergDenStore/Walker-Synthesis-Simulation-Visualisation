@@ -1,85 +1,62 @@
-function metrics = constellation_simulator(Cfg, use_parallel, calc_link, cancel_queue, use_toolbox, reset_cache)
-% CONSTELLATION_SIMULATOR  Unified satellite coverage + link budget simulator.
+function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_toolbox, should_cancel)
+% CONSTELLATION_SIMULATOR  Satellite coverage + optional link budget.
 %
-%   metrics = constellation_simulator(Cfg, use_parallel, calc_link)
-%   metrics = constellation_simulator(Cfg, use_parallel, calc_link, cancel_queue)
-%   metrics = constellation_simulator(Cfg, use_parallel, calc_link, cancel_queue, use_toolbox)
-%   metrics = constellation_simulator(Cfg, use_parallel, calc_link, cancel_queue, use_toolbox, reset_cache)
+%   metrics = constellation_simulator(Cfg)
+%   metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_toolbox, should_cancel)
 %
-% Replaces the old coverage_simulator_function + fast_coverage_simulator_function pair.
-% Combines:
-%   * Choice of orbit propagator (Satellite Toolbox SGP/two-body OR pure-math fast_walker_ecef)
-%   * Optional link budget computation (calc_link)
-%   * Optional cancellation queue for gridsearch (cancel_queue)
-%   * Matrix-based inner loop with single-precision satellite positions (v3 optimisation)
+% Pipeline
+%   propagate orbits -> compute per-UE visibility / best satellite
+%                    -> coverage stats -> (optional) link budget
 %
-% Arguments
-%   Cfg           Standard config struct (StartTime/StopTime/SampleTime, Total_sats,
-%                 Num_planes, Sats_per_plane, Inclination, Phasing, Orbit_height,
-%                 Min_elevation_UE, WalkerStar, Lat_range_deg, Flat_UE_array, DL/UL...)
-%   use_parallel  true  -> parfor over UEs (only when cancel_queue is empty)
-%                 false -> serial for-loop
-%   calc_link     true  -> compute full link budget (FSPL, SNR, SINR, throughput, ...)
-%                 false -> coverage geometry only (much faster)
-%   cancel_queue  Optional parallel.pool.PollableDataQueue. When supplied the inner
-%                 loop runs serially and polls every 100 UEs for:
-%                   * struct('skip_above_sats', N)  -> auto-cancel if Cfg.Total_sats > N
-%                   * struct('cancel_detailed', true) -> explicit cancel
-%                 Cancelled runs return early with metrics.cancelled = true.
-%   use_toolbox   Default true. true -> Satellite Toolbox; false -> fast_walker_ecef.
-%   reset_cache   Default false. Reset the persistent satelliteScenario handle
-%                 (only relevant when use_toolbox = true).
+% Arguments  (all but Cfg are optional, shown with defaults)
+%   Cfg            Struct with StartTime, StopTime, SampleTime, Orbit_height,
+%                  Inclination, Num_planes, Sats_per_plane, Total_sats, Phasing,
+%                  WalkerStar, Min_elevation_UE, Lat_range_deg,
+%                  Flat_UE_array.{Lats,Lons}, and (if calc_link) DL/UL.
+%   use_parallel   false. parfor over UEs. Ignored when should_cancel is set.
+%   calc_link      false. Compute link budget (much slower).
+%   use_toolbox    true.  Satellite Toolbox propagator (cached scenario).
+%                         false -> pure-math fast_walker_ecef.
+%   should_cancel  @() false. Called every 100 UEs in the inner loop. If it
+%                  returns true the run aborts and metrics.cancelled = true.
+%                  See CancelToken for the typical gridsearch use.
 %
-% Returns metrics struct with fields: worst_coverage_percent, prob_coverage,
-% Num_visible, minNumberSatellites, meanNumberSatellites, throughput_10pct,
-% throughput_mean, UEs, SimData, Cfg, cancelled, consumed_threshold.
+% Returns
+%   metrics struct with: worst_coverage_percent, prob_coverage, Num_visible,
+%   minNumberSatellites, meanNumberSatellites, throughput_10pct,
+%   throughput_mean, UEs, SimData, Cfg, cancelled.
 
-    %% 0. Argument defaults
-    if nargin < 4, cancel_queue = []; end
-    if nargin < 5 || isempty(use_toolbox),     use_toolbox     = true;  end
-    if nargin < 6 || isempty(reset_cache), reset_cache = false; end
+    %% Defaults
+    if nargin < 2 || isempty(use_parallel),  use_parallel  = false;       end
+    if nargin < 3 || isempty(calc_link),     calc_link     = false;       end
+    if nargin < 4 || isempty(use_toolbox),   use_toolbox   = true;        end
+    if nargin < 5 || isempty(should_cancel), should_cancel = @() false;   end
 
-    has_cancel_queue = ~isempty(cancel_queue);
-
-    fprintf('\n Starting Simulation: %d Sats, %.1f deg Inc  [propagator: %s%s]\n', ...
+    fprintf('\n Starting Simulation: %d Sats, %.1f deg Inc  [%s%s]\n', ...
         Cfg.Total_sats, Cfg.Inclination, ...
         ternary(use_toolbox, 'toolbox', 'fast-math'), ...
-        ternary(calc_link, ', link budget', ''));
-    tic
+        ternary(calc_link,   ', link budget', ''));
 
-    %% 1. Coverage reference latitude (used by Walker-Star generator only)
-    if isfield(Cfg, 'Lat_range_deg')
-        min_lat_cov = min(Cfg.Lat_range_deg);
-    else
-        min_lat_cov = 0;
-    end
-
-    %% 2. Orbit propagation
-    [sat_pos_ecef, simTimes] = propagate_orbits(Cfg, use_toolbox, reset_cache, min_lat_cov);
+    %% 1. Orbit propagation
+    tic;
+    [sat_pos_ecef, simTimes] = propagate(Cfg, use_toolbox);
+    sat_pos_ecef = single(sat_pos_ecef);   % L2-friendly + faster inner loop
 
     num_sats = size(sat_pos_ecef, 2);
     nT       = size(sat_pos_ecef, 3);
 
-    %% 2b. Cast satellite positions to single precision
-    %  Memory: 3 x num_sats x nT x 4 bytes (vs 8 for double).
-    %  For a typical Stage-3 grid (56 sats x 2146 steps) this is 1.44 MB instead
-    %  of 2.88 MB -> fits in the P-core L2 (2 MB) so the inner UE loop hits L2
-    %  instead of L3 on every iteration. Position error ~0.1 m, irrelevant here.
-    sat_pos_ecef = single(sat_pos_ecef);
-
-    %% 3. UE positions
-    if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats') || ~isfield(Cfg.Flat_UE_array, 'Lons')
-        error('Cfg.Flat_UE_array with Lats/Lons required. Generate UEs before calling constellation_simulator.');
+    %% 2. UE positions
+    if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats')
+        error('Cfg.Flat_UE_array.Lats/Lons required.');
     end
-    UE_lats     = Cfg.Flat_UE_array.Lats(:);
-    UE_lons     = Cfg.Flat_UE_array.Lons(:);
-    numUEs      = numel(UE_lats);
+    UE_lats = Cfg.Flat_UE_array.Lats(:);
+    UE_lons = Cfg.Flat_UE_array.Lons(:);
+    numUEs  = numel(UE_lats);
     Cfg.NumUEs  = numUEs;
     ue_pos_ecef = single(lla2ecef([UE_lats, UE_lons, zeros(numUEs, 1)]));
+    min_el      = Cfg.Min_elevation_UE;
 
-    min_elevation_UE = Cfg.Min_elevation_UE;
-
-    %% 4. Pre-allocate plain result matrices (no struct CoW in the inner loop)
+    %% 3. Result matrices (pre-allocate; written via sliced row writes)
     num_vis_mat = zeros(numUEs, nT, 'int16');
     if calc_link
         best_rng_mat = NaN(numUEs, nT, 'single');
@@ -87,203 +64,166 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, cancel_
         best_el_mat  = NaN(numUEs, nT, 'single');
         best_az_mat  = NaN(numUEs, nT, 'single');
     else
-        % Keep these defined for the post-loop UEs-struct build (some callers
-        % rely on metrics.UEs(idx).SimData.Range etc.). Use compact empties so
-        % the post-build loop just fills NaNs cheaply.
-        best_rng_mat = [];
-        best_sat_mat = [];
-        best_el_mat  = [];
-        best_az_mat  = [];
+        best_rng_mat = [];  best_sat_mat = [];
+        best_el_mat  = [];  best_az_mat  = [];
     end
 
-    %% 5. Inner UE loop
-    %  parfor is used only when no cancel_queue is supplied (otherwise the
-    %  cancel poll must run serially to be deterministic).
-    %
-    %  In both paths we accumulate into pre-allocated plain matrices via
-    %  sliced row writes (e.g. num_vis_mat(idx,:) = ...). This avoids the
-    %  per-iteration struct copy-on-write that dominated the old simulator.
-    metrics.cancelled          = false;
-    metrics.consumed_threshold = Inf;
-    consumed_threshold         = Inf;
+    %% 4. Inner UE loop
+    %  Serial when cancellation is requested (deterministic poll order).
+    %  parfor otherwise iff use_parallel.
+    metrics.cancelled = false;
+    cancellable       = ~is_default_cancel(should_cancel);
 
-    if has_cancel_queue
-        % --- SERIAL cancellable loop (gridsearch Stage 3) -------------------
-        total_sats_local = Cfg.Total_sats;
+    if cancellable
         for idx = 1:numUEs
-            if mod(idx, 100) == 0
-                [cancelled_now, consumed_threshold] = poll_cancel_queue( ...
-                    cancel_queue, total_sats_local, consumed_threshold, idx, numUEs);
-                if cancelled_now
-                    metrics.cancelled              = true;
-                    metrics.consumed_threshold     = consumed_threshold;
-                    metrics.worst_coverage_percent = NaN;
-                    metrics.Num_visible            = [];
-                    metrics.SimData                = [];
-                    metrics.throughput_10pct       = NaN;
-                    metrics.throughput_mean        = NaN;
-                    return;
-                end
+            if mod(idx, 100) == 0 && should_cancel()
+                metrics.cancelled              = true;
+                metrics.worst_coverage_percent = NaN;
+                metrics.Num_visible            = [];
+                metrics.SimData                = [];
+                metrics.throughput_10pct       = NaN;
+                metrics.throughput_mean        = NaN;
+                fprintf('\n[cancel] aborted at UE %d/%d.\n', idx, numUEs);
+                return;
             end
-
-            [nvis_row, rng_row, sat_row, el_row, az_row] = compute_ue_row( ...
+            [num_vis_mat(idx,:), r, s, e, a] = compute_ue_row( ...
                 ue_pos_ecef(idx,:), sat_pos_ecef, UE_lats(idx), UE_lons(idx), ...
-                num_sats, nT, min_elevation_UE, calc_link);
-
-            num_vis_mat(idx, :) = nvis_row;
+                num_sats, nT, min_el, calc_link);
             if calc_link
-                best_rng_mat(idx, :) = rng_row;
-                best_sat_mat(idx, :) = sat_row;
-                best_el_mat(idx,  :) = el_row;
-                best_az_mat(idx,  :) = az_row;
+                best_rng_mat(idx,:) = r;  best_sat_mat(idx,:) = s;
+                best_el_mat(idx,:)  = e;  best_az_mat(idx,:)  = a;
             end
+        end
+    elseif calc_link
+        n_workers = ternary(use_parallel, Inf, 0);
+        parfor (idx = 1:numUEs, n_workers)
+            [nvis, r, s, e, a] = compute_ue_row( ...
+                ue_pos_ecef(idx,:), sat_pos_ecef, UE_lats(idx), UE_lons(idx), ...
+                num_sats, nT, min_el, true);
+            num_vis_mat(idx,:)  = nvis;
+            best_rng_mat(idx,:) = r;  best_sat_mat(idx,:) = s;
+            best_el_mat(idx,:)  = e;  best_az_mat(idx,:)  = a;
         end
     else
-        % --- Optionally parallel loop (no cancellation) ---------------------
-        if use_parallel, num_workers = Inf; else, num_workers = 0; end
-
-        if calc_link
-            parfor (idx = 1:numUEs, num_workers)
-                [nvis_row, rng_row, sat_row, el_row, az_row] = compute_ue_row( ...
-                    ue_pos_ecef(idx,:), sat_pos_ecef, UE_lats(idx), UE_lons(idx), ...
-                    num_sats, nT, min_elevation_UE, true);
-                num_vis_mat(idx, :)  = nvis_row;
-                best_rng_mat(idx, :) = rng_row;
-                best_sat_mat(idx, :) = sat_row;
-                best_el_mat(idx,  :) = el_row;
-                best_az_mat(idx,  :) = az_row;
-            end
-        else
-            parfor (idx = 1:numUEs, num_workers)
-                [nvis_row, ~, ~, ~, ~] = compute_ue_row( ...
-                    ue_pos_ecef(idx,:), sat_pos_ecef, UE_lats(idx), UE_lons(idx), ...
-                    num_sats, nT, min_elevation_UE, false);
-                num_vis_mat(idx, :) = nvis_row;
-            end
+        n_workers = ternary(use_parallel, Inf, 0);
+        parfor (idx = 1:numUEs, n_workers)
+            [nvis, ~, ~, ~, ~] = compute_ue_row( ...
+                ue_pos_ecef(idx,:), sat_pos_ecef, UE_lats(idx), UE_lons(idx), ...
+                num_sats, nT, min_el, false);
+            num_vis_mat(idx,:) = nvis;
         end
     end
-
-    metrics.consumed_threshold = consumed_threshold;
     fprintf('\nGeometry complete (%.1f sec).\n', toc);
 
-    %% 6. Coverage statistics (from matrices)
-    has_cov              = num_vis_mat >= 1;
-    prob_coverage        = 100 * sum(has_cov, 2) ./ nT;
-    minNumberSatellites  = double(min(num_vis_mat, [], 2));
-    meanNumberSatellites = double(mean(num_vis_mat, 2));
-
+    %% 5. Coverage statistics
+    prob_coverage = 100 * sum(num_vis_mat >= 1, 2) ./ nT;
     metrics.worst_coverage_percent = min(prob_coverage);
     metrics.prob_coverage          = prob_coverage;
     metrics.Num_visible            = double(num_vis_mat);
-    metrics.minNumberSatellites    = minNumberSatellites;
-    metrics.meanNumberSatellites   = meanNumberSatellites;
+    metrics.minNumberSatellites    = double(min(num_vis_mat, [], 2));
+    metrics.meanNumberSatellites   = double(mean(num_vis_mat, 2));
     metrics.throughput_10pct       = NaN;
     metrics.throughput_mean        = NaN;
 
-    %% 7. Build UEs struct array from matrices (one allocation per field)
+    %% 6. UEs struct array
     UEs = build_ues_struct(UE_lats, UE_lons, simTimes, num_vis_mat, ...
         best_rng_mat, best_sat_mat, best_el_mat, best_az_mat, calc_link, Cfg, nT);
 
-    %% 8. Optional link budget
+    %% 7. Optional link budget
     if calc_link && isfield(Cfg, 'DL')
-        tic
+        tic;
         [UEs, metrics.throughput_10pct, metrics.throughput_mean] = ...
             compute_link_budget(UEs, Cfg, use_parallel);
         fprintf('\nLink budget complete (%.1f sec).\n', toc);
     end
 
-    %% 9. Package
     metrics.UEs     = UEs;
     metrics.Cfg     = Cfg;
     metrics.SimData = [UEs.SimData];
 end
 
 % =========================================================================
-% Local helpers
+%  Propagation
 % =========================================================================
 
-function out = ternary(cond, a, b)
-    if cond, out = a; else, out = b; end
-end
-
-function [sat_pos_ecef, simTimes] = propagate_orbits(Cfg, use_toolbox, reset_cache, min_lat_cov)
-% Returns [3 x num_sats x nT] double position array + simTimes datetime row.
-    persistent cached_sc
-    if reset_cache, cached_sc = []; end
-
+function [sat_pos_ecef, simTimes] = propagate(Cfg, use_toolbox)
     if use_toolbox
-        if isempty(cached_sc) || ~isvalid(cached_sc)
-            cached_sc = satelliteScenario;
-        else
-            if ~isempty(cached_sc.Satellites),     delete(cached_sc.Satellites);     end
-            if ~isempty(cached_sc.GroundStations), delete(cached_sc.GroundStations); end
-        end
-        sc = cached_sc;
-        sc.StartTime  = Cfg.StartTime;
-        sc.StopTime   = Cfg.StopTime;
-        sc.SampleTime = Cfg.SampleTime;
-        r_earth = 6378.14e3;
-        if Cfg.WalkerStar
-            sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, ...
-                Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, ...
-                Cfg.Min_elevation_UE, "two-body-keplerian", min_lat_cov);
-        else
-            sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, Cfg.Inclination, ...
-                Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
-                Name="S4D", OrbitPropagator="two-body-keplerian");
-        end
-        [sat_pos_raw, ~, simTimes] = states(sats, "CoordinateFrame", "ECEF");
-        sat_pos_ecef = permute(sat_pos_raw, [1, 3, 2]);
+        [sat_pos_ecef, simTimes] = propagate_toolbox(Cfg);
     else
-        total_duration_sec = seconds(Cfg.StopTime - Cfg.StartTime);
-        time_steps_sec     = 0 : Cfg.SampleTime : total_duration_sec;
-        simTimes = Cfg.StartTime + seconds(time_steps_sec);
-        simTimes.TimeZone = 'UTC';
-        if Cfg.WalkerStar
-            sat_pos_ecef = fast_walker_star_ecef(Cfg.Orbit_height, Cfg.Inclination, ...
-                Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE, ...
-                min_lat_cov, time_steps_sec, Cfg.StartTime);
-        else
-            sat_pos_ecef = fast_walker_ecef(Cfg.Orbit_height, Cfg.Inclination, ...
-                Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Phasing, ...
-                time_steps_sec, Cfg.StartTime);
-        end
+        [sat_pos_ecef, simTimes] = propagate_fast_math(Cfg);
     end
 end
 
-function [cancelled, consumed_threshold] = poll_cancel_queue(q, total_sats, consumed_threshold, idx, numUEs)
-% Drain pending messages from the cancel queue. Returns cancelled=true if either
-%   * a skip_above_sats threshold has been set below the current Total_sats, or
-%   * an explicit cancel_detailed message has arrived.
-    cancelled = false;
-    while true
-        [msg, got] = poll(q, 0);
-        if ~got, break; end
-        if isfield(msg, 'skip_above_sats')
-            consumed_threshold = min(consumed_threshold, msg.skip_above_sats);
-            if total_sats > consumed_threshold
-                fprintf('\n[cancel] auto-cancelled at UE %d/%d (%d sats > threshold %d).\n', ...
-                    idx, numUEs, total_sats, consumed_threshold);
-                cancelled = true;
-                return;
-            end
-        end
-        if isfield(msg, 'cancel_detailed') && msg.cancel_detailed
-            fprintf('\n[cancel] explicit cancel at UE %d/%d.\n', idx, numUEs);
-            cancelled = true;
-            return;
-        end
+function [sat_pos_ecef, simTimes] = propagate_toolbox(Cfg)
+% Cached satelliteScenario + toolbox constellation generators.
+    sc   = reuse_or_create_scenario(Cfg);
+    sats = generate_constellation(sc, Cfg);
+    [raw, ~, simTimes] = states(sats, "CoordinateFrame", "ECEF");
+    sat_pos_ecef = permute(raw, [1, 3, 2]);
+end
+
+function sc = reuse_or_create_scenario(Cfg)
+% Reuse the persistent satelliteScenario container; rebuild only when it
+% has been invalidated.  Satellites/ground stations are always rebuilt.
+    persistent cached
+    if isempty(cached) || ~isvalid(cached)
+        cached = satelliteScenario;
+    else
+        if ~isempty(cached.Satellites),     delete(cached.Satellites);     end
+        if ~isempty(cached.GroundStations), delete(cached.GroundStations); end
+    end
+    sc = cached;
+    sc.StartTime  = Cfg.StartTime;
+    sc.StopTime   = Cfg.StopTime;
+    sc.SampleTime = Cfg.SampleTime;
+end
+
+function sats = generate_constellation(sc, Cfg)
+% Walker-Star vs Walker-Delta dispatch.  Hides the asymmetrical-star
+% generator's calling convention from the main flow.
+    if Cfg.WalkerStar
+        min_lat_cov = 0;
+        if isfield(Cfg, 'Lat_range_deg'), min_lat_cov = min(Cfg.Lat_range_deg); end
+        sats = asymmetrical_walker_star_generation(sc, Cfg.Orbit_height, ...
+            Cfg.Inclination, Cfg.Num_planes, Cfg.Sats_per_plane, ...
+            Cfg.Min_elevation_UE, "two-body-keplerian", min_lat_cov);
+    else
+        r_earth = 6378.14e3;
+        sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, Cfg.Inclination, ...
+            Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
+            Name="S4D", OrbitPropagator="two-body-keplerian");
     end
 end
+
+function [sat_pos_ecef, simTimes] = propagate_fast_math(Cfg)
+% Pure-math (no toolbox handle objects).  Used by gridsearch Stage 1 and
+% anywhere a Threads pool is needed.
+    total_sec      = seconds(Cfg.StopTime - Cfg.StartTime);
+    time_steps_sec = 0 : Cfg.SampleTime : total_sec;
+    simTimes       = Cfg.StartTime + seconds(time_steps_sec);
+    simTimes.TimeZone = 'UTC';
+    if Cfg.WalkerStar
+        min_lat_cov = 0;
+        if isfield(Cfg, 'Lat_range_deg'), min_lat_cov = min(Cfg.Lat_range_deg); end
+        sat_pos_ecef = fast_walker_star_ecef(Cfg.Orbit_height, Cfg.Inclination, ...
+            Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Min_elevation_UE, ...
+            min_lat_cov, time_steps_sec, Cfg.StartTime);
+    else
+        sat_pos_ecef = fast_walker_ecef(Cfg.Orbit_height, Cfg.Inclination, ...
+            Cfg.Num_planes, Cfg.Sats_per_plane, Cfg.Phasing, ...
+            time_steps_sec, Cfg.StartTime);
+    end
+end
+
+% =========================================================================
+%  Per-UE inner kernel  (vectorised ECEF -> ENU -> elevation)
+% =========================================================================
 
 function [nvis_row, rng_row, sat_row, el_row, az_row] = compute_ue_row( ...
     ue_xyz_row, sat_pos_ecef, lat, lon, num_sats, nT, min_el, calc_link)
-% Compute one UE's row of visibility / best-satellite data.
-%   ue_xyz_row  1x3 single (ECEF position of this UE)
-%   Returns row vectors (1 x nT) suitable for sliced parfor writes.
 
-    ue_xyz = ue_xyz_row(:);                          % 3x1 single
-    dx     = sat_pos_ecef - ue_xyz;                  % [3 x num_sats x nT] single
+    ue_xyz = ue_xyz_row(:);                     % 3x1 single
+    dx     = sat_pos_ecef - ue_xyz;             % 3 x num_sats x nT
 
     slat = sind(lat); clat = cosd(lat);
     slon = sind(lon); clon = cosd(lon);
@@ -292,58 +232,55 @@ function [nvis_row, rng_row, sat_row, el_row, az_row] = compute_ue_row( ...
         -slat*clon,  -slat*slon,   clat;
          clat*clon,   clat*slon,   slat]);
 
-    flat    = reshape(dx, 3, []);
-    enu_flt = R_enu * flat;
-    enu     = reshape(enu_flt, 3, num_sats, nT);
-
-    E = reshape(enu(1,:,:), num_sats, nT);
-    N = reshape(enu(2,:,:), num_sats, nT);
-    U = reshape(enu(3,:,:), num_sats, nT);
+    enu = reshape(R_enu * reshape(dx, 3, []), 3, num_sats, nT);
+    E   = reshape(enu(1,:,:), num_sats, nT);
+    N   = reshape(enu(2,:,:), num_sats, nT);
+    U   = reshape(enu(3,:,:), num_sats, nT);
 
     r_mat  = sqrt(E.^2 + N.^2 + U.^2);
     el_mat = asind(U ./ r_mat);
 
     valid    = el_mat >= min_el;
-    nvis_row = int16(sum(valid, 1));                 % 1 x nT
+    nvis_row = int16(sum(valid, 1));
 
-    if calc_link
-        rng_row = NaN(1, nT, 'single');
-        sat_row = zeros(1, nT, 'int16');
-        el_row  = NaN(1, nT, 'single');
-        az_row  = NaN(1, nT, 'single');
-
-        has_srv = nvis_row > 0;
-        if any(has_srv)
-            r_tmp = r_mat;
-            r_tmp(~valid) = Inf;
-            [br, bi] = min(r_tmp, [], 1);
-
-            rng_row(has_srv) = br(has_srv);
-            sat_row(has_srv) = int16(bi(has_srv));
-
-            svc_cols = find(has_srv);
-            lin_idxs = bi(has_srv) + (svc_cols - 1) * num_sats;
-            el_row(has_srv) = el_mat(lin_idxs);
-
-            az_mat = atan2d(E, N);
-            az_mat(az_mat < 0) = az_mat(az_mat < 0) + 360;
-            az_row(has_srv) = az_mat(lin_idxs);
-        end
-    else
-        rng_row = [];
-        sat_row = [];
-        el_row  = [];
-        az_row  = [];
+    if ~calc_link
+        rng_row = [];  sat_row = [];  el_row = [];  az_row = [];
+        return;
     end
+
+    rng_row = NaN(1, nT, 'single');
+    sat_row = zeros(1, nT, 'int16');
+    el_row  = NaN(1, nT, 'single');
+    az_row  = NaN(1, nT, 'single');
+
+    has_srv = nvis_row > 0;
+    if ~any(has_srv), return; end
+
+    r_tmp = r_mat;
+    r_tmp(~valid) = Inf;
+    [br, bi] = min(r_tmp, [], 1);
+
+    rng_row(has_srv) = br(has_srv);
+    sat_row(has_srv) = int16(bi(has_srv));
+
+    svc_cols = find(has_srv);
+    lin_idxs = bi(has_srv) + (svc_cols - 1) * num_sats;
+    el_row(has_srv) = el_mat(lin_idxs);
+
+    az_mat = atan2d(E, N);
+    az_mat(az_mat < 0) = az_mat(az_mat < 0) + 360;
+    az_row(has_srv) = az_mat(lin_idxs);
 end
+
+% =========================================================================
+%  UEs struct builder + link budget
+% =========================================================================
 
 function UEs = build_ues_struct(UE_lats, UE_lons, simTimes, num_vis_mat, ...
     best_rng_mat, best_sat_mat, best_el_mat, best_az_mat, calc_link, Cfg, nT)
-% Build the UEs struct array once from already-computed matrices.
-% Avoids the per-iteration CoW that made the old loop slow.
 
     numUEs = numel(UE_lats);
-    UEs(numUEs).Lat = [];   % allocate
+    UEs(numUEs).Lat = [];   % preallocate
 
     for idx = 1:numUEs
         UEs(idx).Lat  = UE_lats(idx);
@@ -358,13 +295,8 @@ function UEs = build_ues_struct(UE_lats, UE_lons, simTimes, num_vis_mat, ...
                 'Elevation_deg', double(best_el_mat(idx, :)), ...
                 'Azimuth_deg',   double(best_az_mat(idx, :)), ...
                 'Num_visible',   double(num_vis_mat(idx, :)));
-            % DL/UL placeholders so compute_link_budget can fill them in.
-            if isfield(Cfg, 'DL')
-                UEs(idx).DL = empty_link_template(Cfg.DL, nT);
-            end
-            if isfield(Cfg, 'UL')
-                UEs(idx).UL = empty_link_template(Cfg.UL, nT);
-            end
+            if isfield(Cfg, 'DL'), UEs(idx).DL = empty_link_template(Cfg.DL, nT); end
+            if isfield(Cfg, 'UL'), UEs(idx).UL = empty_link_template(Cfg.UL, nT); end
         else
             UEs(idx).SimData = struct( ...
                 'Time',          simTimes, ...
@@ -398,25 +330,22 @@ function L = empty_link_template(linkCfg, nT)
 end
 
 function [UEs, thpt_10pct, thpt_mean] = compute_link_budget(UEs, Cfg, use_parallel)
-% Same batched-parfor link budget path as the original, but driven from the
-% already-built UEs struct (no per-loop CoW writes).
     numUEs = numel(UEs);
 
-    SimDataArray = [UEs.SimData];
-    el_mat    = single(vertcat(SimDataArray.Elevation_deg));
-    az_mat    = single(vertcat(SimDataArray.Azimuth_deg));
-    range_mat = single(vertcat(SimDataArray.Range));
+    SD        = [UEs.SimData];
+    el_mat    = single(vertcat(SD.Elevation_deg));
+    az_mat    = single(vertcat(SD.Azimuth_deg));
+    range_mat = single(vertcat(SD.Range));
     lat_vec   = [UEs.Lat]';
     lon_vec   = [UEs.Lon]';
 
-    if use_parallel, num_workers = Inf; else, num_workers = 0; end
-
+    n_workers   = ternary(use_parallel, Inf, 0);
     batch_size  = 100;
     num_batches = ceil(numUEs / batch_size);
     batch_results = cell(num_batches, 1);
 
     fprintf('\nProcessing Link Budget in %d batches...\n', num_batches);
-    parfor (b = 1:num_batches, num_workers)
+    parfor (b = 1:num_batches, n_workers)
         i0 = (b - 1) * batch_size + 1;
         i1 = min(b * batch_size, numUEs);
         batch_results{b} = link_calc_matrix( ...
@@ -447,11 +376,10 @@ function [UEs, thpt_10pct, thpt_mean] = compute_link_budget(UEs, Cfg, use_parall
         end
     end
 
-    DL_structs        = [UEs.DL];
-    DL_SINR           = vertcat(DL_structs.SINR);
-    DL_serving_idx    = vertcat(DL_structs.serving_beam_idx);
-    SD_structs        = [UEs.SimData];
-    SimData_SatID     = vertcat(SD_structs.SatID);
+    DL_structs     = [UEs.DL];
+    DL_SINR        = vertcat(DL_structs.SINR);
+    DL_serving_idx = vertcat(DL_structs.serving_beam_idx);
+    SimData_SatID  = vertcat(SD.SatID);
 
     DL_Throughput = calculate_throughput_matrix(DL_SINR, DL_serving_idx, SimData_SatID, ...
         Cfg.DL.BeamGrid, Cfg.DL.B, Cfg.Share_bandwidth, Cfg.Modified_shannon);
@@ -462,10 +390,22 @@ function [UEs, thpt_10pct, thpt_mean] = compute_link_budget(UEs, Cfg, use_parall
 
     valid_thpt = DL_Throughput(~isnan(DL_Throughput));
     if isempty(valid_thpt)
-        thpt_10pct = NaN;
-        thpt_mean  = NaN;
+        thpt_10pct = NaN;  thpt_mean = NaN;
     else
         thpt_10pct = prctile(valid_thpt, 10);
         thpt_mean  = mean(valid_thpt);
     end
+end
+
+% =========================================================================
+%  Tiny helpers
+% =========================================================================
+
+function out = ternary(cond, a, b)
+    if cond, out = a; else, out = b; end
+end
+
+function tf = is_default_cancel(fn)
+% True if `fn` is the default no-op cancel handle.
+    tf = isequal(fn, @() false);
 end

@@ -253,7 +253,7 @@ nw        = pool.NumWorkers;
 fprintf('  Warming up pool (%d workers)...\n', nw);
 wf = cell(nw, 1);
 for w = 1:nw
-    wf{w} = parfeval(pool, @(C) constellation_simulator(C, false, false, [], true, false), 1, Cfg);
+    wf{w} = parfeval(pool, @(C) constellation_simulator(C, false, false, true), 1, Cfg);
 end
 for w = 1:nw
     wait(wf{w});
@@ -274,7 +274,7 @@ for ci = 1:n_wc
 
     futs = cell(npar, 1);  tw = tic;
     for w = 1:npar
-        futs{w} = parfeval(pool, @(C) constellation_simulator(C, false, false, [], true, false), 1, Cfg);
+        futs{w} = parfeval(pool, @(C) constellation_simulator(C, false, false, true), 1, Cfg);
     end
     for w = 1:npar
         wait(futs{w});
