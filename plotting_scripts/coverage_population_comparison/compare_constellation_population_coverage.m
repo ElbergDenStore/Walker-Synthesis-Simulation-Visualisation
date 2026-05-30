@@ -4,7 +4,7 @@
 % basis, weighted by global population density (WorldPop 2020, 1 km).
 %
 % Self-contained: reads pre-computed constellation tables from data/*.mat.
-% Adds repo root + functions/ to the path so coverage_simulator_function
+% Adds repo root + functions/ to the path so constellation_simulator
 % and helpers are available regardless of caller cwd.
 %
 % Outputs:
@@ -38,7 +38,7 @@ sim_hours      = 12;
 sample_time_s  = 60;
 min_elev_deg   = 20;
 % Serial execution avoids broadcast-variable memory blowup.
-% coverage_simulator_function with use_parallel=true sends sat_pos_ecef
+% constellation_simulator with use_parallel=true sends sat_pos_ecef
 % to every worker; after 3-4 large sims the workers run out of heap.
 % Each per-UE iteration is fast vectorised geometry, so serial is fine.
 use_parallel   = false;
@@ -168,7 +168,7 @@ for ai = 1:nAlt
         Cfg.Flat_UE_array.Lons = probe_UE_lons;
         Cfg.NumUEs = numel(probe_UE_lats);
 
-        m = coverage_simulator_function(Cfg, use_parallel, false);
+        m = constellation_simulator(Cfg, use_parallel, false);
 
         % Extract ONLY Num_visible, then immediately free the full metrics struct.
         % metrics.UEs contains all time series (Time, Range, Elevation, Azimuth,

@@ -43,7 +43,7 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
     
     %% UEs Array
     if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats') || ~isfield(Cfg.Flat_UE_array, 'Lons')
-        error('Cfg.Flat_UE_array with fields Lats and Lons is required. Generate UEs before calling coverage_simulator_function.');
+        error('Cfg.Flat_UE_array with fields Lats and Lons is required. Generate UEs before calling constellation_simulator.');
     end
 
     UE_lats = Cfg.Flat_UE_array.Lats;

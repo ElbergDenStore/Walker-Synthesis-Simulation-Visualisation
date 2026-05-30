@@ -72,7 +72,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
         stall_timeout_s = 3600; % 1 hour — low-altitude runs with many sats can take >500s
     end
     % Grace period after cancel_detailed is sent before the worker is force-killed.
-    % coverage_simulator_function polls every 100 UEs; 5 min is ample.
+    % constellation_simulator polls every 100 UEs; 5 min is ample.
     cancel_grace_s  = 300;
     cancel_sent_at  = zeros(1, num_workers); % wall-time when cancel was sent (0 = not sent)
 
@@ -277,7 +277,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
 
         % Cooperatively cancel DETAILED workers whose constellation is above the
         % skip threshold — sends a message via q_in; the worker polls it every
-        % 50 UEs inside coverage_simulator_function and returns early.
+        % 50 UEs inside constellation_simulator and returns early.
         if threshold_broadcast
             for w = 1:length(futures)
                 if strcmp(w_states(w), "DETAILED") && ~isempty(worker_input_queues{w})
@@ -493,7 +493,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Ultrafast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Ultrafast.Num_UEs);
-    m1 = fast_coverage_simulator_function(Cfg, false, false, false);
+    m1 = constellation_simulator(Cfg, false, false, [], false);
     result.t_faster = toc(t1);
     result.faster_cov = m1.worst_coverage_percent;
 
@@ -510,7 +510,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Fast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Fast.Num_UEs);
-    m2 = fast_coverage_simulator_function(Cfg, false, false, true); % reuse satelliteScenario handle, use matlab two body
+    m2 = constellation_simulator(Cfg, false, false, [], true); % reuse satelliteScenario handle, use matlab two body
     result.t_fast = toc(t2);
 
     if m2.worst_coverage_percent < 99.9
@@ -547,7 +547,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Detailed.Num_UEs);
 
-    m3 = coverage_simulator_function(Cfg, false, false, q_in);
+    m3 = constellation_simulator(Cfg, false, false, q_in, true); % toolbox propagator (accurate, process-pool compatible)
     result.t_detailed = toc(t3);
     result.t_total = result.t_faster + result.t_fast + result.t_detailed;
 

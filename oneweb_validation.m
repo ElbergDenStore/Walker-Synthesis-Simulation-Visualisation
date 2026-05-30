@@ -87,7 +87,7 @@ fprintf('  G_rx = %.2f dBi, NF = %.2f dB (from G/T = %.1f dB/K)\n', Cfg.DL.G_rx,
 %% 4) Run simulation
 calc_link = true;
 use_parallel = true;
-metrics = coverage_simulator_function(Cfg, use_parallel, calc_link);
+metrics = constellation_simulator(Cfg, use_parallel, calc_link);
 
 %% 5) Basic output and optional plotting
 fprintf('Simulation finished. Worst coverage: %.2f%%\n', metrics.worst_coverage_percent);

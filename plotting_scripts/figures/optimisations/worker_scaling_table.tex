@@ -1,0 +1,20 @@
+\begin{table}[H]
+    \centering
+    \caption{\texttt{constellation\_simulator} wall-clock time and throughput as a function
+             of simultaneously dispatched workers (\texttt{parfeval}, Processes pool).
+             Stage-3 parameters: 2146 \acp{UE} $\times$ 2146 timesteps $\times$ 104 satellites.
+             Toolbox propagator (two-body-Keplerian).}
+    \label{tab:worker_scaling}
+    \begin{tabular}{r r r r}
+        \toprule
+        \textbf{Workers} & \textbf{Wall-clock (s)} & \textbf{Throughput (sims/s)} & \textbf{Efficiency} \\
+        \midrule
+         1 & 11.46 & 0.087 & 100\% \\
+         2 & 11.56 & 0.173 & 99\% \\
+         4 & 12.39 & 0.323 & 92\% \\
+         8 & 15.31 & 0.522 & 75\% \\
+        16 & 28.86 & 0.554 & 40\% \\
+        32 & 69.36 & 0.461 & 17\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}

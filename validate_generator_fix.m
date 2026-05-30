@@ -123,10 +123,10 @@ for k = 1:n
 
     t_start = tic;
     try
-        % use_SGP=false → fast_walker_star_ecef (fixed RAAN-budget seam ratio)
+        % use_toolbox=false → fast_walker_star_ecef (fixed RAAN-budget seam ratio)
         % calc_link=false → coverage-only, no link budget
         % reset_cache=true → always use fresh computation
-        metrics = fast_coverage_simulator_function(Cfg, true, false, false);
+        metrics = constellation_simulator(Cfg, false, false, [], false, true);
         cov = metrics.worst_coverage_percent;
     catch ME
         cov = NaN;

@@ -74,7 +74,7 @@ use_parallel = true;
 calc_link    = true;
 
 % fprintf('\nRunning Walker Star simulation...\n');
-metrics_star = coverage_simulator_function(CfgStar, use_parallel, calc_link);
+metrics_star = constellation_simulator(CfgStar, use_parallel, calc_link);
 fprintf("coverage percentage %0.8f",metrics_star.worst_coverage_percent)
 
 %% ===== PLOT RESULTS =====

@@ -17,7 +17,7 @@ Cfg.Flat_UE_array.Lons = 9.9217;
 
 calc_link = true;
 use_parallel = false;
-metrics = coverage_simulator_function(Cfg, use_parallel, calc_link);
+metrics = constellation_simulator(Cfg, use_parallel, calc_link);
 
 UE = metrics.UEs(1);
 t = UE.SimData.Time;

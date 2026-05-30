@@ -91,7 +91,7 @@ CfgUniform = build_cfg(UE_lats_u, UE_lons_u);
 CfgUniform.Total_Pop = 0;  % no population data for uniform
 CfgUniform.Save_dir  = fullfile(run_dir, 'uniform');
 
-metrics_uniform = coverage_simulator_function(CfgUniform, use_parallel, calc_link);
+metrics_uniform = constellation_simulator(CfgUniform, use_parallel, calc_link);
 fprintf('Uniform   -> worst coverage: %.4f%%\n', metrics_uniform.worst_coverage_percent);
 plot_simulation(metrics_uniform, use_parallel);
 
@@ -101,7 +101,7 @@ CfgPop = build_cfg(UE_lats_p, UE_lons_p);
 CfgPop.Total_Pop = Total_Pop;
 CfgPop.Save_dir  = fullfile(run_dir, 'population');
 
-metrics_pop = coverage_simulator_function(CfgPop, use_parallel, calc_link);
+metrics_pop = constellation_simulator(CfgPop, use_parallel, calc_link);
 fprintf('Population -> worst coverage: %.4f%%\n', metrics_pop.worst_coverage_percent);
 plot_simulation(metrics_pop, use_parallel);
 

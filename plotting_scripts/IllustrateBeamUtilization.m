@@ -51,7 +51,7 @@ Cfg = get_cfg(1000,"walkerdelta");
 calc_link = false; use_parallel = false;
 [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons, Total_Pop] = generate_population_based_UEs(latlim, lonlim, people_per_ue);
 Cfg.NumUEs = length(Cfg.Flat_UE_array.Lats);
-metrics = coverage_simulator_function(Cfg, use_parallel, calc_link);
+metrics = constellation_simulator(Cfg, use_parallel, calc_link);
 
 %% 2. System-Wide Utilization Analysis
 nT = length(metrics.SimData(1).Time);

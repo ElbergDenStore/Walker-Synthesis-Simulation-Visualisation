@@ -14,7 +14,7 @@ Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, frequency);
 
 %% 2) Run simulation
 fprintf('Running simulation for elevation histogram...\n');
-metrics = coverage_simulator_function(Cfg, use_parallel, calc_link);
+metrics = constellation_simulator(Cfg, use_parallel, calc_link);
 
 %% 3) Collect elevation samples across all UEs and time steps
 SimDataArray = [metrics.SimData];

@@ -90,10 +90,10 @@ use_parallel = false;
 calc_link    = true;
 
 fprintf('\nRunning Walker Star simulation...\n');
-metrics_star = coverage_simulator_function(CfgStar, use_parallel, calc_link);
+metrics_star = constellation_simulator(CfgStar, use_parallel, calc_link);
 
 fprintf('\nRunning Walker Delta simulation...\n');
-metrics_delta = coverage_simulator_function(CfgDelta, use_parallel, calc_link);
+metrics_delta = constellation_simulator(CfgDelta, use_parallel, calc_link);
 
 %% ===== PLOT RESULTS =====
 plot_simulation(metrics_star,  use_parallel);
