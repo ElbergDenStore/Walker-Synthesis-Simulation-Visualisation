@@ -69,8 +69,12 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
     if isfield(master_config, 'Worker_stall_timeout_s')
         stall_timeout_s = master_config.Worker_stall_timeout_s;
     else
-        stall_timeout_s = 500;
+        stall_timeout_s = 3600; % 1 hour — low-altitude runs with many sats can take >500s
     end
+    % Grace period after cancel_detailed is sent before the worker is force-killed.
+    % coverage_simulator_function polls every 100 UEs; 5 min is ample.
+    cancel_grace_s  = 300;
+    cancel_sent_at  = zeros(1, num_workers); % wall-time when cancel was sent (0 = not sent)
 
     evaluated_coverage = NaN(total_runs, 1);
     detailed_coverage = NaN(total_runs, 1);
@@ -122,7 +126,11 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
                 worker_input_queues{wid} = data.queue_handle;
                 % If threshold was already broadcast before this worker registered, send it now.
                 if threshold_broadcast
-                    send(worker_input_queues{wid}, struct('skip_above_sats', skip_above_sats));
+                    try
+                        send(worker_input_queues{wid}, struct('skip_above_sats', skip_above_sats));
+                    catch
+                        worker_input_queues{wid} = [];
+                    end
                 end
                 continue;
             end
@@ -201,7 +209,13 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
                         skip_above_sats = worst_accepted_sats;
                         for wq = 1:numel(worker_input_queues)
                             if ~isempty(worker_input_queues{wq})
-                                send(worker_input_queues{wq}, struct('skip_above_sats', skip_above_sats));
+                                try
+                                    send(worker_input_queues{wq}, struct('skip_above_sats', skip_above_sats));
+                                catch
+                                    % Worker died before receiving the threshold — clean up its handle
+                                    % so we don't try again; the future-state check will mark it dead.
+                                    worker_input_queues{wq} = [];
+                                end
                             end
                         end
                         if ~threshold_broadcast
@@ -220,7 +234,8 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
         end
 
         f_states = {futures.State};
-        if all(ismember(f_states, {'finished', 'unavailable'}))
+        terminal_states = {'finished', 'unavailable', 'failed', 'cancelled'};
+        if all(ismember(f_states, terminal_states))
             % Drain any remaining queue messages (e.g. error reports sent just before worker died)
             while true
                 [drain_data, got_drain] = poll(q, 0.001);
@@ -231,9 +246,9 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
             end
             % Check for crashes — skip dead workers' remaining runs instead of aborting
             for fe = 1:numel(futures)
-                is_dead = strcmp(futures(fe).State, 'unavailable') || ~isempty(futures(fe).Error);
+                is_dead = ~strcmp(futures(fe).State, 'finished');
                 if is_dead && ~isempty(worker_assigned_indices{fe})
-                    msg = 'unavailable';
+                    msg = futures(fe).State;
                     if ~isempty(futures(fe).Error), msg = futures(fe).Error.message; end
                     incomplete_idx = worker_assigned_indices{fe}(~is_completed(worker_assigned_indices{fe}));
                     is_completed(incomplete_idx) = true;
@@ -245,38 +260,66 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
             break;
         end
 
-        if any(strcmp(f_states, 'unavailable'))
+        if any(~ismember(f_states, {'running', 'queued', 'finished'}))
             for e = 1:numel(futures)
-                is_dead = strcmp(f_states{e}, 'unavailable') || ~isempty(futures(e).Error);
+                is_dead = ~ismember(f_states{e}, {'running', 'queued', 'finished'});
                 if is_dead && ~isempty(worker_assigned_indices{e})
-                    msg = 'unavailable';
+                    msg = f_states{e};
                     if ~isempty(futures(e).Error), msg = futures(e).Error.message; end
                     incomplete_idx = worker_assigned_indices{e}(~is_completed(worker_assigned_indices{e}));
                     is_completed(incomplete_idx) = true;
                     runs_skipped = runs_skipped + numel(incomplete_idx);
                     worker_assigned_indices{e} = []; % prevent double-processing
-                    fprintf('\n[!] WORKER %d DIED: %s. Skipped %d remaining runs.\n', e, msg, numel(incomplete_idx));
+                    fprintf('\n[!] WORKER %d DIED (%s). Skipped %d remaining runs.\n', e, msg, numel(incomplete_idx));
+                end
+            end
+        end
+
+        % Cooperatively cancel DETAILED workers whose constellation is above the
+        % skip threshold — sends a message via q_in; the worker polls it every
+        % 50 UEs inside coverage_simulator_function and returns early.
+        if threshold_broadcast
+            for w = 1:length(futures)
+                if strcmp(w_states(w), "DETAILED") && ~isempty(worker_input_queues{w})
+                    cur_idx = w_runs(w);
+                    if cur_idx >= 1 && cur_idx <= total_runs && ...
+                            search_grid.Total_sats(cur_idx) > skip_above_sats
+                        fprintf('\n[i] W%02d cancel requested: %d sats > threshold %d\n', ...
+                            w, search_grid.Total_sats(cur_idx), skip_above_sats);
+                        try
+                            send(worker_input_queues{w}, struct('cancel_detailed', true));
+                        catch
+                            worker_input_queues{w} = [];
+                        end
+                        w_states(w) = "Cancelling";
+                        cancel_sent_at(w) = toc(t_run_start);
+                    end
                 end
             end
         end
 
         for w = 1:length(futures)
             if strcmp(f_states{w}, 'running')
-                last_s = w_last_msg_s(w);
-                if last_s == 0
-                    last_s = 0;
-                end
-                if (toc(t_run_start) - last_s) > stall_timeout_s
-                    fprintf('\n[!] WORKER %d STALLED > %.0fs (state=%s, run=%d). Cancelling and skipping its runs.\n', ...
-                        w, stall_timeout_s, w_states(w), w_runs(w));
-                    cancel(futures(w));
-                    if ~isempty(worker_assigned_indices{w})
+                % Force-kill workers that ignored a cancel signal for too long.
+                if strcmp(w_states(w), "Cancelling") && cancel_sent_at(w) > 0
+                    if (toc(t_run_start) - cancel_sent_at(w)) > cancel_grace_s
+                        cancel(futures(w));
                         incomplete_idx = worker_assigned_indices{w}(~is_completed(worker_assigned_indices{w}));
                         is_completed(incomplete_idx) = true;
                         runs_skipped = runs_skipped + numel(incomplete_idx);
-                        worker_assigned_indices{w} = []; % prevent double-processing
-                        fprintf('[!] Skipped %d runs for stalled worker %d.\n', numel(incomplete_idx), w);
+                        worker_assigned_indices{w} = [];
+                        worker_input_queues{w} = [];
+                        cancel_sent_at(w) = 0;
+                        fprintf('\n[!] W%02d ignored cancel for >%.0fs — force-killed. Skipped %d runs.\n', ...
+                            w, cancel_grace_s, numel(incomplete_idx));
+                        w_states(w) = "Killed";
                     end
+                % Regular stall detection for non-cancelling workers.
+                elseif (toc(t_run_start) - w_last_msg_s(w)) > stall_timeout_s
+                    error(['[FATAL] Worker %d stalled for >%.0fs (state=%s, run=%d). ' ...
+                        'Crashing to preserve optimality guarantee. ' ...
+                        'Increase Worker_stall_timeout_s if runs legitimately take this long.'], ...
+                        w, stall_timeout_s, w_states(w), w_runs(w));
                 end
             end
         end
@@ -394,7 +437,11 @@ function evaluate_chunk(q, master_config, orbit_height_km, worker_grid, original
         local_config.Total_sats = worker_grid.Total_sats(i);
 
         try
-            res = run_single_evaluation(q, local_config, master_config, original_indices(i), worker_id);
+            res = run_single_evaluation(q, local_config, master_config, original_indices(i), worker_id, q_in, skip_above_sats);
+            % Pull back any threshold the worker consumed from q_in during the run
+            if isfield(res, 'updated_skip_above_sats')
+                skip_above_sats = min(skip_above_sats, res.updated_skip_above_sats);
+            end
             res.is_heartbeat = false;
             send(q, res);
         catch ME
@@ -407,7 +454,9 @@ function evaluate_chunk(q, master_config, orbit_height_km, worker_grid, original
     end
 end
 
-function result = run_single_evaluation(q, local_config, master_config, run_idx, worker_id)
+function result = run_single_evaluation(q, local_config, master_config, run_idx, worker_id, q_in, skip_above_sats)
+    if nargin < 6, q_in = []; end
+    if nargin < 7, skip_above_sats = Inf; end
     result.run_idx = run_idx;
     result.worker_id = worker_id;
     result.is_candidate = false;
@@ -451,6 +500,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     if result.faster_cov < 99
         result.t_total = result.t_faster;
         result.msg = "Failed Ultra";
+        result.updated_skip_above_sats = skip_above_sats;
         return;
     end
 
@@ -466,6 +516,26 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     if m2.worst_coverage_percent < 99.9
         result.t_total = result.t_faster + result.t_fast;
         result.msg = "Failed Fast";
+        result.updated_skip_above_sats = skip_above_sats;
+        return;
+    end
+
+    % Pre-Stage-3 check: drain q_in one last time and skip if threshold was updated
+    % while Stage 2 was running (avoids starting a 200s run that can't win).
+    if ~isempty(q_in)
+        while true
+            [msg_in, got_in] = poll(q_in, 0);
+            if ~got_in, break; end
+            if isfield(msg_in, 'skip_above_sats')
+                skip_above_sats = min(skip_above_sats, msg_in.skip_above_sats);
+            end
+        end
+    end
+    if local_config.Total_sats > skip_above_sats
+        result.t_total = result.t_faster + result.t_fast;
+        result.msg = sprintf('Skipped Detailed (%d sats > threshold %d)', ...
+            local_config.Total_sats, skip_above_sats);
+        result.updated_skip_above_sats = skip_above_sats;
         return;
     end
 
@@ -477,10 +547,24 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Detailed.Num_UEs);
 
-    m3 = coverage_simulator_function(Cfg, false, false);
-    result.detailed_cov = m3.worst_coverage_percent;
+    m3 = coverage_simulator_function(Cfg, false, false, q_in);
     result.t_detailed = toc(t3);
     result.t_total = result.t_faster + result.t_fast + result.t_detailed;
+
+    % Propagate any threshold consumed inside coverage_simulator back to our local copy
+    if isfield(m3, 'consumed_threshold') && m3.consumed_threshold < skip_above_sats
+        skip_above_sats = m3.consumed_threshold;
+    end
+
+    if isfield(m3, 'cancelled') && m3.cancelled
+        result.msg = sprintf('Cancelled Detailed (%d sats > threshold %d)', ...
+            local_config.Total_sats, skip_above_sats);
+        result.updated_skip_above_sats = skip_above_sats;
+        return;
+    end
+
+    result.detailed_cov = m3.worst_coverage_percent;
+    result.updated_skip_above_sats = skip_above_sats;
 
     if m3.worst_coverage_percent > 99.999
         result.is_candidate = true;

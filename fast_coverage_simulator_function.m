@@ -90,7 +90,68 @@ function metrics = fast_coverage_simulator_function(Cfg, reset_cache, calc_link,
     UE_lons = Cfg.Flat_UE_array.Lons(:);
     ue_pos_ecef = lla2ecef([UE_lats, UE_lons, zeros(length(UE_lats), 1)]);
     Cfg.NumUEs = size(ue_pos_ecef, 1);
-    
+
+    %% Memory-efficient chunked coverage path (no link budget needed)
+    % The 4D tensor [3 x num_sats x nT x NumUEs] is the dominant memory consumer.
+    % For Stage-2 (50 h, 2000 UEs, ~300 sats) it reaches ~4 GB per array,
+    % and 4–5 such arrays coexist → 16–20 GB per worker × 8 workers = 160 GB.
+    % When calc_link=false we only need worst_coverage_percent, so we skip the
+    % UEs struct entirely and process UEs in chunks that each stay under ~1 GB.
+    if ~calc_link
+        min_el = Cfg.Min_elevation_UE;
+
+        % Build per-UE rotation matrices [3 x 3 x NumUEs] — small (NumUEs × 72 bytes)
+        slat_c = sind(UE_lats'); clat_c = cosd(UE_lats');
+        slon_c = sind(UE_lons'); clon_c = cosd(UE_lons');
+        R = zeros(3, 3, Cfg.NumUEs);
+        R(1,1,:) = -slon_c;          R(1,2,:) =  clon_c;          R(1,3,:) = 0;
+        R(2,1,:) = -slat_c.*clon_c;  R(2,2,:) = -slat_c.*slon_c;  R(2,3,:) = clat_c;
+        R(3,1,:) =  clat_c.*clon_c;  R(3,2,:) =  clat_c.*slon_c;  R(3,3,:) = slat_c;
+
+        sat_pos_4d_c = reshape(sat_pos_ecef, 3, num_sats, nT, 1);
+
+        % Cap peak memory of the [3 x num_sats x nT x chunk] tensor to ~1 GB per chunk.
+        bytes_per_ue  = 8 * 3 * num_sats * nT;
+        ue_chunk_size = max(1, min(Cfg.NumUEs, floor(1e9 / max(bytes_per_ue, 1))));
+
+        % coverage_count(ue) = number of timesteps with ≥1 satellite above min_el
+        coverage_count = zeros(Cfg.NumUEs, 1);
+
+        for ue_start = 1 : ue_chunk_size : Cfg.NumUEs
+            ue_end  = min(ue_start + ue_chunk_size - 1, Cfg.NumUEs);
+            ue_idx  = ue_start : ue_end;
+            chunk_n = numel(ue_idx);
+
+            % [3 x num_sats x nT x chunk_n] — the only large intermediate
+            ue_pos_chunk = reshape(ue_pos_ecef(ue_idx, :)', 3, 1, 1, chunk_n);
+            vec_ecef = sat_pos_4d_c - ue_pos_chunk;                        clear ue_pos_chunk;
+
+            % Rotate to ENU: pagemtimes over [3 x (num_sats*nT) x chunk_n]
+            vec_pages     = reshape(vec_ecef, 3, num_sats * nT, chunk_n);   clear vec_ecef;
+            vec_enu_pages = pagemtimes(R(:,:,ue_idx), vec_pages);           clear vec_pages;
+            vec_enu       = reshape(vec_enu_pages, 3, num_sats, nT, chunk_n); clear vec_enu_pages;
+
+            % Elevation angle — only U component and magnitude needed
+            U_c = vec_enu(3, :, :, :);
+            r_c = sqrt(sum(vec_enu .^ 2, 1));                               clear vec_enu;
+            el  = asind(U_c ./ r_c);                                        clear U_c r_c;
+
+            % any(el >= min_el, 2): does any satellite cover this (t, ue)?
+            % el is [1 x num_sats x nT x chunk_n], reduce along dim 2 → [1 x 1 x nT x chunk_n]
+            has_cov = squeeze(any(el >= min_el, 2));  % [nT x chunk_n] (or [nT] if chunk_n=1)
+            clear el;
+
+            coverage_count(ue_idx) = sum(has_cov, 1)';
+        end
+
+        prob_coverage = 100 * coverage_count / nT;
+        metrics.worst_coverage_percent = min(prob_coverage);
+        metrics.throughput_10pct = NaN;
+        metrics.throughput_mean  = NaN;
+        fprintf('\nGeometry calculation complete (%.1f sec).\n', toc);
+        return;
+    end
+
     % Lock in memory for Struct Array
     empty_SimData = struct('Time', simTimes, 'SatID', NaN(1, nT), ...
         'Range', NaN(1, nT), 'Elevation_deg', NaN(1, nT), ...

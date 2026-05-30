@@ -13,6 +13,7 @@ function plot_constellation_comparison()
 %   Saves two PNG images to plotting_scripts/figures/constellations/:
 %     constellation_walker_delta_1000km.png
 %     constellation_walker_star_1000km.png
+% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "plot_constellation_comparison"
 
 %% ── Path setup ──────────────────────────────────────────────────────────
 path_setup();   % adds project root + functions/ to MATLAB path
@@ -24,7 +25,7 @@ if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 %% ── Load optimal constellations ─────────────────────────────────────────
 project_root = fileparts(script_dir);
 opt          = load(fullfile(project_root, 'optimal_constellations.mat'));
-target_h_km  = 840;
+target_h_km  = 700;
 idx          = find(opt.heights_km == target_h_km, 1, 'first');
 if isempty(idx)
     error('No entry for %d km in optimal_constellations.mat', target_h_km);

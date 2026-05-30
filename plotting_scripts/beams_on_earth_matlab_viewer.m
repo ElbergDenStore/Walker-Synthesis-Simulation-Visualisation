@@ -2,6 +2,12 @@ close all force;
 clear variables;
 clc;
 
+%% Output Directory
+out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'plotting_scripts/figures', 'beams_on_earth');
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
+end
+
 %% 1. User Config
 lat = 57;
 lon = 9.3;
@@ -12,6 +18,10 @@ G_tx_dBi = 37;
 min_elev_deg = 20;
 frf = 3;
 
+% --- Figure Style ---
+fig_size   = [500, 500];   % [width, height] in pixels
+font_size  = 14;           % axis labels, tick labels, title
+
 %% 2. Scenario & Satellite
 startTime = datetime('now');
 stopTime = startTime + minutes(1);
@@ -21,13 +31,14 @@ posData = [lat, lon, alt_m; lat, lon, alt_m];
 tt = timetable([startTime; stopTime], posData);
 sat = satellite(sc, tt, 'Name', 'Multi-Beam LEO', 'CoordinateFrame', 'geographic');
 
-%% 3. Use calculate_Beams (single geometry source)
-BeamGrid = calculate_Beams(f_hz, G_tx_dBi, alt_m, min_elev_deg, frf);
+%% 3. Use calculate_hexagonal_beams (single geometry source)
+BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_hz, alt_m, min_elev_deg, [], frf);
 
-b_u = BeamGrid.b_u;
-b_v = BeamGrid.b_v;
+b_u = BeamGrid.u_center(:);
+b_v = BeamGrid.v_center(:);
 num_beams = BeamGrid.num_beams;
-beamwidth_deg = BeamGrid.Beamwidth_deg;
+uv_3dB = 2 * (1.391 / (BeamGrid.Nu * (pi/2)));
+beamwidth_deg = 2 * asind(uv_3dB / 2);
 
 % Convert uv to steering-space angles used by MATLAB sensor mounting.
 [roll_deg, pitch_deg] = uv_to_matlab_mounting_angles(b_u, b_v);
@@ -36,7 +47,7 @@ beamwidth_deg = BeamGrid.Beamwidth_deg;
 eta_deg = asind(sqrt(b_u.^2 + b_v.^2));
 plot_width_deg = beamwidth_deg ./ cosd(eta_deg);
 
-fprintf('Generating %d beams from calculate_Beams...\n', num_beams);
+fprintf('Generating %d beams from calculate_hexagonal_beams...\n', num_beams);
 names = "Beam_" + string(1:num_beams);
 mounting_angles = [zeros(num_beams, 1), pitch_deg, roll_deg]';
 
@@ -77,7 +88,8 @@ b_az = atan2d(b_v, b_u);
 b_x = b_eta .* cosd(b_az);
 b_y = b_eta .* sind(b_az);
 
-fig = figure('Color', 'w', 'Name', 'Ellipsoidal Beam Footprint (Steering Space)');
+fig = figure('Color', 'w', 'Name', 'Ellipsoidal Beam Footprint (Steering Space)', ...
+             'Position', [100, 100, fig_size(1), fig_size(2)]);
 hold on; axis equal; box on; grid on;
 
 for b = 1:num_beams
@@ -103,15 +115,15 @@ for b = 1:num_beams
 end
 
 plot(eta_max_deg * cos(theta), eta_max_deg * sin(theta), 'k--', 'LineWidth', 1.8);
-xlabel('X Steering Angle (deg off nadir)');
-ylabel('Y Steering Angle (deg off nadir)');
-title(sprintf('Beam Footprints from calculate_Beams | f=%.1f GHz, Gtx=%.1f dBi, FRF=%d', f_hz/1e9, G_tx_dBi, frf));
+xlabel('X Steering Angle (deg off nadir)', 'FontSize', font_size);
+ylabel('Y Steering Angle (deg off nadir)', 'FontSize', font_size);
+title({'Beam Footprints from calculate\_hexagonal\_beams', ...
+       sprintf('f = %.1f GHz  |  Gtx = %.1f dBi  |  FRF = %d', f_hz/1e9, G_tx_dBi, frf)}, ...
+    'FontSize', font_size);
+set(gca, 'FontSize', font_size);
 
-if ~isfolder('screenshots')
-    mkdir('screenshots');
-end
-exportgraphics(fig, 'screenshots/beams_ellipsoidal_steering_space.png', 'Resolution', 600);
-fprintf('Saved plot: screenshots/beams_ellipsoidal_steering_space.png\n');
+exportgraphics(fig, fullfile(out_dir, 'beams_ellipsoidal_steering_space.png'), 'Resolution', 600);
+fprintf('Saved plot: %s\n', fullfile(out_dir, 'beams_ellipsoidal_steering_space.png'));
 
 %% 6. Phased Array Projection on Geographic Map
 % This projects the steering-space ellipses onto the WGS84 Earth surface
@@ -121,8 +133,9 @@ Re_km = 6371;
 h_km = alt_m / 1000;
 rsat_km = Re_km + h_km;
 
-fig_map = figure('Color', 'w', 'Name', 'Geographic Phased Array Footprint', 'Position', [100, 100, 900, 900]);
-gx = geoaxes('Basemap', 'satellite'); 
+fig_map = figure('Color', 'w', 'Name', 'Geographic Phased Array Footprint', ...
+                 'Position', [100, 100, fig_size(1), fig_size(2)]);
+gx = geoaxes('Basemap', 'satellite', 'FontSize', font_size);
 hold on;
 
 % 6a. Plot the individual beams
@@ -178,29 +191,27 @@ else
     lambda_max_deg = asind(1) - asind(Re_km/rsat_km); 
 end
 
-title(gx, sprintf('Phased Array Footprints on Earth | h = %dkm | f = %.1f GHz | G = %.1f dBi', alt_m*1e-3, f_hz/1e9, G_tx_dBi));
+title(gx, {'Phased Array Footprints on Earth', ...
+           sprintf('h = %d km  |  f = %.1f GHz  |  G = %.1f dBi', alt_m*1e-3, f_hz/1e9, G_tx_dBi)}, ...
+    'FontSize', font_size);
 
 % 6c. Export 3 specific zoom levels
-if ~isfolder('screenshots')
-    mkdir('screenshots');
-end
-
-fprintf('Saving screenshots (pausing between views to allow map tiles to load)...\n');
+fprintf('Saving figures (pausing between views to allow map tiles to load)...\n');
 
 % Shot 1: Full Coverage Region
 geolimits(gx, [lat - lambda_max_deg - 2, lat + lambda_max_deg + 2], ...
               [lon - lambda_max_deg*1.5 - 2, lon + lambda_max_deg*1.5 + 2]);
 drawnow;
 pause(5); % Wait 5 seconds for the massive full-res map to download
-exportgraphics(fig_map, 'screenshots/beams_01_full_coverage.png', 'Resolution', 300);
-fprintf('Saved: screenshots/beams_01_full_coverage.png\n');
+exportgraphics(fig_map, fullfile(out_dir, 'beams_01_full_coverage.png'), 'Resolution', 300);
+fprintf('Saved: beams_01_full_coverage.png\n');
 
 % Shot 2: Northern Jutland / Aalborg Zoom (~50 beams focus)
 geolimits(gx, [lat - 0.8, lat + 0.8], [lon - 1.5, lon + 1.5]);
 drawnow;
 pause(3); % Wait 3 seconds for local zoom tiles
-exportgraphics(fig_map, 'screenshots/beams_02_jutland_zoom.png', 'Resolution', 300);
-fprintf('Saved: screenshots/beams_02_jutland_zoom.png\n');
+exportgraphics(fig_map, fullfile(out_dir, 'beams_02_jutland_zoom.png'), 'Resolution', 300);
+fprintf('Saved: beams_02_jutland_zoom.png\n');
 
 % Shot 3: Outskirts / Helsinki Zoom
 helsinki_lat = 60.1695;
@@ -209,8 +220,8 @@ helsinki_lon = 24.9354;
 geolimits(gx, [helsinki_lat - 1.2, helsinki_lat + 1.2], [helsinki_lon - 2.5, helsinki_lon + 2.5]);
 drawnow;
 pause(3); % Wait 3 seconds for Helsinki tiles
-exportgraphics(fig_map, 'screenshots/beams_03_helsinki_zoom.png', 'Resolution', 300);
-fprintf('Saved: screenshots/beams_03_helsinki_zoom.png\n');
+exportgraphics(fig_map, fullfile(out_dir, 'beams_03_helsinki_zoom.png'), 'Resolution', 300);
+fprintf('Saved: beams_03_helsinki_zoom.png\n');
 
 function [roll_deg, pitch_deg] = uv_to_matlab_mounting_angles(u, v)
 % MATLAB applies mounting rotations in a sequence where roll influences

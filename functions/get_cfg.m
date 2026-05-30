@@ -15,10 +15,7 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     mat_path = "optimal_constellations.mat";
     if isfile(mat_path)
         optimal_constellation = load(mat_path);
-        constellation_idx = find(optimal_constellation.heights_km >= height_km, 1, 'first');
-        if isempty(constellation_idx)
-            constellation_idx = numel(optimal_constellation.heights_km);
-        end
+        [~, constellation_idx] = min(abs(optimal_constellation.heights_km - height_km));
 
         switch requested_constellation
             case 'walkerdelta'

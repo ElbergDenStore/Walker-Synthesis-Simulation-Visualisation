@@ -2,31 +2,32 @@
 % /opt/VirtualGL/bin/vglrun matlab & - run it interactively with GPU rendering
 function run_single_coverage_test()
 clear all; close all; clc;
+% delete(gcp('nocreate'));
 % Cfg = get_cfg(1000,"walkerdelta","medium","long");
 
-height_km        = 1200;
+height_km        = 1000;
 min_elevation_UE = 20;
 
 Lat_range_deg = [54+(35/60), 83+(40/60)];
-% Lon_range_deg = [-(73+(10/60)), 33+(30/60)];
-Lon_range_deg = [-180, 180];
+Lon_range_deg = [-(73+(10/60)), 33+(30/60)];
+% Lon_range_deg = [-180, 180];
 StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
-StopTime  = datetime('3-Jun-2025 12:59:59', 'TimeZone', 'UTC'); % 48 hours
+StopTime  = datetime('1-Jun-2025 14:59:59', 'TimeZone', 'UTC'); % 48 hours
 
 % Ku-band link budget
 f_DL           = 12e9;
-B_DL           = 50e6;
+B_DL           = 250e6;
 NF_DL          = 5;
 G_rx           = 33;        % dBi, UE receive antenna gain
-Target_PFD_MHz = -115;      % dBW/m²/MHz
+Target_PFD_MHz = -125;      % dBW/m²/MHz
 
 FRF = 3;
 RU  = 1;
 
-NumUEs = 5000;
+NumUEs = 100000;
 
 [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
-
+% [UE_lats, UE_lons] = generate_population_based_UEs(Lat_range_deg, Lon_range_deg, 3000);
 %% ===== BUILD BASE CFG (fields shared by both constellations) =====
 BaseCfg.Orbit_height             = height_km * 1e3;  % m
 BaseCfg.Min_elevation_UE         = min_elevation_UE;
@@ -36,7 +37,7 @@ BaseCfg.RU                       = RU;
 BaseCfg.Use_P618                 = false;
 BaseCfg.Modified_shannon         = true;
 BaseCfg.Simple_Atmospheric_Loss_dB = 1;
-BaseCfg.Share_bandwidth          = false;
+BaseCfg.Share_bandwidth          = true;
 BaseCfg.Target_PFD_MHz           = Target_PFD_MHz;
 BaseCfg.StartTime                = StartTime;
 BaseCfg.StopTime                 = StopTime;
@@ -62,22 +63,22 @@ CfgStar.WalkerStar = true;
 
 % 4               14              90            2           56             1100      
 % [Num_planes_star, Sats_per_plane_star, ~] = calculate_walker_star(height_km, min(Lat_range_deg), min_elevation_UE);
-CfgStar.Num_planes     = 4;
-CfgStar.Sats_per_plane = 12;
+CfgStar.Num_planes     = 5;
+CfgStar.Sats_per_plane = 13;
 CfgStar.Total_sats     = CfgStar.Num_planes * CfgStar.Sats_per_plane;
 CfgStar.Inclination    = 90; 
 CfgStar.Phasing        = CfgStar.Num_planes / 2;
 
 %% ===== RUN SIMULATIONS =====
-use_parallel = false;
-calc_link    = false;
+use_parallel = true;
+calc_link    = true;
 
 % fprintf('\nRunning Walker Star simulation...\n');
 metrics_star = coverage_simulator_function(CfgStar, use_parallel, calc_link);
 fprintf("coverage percentage %0.8f",metrics_star.worst_coverage_percent)
 
 %% ===== PLOT RESULTS =====
-% plot_simulation(metrics_star,  use_parallel);
+plot_simulation(metrics_star,  use_parallel);
 
 % show_interactive = true;
 % save_fig = false;

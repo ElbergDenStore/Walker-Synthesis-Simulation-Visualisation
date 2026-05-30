@@ -62,7 +62,7 @@ if isfield(loaded, 'Master_config')
     minimum_lat_deg = min(cfg.Lat_range_deg);
     maximum_lat_deg = max(cfg.Lat_range_deg);
     title_str = sprintf( ...
-        'Walker Star: Analytical vs Numerical | Lat: %.1f^{\\circ}--%.1f^{\\circ} | \\epsilon_{min}: %.1f^{\\circ}', ...
+        'Walker Star: Analytical vs Numerical | \\lambda: %.1f^{\\circ}-%.1f^{\\circ} | \\epsilon_{min}: %.1f^{\\circ}', ...
         minimum_lat_deg, maximum_lat_deg, cfg.Min_elevation_UE);
 else
     title_str = 'Walker Star: Analytical vs Numerical';
@@ -75,8 +75,8 @@ f1 = figure('Visible', 'off', 'Name', 'Walker Star Comparison', 'Color', 'w', 'P
 hold on;
 scatter(heights_km, anal_T, 36, 'o', 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'DisplayName', 'Analytical');
 scatter(heights_km, num_T,  36, 'o', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'DisplayName', 'Numerical');
-xlabel('Orbit Height (km)', 'FontWeight', 'bold');
-ylabel('Total Satellites Required', 'FontWeight', 'bold');
+xlabel('Equatorial Orbital Altitude (km)', 'FontWeight', 'bold');
+ylabel('Satellite Count', 'FontWeight', 'bold');
 title(title_str);
 legend('Location', 'northeast');
 grid on; hold off;
@@ -85,6 +85,9 @@ plot_path = fullfile(sweep_folder, 'Star_Analytical_vs_Numerical.png');
 exportgraphics(f1, plot_path, 'Resolution', 300);
 close(f1);
 fprintf('Plot saved to: %s\n', plot_path);
+
+%% ---- Parameter distribution plots -------------------------------------
+generate_parameter_sweep_plots(heights_km, best_star_sats, sweep_folder);
 
 %% ---- Console summary ---------------------------------------------------
 n          = numel(heights_km);
@@ -154,8 +157,8 @@ tex_lines{end+1} = '  \centering';
 tex_lines{end+1} = '  \renewcommand{\arraystretch}{1.2}';
 tex_lines{end+1} = '  \begin{tabular}{c|cccc|ccccc|cc}';
 tex_lines{end+1} = '    \hline\hline';
-tex_lines{end+1} = '    & \multicolumn{4}{c|}{\textbf{Analytical Walker Star}}';
-tex_lines{end+1} = '    & \multicolumn{5}{c|}{\textbf{Numerical Walker Star}}';
+tex_lines{end+1} = '    & \multicolumn{4}{c|}{\textbf{Analytical Walker-Star}}';
+tex_lines{end+1} = '    & \multicolumn{5}{c|}{\textbf{Numerical Walker-Star}}';
 tex_lines{end+1} = '    & \multicolumn{2}{c}{\textbf{Saving}} \\';
 tex_lines{end+1} = '    \textbf{Alt.} & $T$ & $P$ & $S$ & $i$ (°)';
 tex_lines{end+1} = '    & $T$ & $P$ & $S$ & $F$ & $i$ (°)';
@@ -327,6 +330,81 @@ if fid2 ~= -1
     fclose(fid2);
     fprintf('\nMultistage LaTeX table saved to:\n  %s\n', ms_tex_file);
 end
+end
+
+
+function generate_parameter_sweep_plots(heights_km, best_star_sats, sweep_folder)
+% Scatter plots showing how each optimal Walker-Star parameter distributes
+% across orbital altitudes.  Each point = one altitude's best constellation.
+% Color encodes orbital altitude throughout (no colorbar on altitude-axis plots).
+
+delta_planes  = [best_star_sats.Num_planes]';
+delta_satspp  = [best_star_sats.Sats_per_plane]';
+delta_phasing = [best_star_sats.Phasing]';
+delta_inc     = [best_star_sats.Inclination]';
+
+% Convert raw phasing integer F to degrees
+phasing_deg = (delta_phasing ./ delta_planes) * 360;
+
+alt_clim = [min(heights_km), max(heights_km)];
+sz       = 60;
+jit      = @(v, s) v + (rand(size(v)) - 0.5) * 2 * s;
+
+set(0, 'DefaultAxesFontSize', 14);
+set(0, 'DefaultTextFontSize', 14);
+
+%% ---- Phasing (x) vs Planes (y) ----------------------------------------
+f1 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+scatter(phasing_deg, delta_planes, sz, heights_km, 'filled', ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+colormap(parula); clim(alt_clim);
+cb = colorbar; cb.Label.String = 'Orbital Altitude (km)';
+xlim([0 360]);
+xlabel('Phasing (\circ)', 'FontWeight', 'bold');
+ylabel('Number of Planes', 'FontWeight', 'bold');
+title('Optimal Walker-Star Phasing Across Altitudes');
+set(gca, 'FontSize', 14); grid on;
+exportgraphics(f1, fullfile(sweep_folder, 'Star_Phasing_vs_Altitude.png'), 'Resolution', 300);
+close(f1);
+
+%% ---- Inclination vs Altitude ------------------------------------------
+f2 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+scatter(delta_inc, heights_km, sz, heights_km, 'filled', ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+colormap(parula); clim(alt_clim);
+xlabel('Inclination (\circ)', 'FontWeight', 'bold');
+ylabel('Orbital Altitude (km)', 'FontWeight', 'bold');
+title('Optimal Walker-Star Inclination Across Altitudes');
+set(gca, 'FontSize', 14); grid on;
+exportgraphics(f2, fullfile(sweep_folder, 'Star_Inclination_vs_Altitude.png'), 'Resolution', 300);
+close(f2);
+
+%% ---- Number of planes vs Altitude -------------------------------------
+f3 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+scatter(delta_planes, heights_km, sz, heights_km, 'filled', ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+colormap(parula); clim(alt_clim);
+xlabel('Number of Planes', 'FontWeight', 'bold');
+ylabel('Orbital Altitude (km)', 'FontWeight', 'bold');
+title('Optimal Walker-Star Planes Across Altitudes');
+set(gca, 'FontSize', 14); grid on;
+exportgraphics(f3, fullfile(sweep_folder, 'Star_Planes_vs_Altitude.png'), 'Resolution', 300);
+close(f3);
+
+%% ---- Architecture map (sats/plane vs planes) --------------------------
+f4 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+scatter(delta_planes, delta_satspp, sz, heights_km, 'filled', ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+colormap(parula); clim(alt_clim);
+cb = colorbar; cb.Label.String = 'Orbital Altitude (km)';
+xlabel('Number of Planes', 'FontWeight', 'bold');
+ylabel('Satellites per Plane', 'FontWeight', 'bold');
+title('Optimal Walker-Star Architecture Across Altitudes');
+set(gca, 'FontSize', 14); grid on;
+exportgraphics(f4, fullfile(sweep_folder, 'Star_Architecture_Map.png'), 'Resolution', 300);
+close(f4);
+
+fprintf('Parameter distribution plots saved to: %s\n', sweep_folder);
 end
 
 

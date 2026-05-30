@@ -1,4 +1,4 @@
-# Satcom4Defence Constellation Simulator Matlab Tool
+# Constellation Synthesis Simulation and Visualisation Matlab Tool
 This tool has been developed to help any constellation designer to run high fidelity simulations.
 
 Features: (I have an idea of grouping them into simulation, illustration and validation or something? hmmm i dont know yet)
@@ -26,15 +26,11 @@ It has been developed to be easily used for future development.
     - how many UEs are connected or how large part of the area is covered by the satellite (make both plots always)
 
 
-%%%%%%%%%%%%%%%%%%%%%%%% AAAAAAAAAAAAAARHHHHHHHHHHHHHH %%%%%%%%%%%%%%%%%%%%%
-I NEED TO IMPLEMENT A SMARTER SEAM GAP CALCULATION TAKING THE BOWING EFFECT INTO ACCOUNT
 
 
 # TODO
 Changes to code that i want:
-- OneWeb Validation should run and produce nice plots, and be correct
-- Real tles instead of modelling, should be possible
-- Matlab project is a thing that i need to understand to make the scripts run correctly.
+<!-- - OneWeb Validation should run and produce nice plots, and be correct -->
 - FIX INTERFERENCE CALC
 - Follow code style
 - SEARCH FOR ALL TODOs
@@ -44,3 +40,9 @@ Changes to code that i want:
 - Move all the plotting files to the plotting folder
 - Revive UE focus view from the dead?
 - Develop satellite focused view?
+- I need to validate the smarter SOC with lower inclinations to also work for 90 degrees: it did so now i need to remove the old one.
+- Coverage simulator is ugly due to the early stopping and workers might not be able to not die using it
+- The gridsearch is ugly due to all the fallback mechanisms, I need to clean it up in one go.
+- publish to github
+- Create understandable read-me so others can use the code, including the dependencies.
+

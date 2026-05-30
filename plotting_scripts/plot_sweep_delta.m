@@ -64,7 +64,7 @@ if isfield(loaded, 'Master_config')
     minimum_lat_deg = min(cfg.Lat_range_deg);
     maximum_lat_deg = max(cfg.Lat_range_deg);
     title_str = sprintf( ...
-        'Optimal Walker Constellations | Lat: %.1f^{\\circ}--%.1f^{\\circ} | \\epsilon_{min}: %.1f^{\\circ}', ...
+        'Optimal Walker Constellations | \\lambda: %.1f^{\\circ} - %.1f^{\\circ} | \\epsilon_{min}: %.1f^{\\circ}', ...
         minimum_lat_deg, maximum_lat_deg, cfg.Min_elevation_UE);
 else
     title_str = 'Walker Star (Analytical) vs Walker Delta (Numerical)';
@@ -75,10 +75,10 @@ set(0, 'DefaultTextFontSize', 14);
 
 f1 = figure('Visible', 'off', 'Name', 'Constellation Comparison', 'Color', 'w', 'Position', [100 100 700 450]);
 hold on;
-scatter(heights_km, star_T,  36, 'o', 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'DisplayName', 'Walker Star');
-scatter(heights_km, delta_T, 36, 'o', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'DisplayName', 'Walker Delta');
-xlabel('Orbit Height (km)', 'FontWeight', 'bold');
-ylabel('Total Satellites Required', 'FontWeight', 'bold');
+scatter(heights_km, star_T,  36, 'o', 'MarkerEdgeColor', 'r', 'MarkerFaceColor', 'r', 'DisplayName', 'Walker Star (Analytical)');
+scatter(heights_km, delta_T, 36, 'o', 'MarkerEdgeColor', 'b', 'MarkerFaceColor', 'b', 'DisplayName', 'Walker Delta (Numerical)');
+xlabel('Equatorial Orbital Altitude (km)', 'FontWeight', 'bold');
+ylabel('Satellite Count', 'FontWeight', 'bold');
 title(title_str);
 legend('Location', 'northeast');
 grid on; hold off;
@@ -87,6 +87,9 @@ plot_path = fullfile(sweep_folder, 'Star_vs_Delta_Comparison.png');
 exportgraphics(f1, plot_path, 'Resolution', 300);
 close(f1);
 fprintf('Plot saved to: %s\n', plot_path);
+
+%% ---- Parameter distribution plots -------------------------------------
+generate_parameter_sweep_plots(heights_km, best_delta_sats, sweep_folder);
 
 %% ---- Console summary ---------------------------------------------------
 n          = numel(heights_km);
@@ -150,15 +153,15 @@ tex_lines{end+1} = '%   T = total satellites, P = planes, S = sats/plane,';
 tex_lines{end+1} = '%   F = phasing parameter, i = inclination (degrees)';
 tex_lines{end+1} = '';
 tex_lines{end+1} = '\begin{table}[!t]';
-tex_lines{end+1} = '  \caption{Walker Constellation Parameters at Representative Altitudes}';
+tex_lines{end+1} = '  \caption{Walker Constellation Comparison for Subset of Orbital Altitudes}';
 tex_lines{end+1} = '  \label{tab:walker_comparison}';
 tex_lines{end+1} = '  \centering';
 tex_lines{end+1} = '  \renewcommand{\arraystretch}{1.2}';
 tex_lines{end+1} = '  \begin{tabular}{c|cccc|ccccc|cc}';
 tex_lines{end+1} = '    \hline\hline';
-tex_lines{end+1} = '    & \multicolumn{4}{c|}{\textbf{Walker Star (SOC)}}';
-tex_lines{end+1} = '    & \multicolumn{5}{c|}{\textbf{Walker Delta (Proposed)}}';
-tex_lines{end+1} = '    & \multicolumn{2}{c}{\textbf{Saving}} \\';
+tex_lines{end+1} = '    & \multicolumn{4}{c|}{\textbf{Walker-Star (SOC)}}';
+tex_lines{end+1} = '    & \multicolumn{5}{c|}{\textbf{Walker-Delta}}';
+tex_lines{end+1} = '    & \multicolumn{2}{c}{\textbf{Difference}} \\';
 tex_lines{end+1} = '    \textbf{Alt.} & $T$ & $P$ & $S$ & $i$ (°)';
 tex_lines{end+1} = '    & $T$ & $P$ & $S$ & $F$ & $i$ (°)';
 tex_lines{end+1} = '    & $\Delta T$ & \% \\';
@@ -295,23 +298,31 @@ fprintf('Avg time Stage 1:            %.3f s\n', avg_t1_all);
 fprintf('Avg time Stage 2:            %.2f s\n', avg_t2_all);
 fprintf('Avg time Stage 3:            %.1f s\n', avg_t3_all);
 
+% Compute "% of previous row" for each stage/filter step
+pct_filtered_of_full = 100 * total_n_filtered / max(total_n_full, 1);
+pct_s1_of_filtered   = 100 * total_n1         / max(total_n_filtered, 1);
+pct_s2_of_s1         = 100 * total_n2         / max(total_n1, 1);
+pct_s3_of_s2         = 100 * total_n3         / max(total_n2, 1);
+wall_hours           = total_wall / 3600;
+
 ms_tex = {};
 ms_tex{end+1} = sprintf('%% Multi-stage filtering table (%d altitude runs, aggregated)', n_runs_loaded);
 ms_tex{end+1} = '\begin{table}[htbp]';
 ms_tex{end+1} = '    \centering';
-ms_tex{end+1} = '    \caption{Multi-Stage Constellation Filtering: Configuration and Performance}';
+ms_tex{end+1} = '    \caption{Multi-Stage Filtering Performance}';
 ms_tex{end+1} = '    \label{tab:multistage_results}';
-ms_tex{end+1} = '    \begin{tabular}{lcc}';
-ms_tex{end+1} = '        \multicolumn{3}{c}{\textbf{Multi Stage Filtering Results}} \\';
+ms_tex{end+1} = '    \begin{tabular}{lccc}';
 ms_tex{end+1} = '        \hline';
-ms_tex{end+1} = '        \textbf{Stage} & \textbf{Constellations Evaluated} & \textbf{Avg.\ Time (s)} \\ \hline';
-ms_tex{end+1} = sprintf('        1 & %s & %.3f \\\\', fmt_num(total_n1), avg_t1_all);
-ms_tex{end+1} = sprintf('        2 & %s & %.2f \\\\', fmt_num(total_n2), avg_t2_all);
-ms_tex{end+1} = sprintf('        3 & %s & %.1f \\\\ \\hline', fmt_num(total_n3), avg_t3_all);
-ms_tex{end+1} = sprintf('        \\multicolumn{3}{l}{\\small \\textbf{Hardware:} %d parallel workers.} \\\\', n_workers_rep);
+ms_tex{end+1} = '        \textbf{Stage} & \textbf{Constellations} & \textbf{\% of Prev.} & \textbf{Avg.\ Time (s)} \\ \hline';
+ms_tex{end+1} = sprintf('        Full Grid    & %s & -- & -- \\',         fmt_num(total_n_full));
+ms_tex{end+1} = sprintf('        Filtered Grid & %s & %.1f\%% & -- \\',  fmt_num(total_n_filtered), pct_filtered_of_full);
+ms_tex{end+1} = sprintf('        1 & %s & %.1f\%% & %.3f \\',           fmt_num(total_n1), pct_s1_of_filtered, avg_t1_all);
+ms_tex{end+1} = sprintf('        2 & %s & %.1f\%% & %.2f \\',           fmt_num(total_n2), pct_s2_of_s1, avg_t2_all);
+ms_tex{end+1} = sprintf('        3 & %s & %.1f\%% & %.1f \\ \hline',   fmt_num(total_n3), pct_s3_of_s2, avg_t3_all);
+ms_tex{end+1} = sprintf('        \\multicolumn{4}{l}{\\small \\textbf{Hardware:} i9-13900K, %d parallel workers.} \\\\', n_workers_rep);
 ms_tex{end+1} = sprintf( ...
-    ['        \\multicolumn{3}{l}{\\small \\textbf{Total Wall Time:} %.0f~s' ...
-     ' \\hspace{0.5cm} \\textbf{Valid Candidates:} %d} \\\\'], total_wall, total_cands);
+    ['        \\multicolumn{4}{l}{\\small \\textbf{Total Wall Time:} %.2f~h' ...
+     ' \\hspace{0.5cm} \\textbf{Valid Constellations:} %d} \\\\'], wall_hours, total_cands);
 ms_tex{end+1} = '        \hline';
 ms_tex{end+1} = '    \end{tabular}';
 ms_tex{end+1} = '\end{table}';
@@ -325,6 +336,81 @@ if fid2 ~= -1
     fclose(fid2);
     fprintf('\nMultistage LaTeX table saved to:\n  %s\n', ms_tex_file);
 end
+end
+
+
+function generate_parameter_sweep_plots(heights_km, best_delta_sats, sweep_folder)
+% Scatter plots showing how each optimal Walker-Delta parameter distributes
+% across orbital altitudes.  Each point = one altitude's best constellation.
+% Colorbar encodes orbital altitude throughout.
+
+delta_planes  = [best_delta_sats.Num_planes]';
+delta_satspp  = [best_delta_sats.Sats_per_plane]';
+delta_phasing = [best_delta_sats.Phasing]';
+delta_inc     = [best_delta_sats.Inclination]';
+
+% Convert raw phasing integer F to degrees (consistent with plot_gridsearch)
+phasing_deg = (delta_phasing ./ delta_planes) * 360;
+
+alt_clim = [min(heights_km), max(heights_km)];
+sz       = 60;
+jit      = @(v, s) v + (rand(size(v)) - 0.5) * 2 * s;   % jitter for discrete axes
+
+set(0, 'DefaultAxesFontSize', 14);
+set(0, 'DefaultTextFontSize', 14);
+
+%% ---- Phasing -----------------------------------------------------------
+f1 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+scatter(phasing_deg, delta_planes, sz, heights_km, 'filled', ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+colormap(parula); clim(alt_clim);
+xlim([0 360]);
+xlabel('Phasing (°)', 'FontWeight', 'bold');
+ylabel('Number of Planes', 'FontWeight', 'bold');
+cb = colorbar; cb.Label.String = 'Orbital Altitude (km)';
+title('Optimal Walker-Delta Phasing Across Altitudes');
+set(gca, 'FontSize', 14); grid on;
+exportgraphics(f1, fullfile(sweep_folder, 'Delta_Phasing_vs_Altitude.png'), 'Resolution', 300);
+close(f1);
+
+%% ---- Inclination -------------------------------------------------------
+f2 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+scatter(delta_inc, heights_km, sz, heights_km, 'filled', ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+colormap(parula); clim(alt_clim);
+xlabel('Inclination (°)', 'FontWeight', 'bold');
+ylabel('Orbital Altitude (km)', 'FontWeight', 'bold');
+title('Optimal Walker-Delta Inclination Across Altitudes');
+set(gca, 'FontSize', 14); grid on;
+exportgraphics(f2, fullfile(sweep_folder, 'Delta_Inclination_vs_Altitude.png'), 'Resolution', 300);
+close(f2);
+
+%% ---- Number of planes --------------------------------------------------
+f3 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+scatter(delta_planes, heights_km, sz, heights_km, 'filled', ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+colormap(parula); clim(alt_clim);
+xlabel('Number of Planes', 'FontWeight', 'bold');
+ylabel('Orbital Altitude (km)', 'FontWeight', 'bold');
+title('Optimal Walker-Delta Planes Across Altitudes');
+set(gca, 'FontSize', 14); grid on;
+exportgraphics(f3, fullfile(sweep_folder, 'Delta_Planes_vs_Altitude.png'), 'Resolution', 300);
+close(f3);
+
+%% ---- Architecture map (sats/plane vs planes) ---------------------------
+f4 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+scatter(delta_planes, delta_satspp, sz, heights_km, 'filled', ...
+    'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
+colormap(parula); clim(alt_clim);
+cb = colorbar; cb.Label.String = 'Orbital Altitude (km)';
+xlabel('Number of Planes', 'FontWeight', 'bold');
+ylabel('Satellites per Plane', 'FontWeight', 'bold');
+title('Optimal Walker-Delta Architecture Across Altitudes');
+set(gca, 'FontSize', 14); grid on;
+exportgraphics(f4, fullfile(sweep_folder, 'Delta_Architecture_Map.png'), 'Resolution', 300);
+close(f4);
+
+fprintf('Parameter distribution plots saved to: %s\n', sweep_folder);
 end
 
 

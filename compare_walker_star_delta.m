@@ -1,12 +1,12 @@
 function compare_walker_star_delta()
 clear; close all; clc;
-
+% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "compare_walker_star_delta"
 %% ===== SHARED SCENARIO SETTINGS =====
 height_km        = 1000;
 min_elevation_UE = 20;
 
 Lat_range_deg = [54+(35/60), 83+(40/60)];
-Lon_range_deg = [-(73+(10/60)), 33+(30/60)];
+Lon_range_deg = [-(73+(10/60)), 32+(30/60)];
 
 StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
 StopTime  = datetime('3-Jun-2025 11:59:59', 'TimeZone', 'UTC'); % 48 hours
@@ -23,7 +23,11 @@ RU  = 1;
 
 NumUEs = 2000;
 
-[UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
+lat_vec = linspace(Lat_range_deg(1), Lat_range_deg(2), 8);       % 6 latitudes
+lon_vec = linspace(Lon_range_deg(1), Lon_range_deg(2), 4);       % 6 longitudes
+[UE_lats,UE_lons ] = meshgrid(lat_vec, lon_vec);
+
+% [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
 
 %% ===== BUILD BASE CFG (fields shared by both constellations) =====
 BaseCfg.Orbit_height             = height_km * 1e3;  % m
@@ -31,9 +35,9 @@ BaseCfg.Min_elevation_UE         = min_elevation_UE;
 BaseCfg.SampleTime               = 60;               % s
 BaseCfg.FRF                      = FRF;
 BaseCfg.RU                       = RU;
-BaseCfg.Use_P618                 = false;
+BaseCfg.Use_P618                 = true;
 BaseCfg.Modified_shannon         = true;
-BaseCfg.Simple_Atmospheric_Loss_dB = 1;
+% BaseCfg.Simple_Atmospheric_Loss_dB = 1;
 BaseCfg.Share_bandwidth          = false;
 BaseCfg.Target_PFD_MHz           = Target_PFD_MHz;
 BaseCfg.StartTime                = StartTime;
@@ -83,7 +87,7 @@ fprintf('Walker Delta: %d planes x %d sats/plane = %d total\n', ...
 
 %% ===== RUN SIMULATIONS =====
 use_parallel = false;
-calc_link    = false;
+calc_link    = true;
 
 fprintf('\nRunning Walker Star simulation...\n');
 metrics_star = coverage_simulator_function(CfgStar, use_parallel, calc_link);
