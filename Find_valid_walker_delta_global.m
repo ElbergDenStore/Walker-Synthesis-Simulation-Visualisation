@@ -27,11 +27,13 @@ delete(gcp('nocreate'));
 %% Master Configuration
 heights_km                          = 500:100:1200;
 % Master_config.Lat_range_deg         = [54+(35/60), 83+(40/60)]; %54°35N Denmark minimum, 83°40N Greenland max
-% Master_config.Lat_range_deg         = [0 90];
-Master_config.Lat_range_deg         = [0 54+(35/60)];
+% Master_config.Lat_range_deg         = [54+(35/60) 90];
+% Master_config.Lat_range_deg         = [0 54+(35/60)];
+% Master_config.Lat_range_deg         = [30 60];
+Master_config.Lat_range_deg         = [0 30];
 Master_config.Min_elevation_UE      = 20;
-Master_config.Num_Planes            = 4:25; % Num Planes
-Master_config.Sats_Plane            = 8:40; % Sats per Plane
+Master_config.Num_Planes            = 1:25; % Num Planes
+Master_config.Sats_Plane            = 4:40; % Sats per Plane
 Master_config.Inc_vec               = linspace(max(Master_config.Lat_range_deg)-15, min(max(Master_config.Lat_range_deg),80), 16)
 Master_config.Target_num_candidates = 1;
 Master_config.SampleTime            = 660;
@@ -103,7 +105,8 @@ if ~isempty(resume_dir) && exist(resume_dir, 'dir')
         numel(completed_heights), num2str(completed_heights));
 else
     date_str_start = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-    folder_name    = sprintf('Master_Sweep_%s', date_str_start);
+    lat_tag        = sprintf('lat%.0f_%.0f', Master_config.Lat_range_deg(1), Master_config.Lat_range_deg(2));
+    folder_name    = sprintf('Master_Sweep_%s_%s', lat_tag, date_str_start);
     out_dir        = fullfile('simulation_output', folder_name);
     if ~exist(out_dir, 'dir'), mkdir(out_dir); end
     star_sats       = [];

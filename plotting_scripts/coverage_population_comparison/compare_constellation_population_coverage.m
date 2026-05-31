@@ -65,9 +65,9 @@ pop_data(pop_data < 0 | isnan(pop_data)) = 0;
 tif_lat_lim = R.LatitudeLimits;
 fprintf('  TIF latitude coverage: [%.2f, %.2f] deg\n', tif_lat_lim(1), tif_lat_lim(2));
 
-% Probe grid: always symmetric ±85° so north/south mirrors always exist.
+% Probe grid: always symmetric ±90° so north/south mirrors always exist.
 % Population bins outside the TIF latitude range just sum to zero (handled below).
-probe_lats = (-85:lat_step_deg:85).';
+probe_lats = (-90:lat_step_deg:90).';
 nProbeLats = numel(probe_lats);
 nProbeLons = numel(probe_lons_deg);
 
@@ -95,7 +95,7 @@ src_dlo     = load(fullfile(data_dir,'delta_lowlat.mat'));
 src_dhi     = load(fullfile(data_dir,'delta_highlat.mat'));
 
 scenarios = struct( ...
-    'name',   {'Walker-Star (global)',   'Walker-Delta (global)', 'Walker-Delta (0-55)', 'Walker-Delta (55-85)'}, ...
+    'name',   {'Walker-Star (global)',   'Walker-Delta (global)', 'Walker-Delta (0-55)', 'Walker-Delta (55-90)'}, ...
     'key',    {'star',                   'delta_global',          'delta_lowlat',        'delta_highlat'}, ...
     'is_star',{true,                     false,                   false,                 false}, ...
     'src',    {src_star,                 src_dglobal,             src_dlo,               src_dhi});
@@ -124,9 +124,9 @@ if isfile(checkpoint_file)
         % Grid size mismatch (old checkpoint used TIF-restricted probe_lats).
         % Migrate: copy existing latitudes, mirror north→south for the gap.
         old_size = size(ck.avg_visible_mat, 1);
-        old_lats = (85 - (old_size-1)*lat_step_deg : lat_step_deg : 85).';
+        old_lats = (90 - (old_size-1)*lat_step_deg : lat_step_deg : 90).';
         old_mat  = ck.avg_visible_mat;
-        fprintf('[MIGRATE] Checkpoint has %d lats (%.1f° to %.1f°); extending to %d (-85° to 85°) by symmetry.\n', ...
+        fprintf('[MIGRATE] Checkpoint has %d lats (%.1f° to %.1f°); extending to %d (-90° to 90°) by symmetry.\n', ...
             old_size, old_lats(1), old_lats(end), nProbeLats);
         new_avg = nan(nProbeLats, nSc, nAlt);
         for ii = 1:nProbeLats
@@ -250,13 +250,13 @@ for ai = 1:nAlt
     % Visibility curves (symmetrized)
     plot(x_sine, vis_star,  '-',  'Color', col_star,  'LineWidth', FIG.lw, ...
         'DisplayName', ['Walker-Star  (T=' num2str(total_sats_mat(idx_st,ai)) ')']);
-    plot(x_sine, vis_glob,  '--', 'Color', col_glob,  'LineWidth', FIG.lw, ...
+    plot(x_sine, vis_glob,  '-', 'Color', col_glob,  'LineWidth', FIG.lw, ...
         'DisplayName', ['Walker-\Delta global  (T=' num2str(total_sats_mat(idx_gl,ai)) ')']);
-    plot(x_sine, vis_split, '-.', 'Color', col_split, 'LineWidth', FIG.lw, ...
+    plot(x_sine, vis_split, '-', 'Color', col_split, 'LineWidth', FIG.lw, ...
         'DisplayName', ['Walker-\Delta split  (T=' num2str(split_total_sats(ai)) ')']);
 
     ylabel('Avg. satellites in view');
-    xlabel('Latitude  [equal-area scale,  x = sin\phi]');
+    xlabel('Latitude');
     xlim([-1 1]);
     ylim([0, y_top]);
     xticks(tick_pos);
@@ -270,57 +270,74 @@ for ai = 1:nAlt
 end
 fprintf('\nAll figures saved.\n');
 
-%% ===== TABLE: population-weighted coverage efficiency =====
-w     = pop_per_probe_lat(:);
-w_sum = sum(w);
+%% ===== TABLE: constellation parameters (T, P, i) =====
+% Extract parameters directly from the source .mat files at each altitude.
+star_Tv = nan(nAlt,1); star_Pv = nan(nAlt,1); star_Iv = nan(nAlt,1);
+gl_Tv   = nan(nAlt,1); gl_Pv   = nan(nAlt,1); gl_Iv   = nan(nAlt,1);
+lo_Tv   = nan(nAlt,1); lo_Pv   = nan(nAlt,1); lo_Iv   = nan(nAlt,1);
+hi_Tv   = nan(nAlt,1); hi_Pv   = nan(nAlt,1); hi_Iv   = nan(nAlt,1);
 
-row_strs = cell(nAlt,1);
 for ai = 1:nAlt
-    N_star  = avg_visible_mat(:,idx_st,ai);
-    N_gl    = avg_visible_mat(:,idx_gl,ai);
-    N_split = split_visible(:,ai);
+    h = altitudes_km(ai);
 
-    pw_star  = sum(w.*N_star)  / w_sum;
-    pw_gl    = sum(w.*N_gl)    / w_sum;
-    pw_split = sum(w.*N_split) / w_sum;
+    [~, ii] = min(abs(src_star.heights_km(:) - h));
+    s = src_star.star_sats(ii);
+    star_Tv(ai) = s.Total_sats;  star_Pv(ai) = s.Num_planes;  star_Iv(ai) = s.Inclination;
 
-    T_star  = total_sats_mat(idx_st,ai);
-    T_gl    = total_sats_mat(idx_gl,ai);
-    T_split = split_total_sats(ai);
+    [~, ii] = min(abs(src_dglobal.heights_km(:) - h));
+    [gl_Tv(ai), gl_Pv(ai), gl_Iv(ai)] = get_delta_params(src_dglobal.best_delta_sats, ii);
 
-    eff_star  = pw_star  / T_star;
-    eff_gl    = pw_gl    / T_gl;
-    eff_split = pw_split / T_split;
+    [~, ii] = min(abs(src_dlo.heights_km(:) - h));
+    [lo_Tv(ai), lo_Pv(ai), lo_Iv(ai)] = get_delta_params(src_dlo.best_delta_sats, ii);
 
+    [~, ii] = min(abs(src_dhi.heights_km(:) - h));
+    [hi_Tv(ai), hi_Pv(ai), hi_Iv(ai)] = get_delta_params(src_dhi.best_delta_sats, ii);
+end
+split_Tv = lo_Tv + hi_Tv;
+
+row_strs = cell(nAlt, 1);
+
+% Compute max T/P string length per column so inclinations align across rows.
+tp_len   = @(T, P) length(sprintf('%d/%d', T, P));
+star_max = max(arrayfun(tp_len, star_Tv, star_Pv));
+gl_max   = max(arrayfun(tp_len, gl_Tv,   gl_Pv));
+lo_max   = max(arrayfun(tp_len, lo_Tv,   lo_Pv));
+hi_max   = max(arrayfun(tp_len, hi_Tv,   hi_Pv));
+
+for ai = 1:nAlt
+    % Each cell: "T/P\,\,... i°" — thin-space pad so inclinations line up.
+    fmt = @(T, P, I, mx) sprintf('%d/%d%s %.0f\\textdegree{}', ...
+        T, P, repmat('\,', 1, max(0, mx - tp_len(T,P)) * 2), I);
     row_strs{ai} = sprintf( ...
-        '    %d & %d & %.2f & %.4f & %d & %.2f & %.4f & %d & %.2f & %.4f \\\\', ...
+        '    %d & %s & %s & %d & %s & %s \\\\', ...
         altitudes_km(ai), ...
-        T_star,  pw_star,  eff_star, ...
-        T_gl,    pw_gl,    eff_gl, ...
-        T_split, pw_split, eff_split);
+        fmt(star_Tv(ai), star_Pv(ai), star_Iv(ai), star_max), ...
+        fmt(gl_Tv(ai),   gl_Pv(ai),   gl_Iv(ai),   gl_max), ...
+        split_Tv(ai), ...
+        fmt(lo_Tv(ai),   lo_Pv(ai),   lo_Iv(ai),   lo_max), ...
+        fmt(hi_Tv(ai),   hi_Pv(ai),   hi_Iv(ai),   hi_max));
 end
 
 tex_lines = [
     {'% Auto-generated by compare_constellation_population_coverage.m'}
     {'\begin{table}[!t]'}
-    {'  \caption{Population-weighted coverage efficiency. $\bar{N}_{\mathrm{pop}}$ is the population-weighted mean number of satellites in view; $\eta = \bar{N}_{\mathrm{pop}}/T$ is the useful coverage per orbital asset (sats-in-view per deployed satellite, weighted by where people live).}'}
-    {'  \label{tab:pop_weighted_coverage}'}
+    {'  \caption{Optimal constellation parameters at each orbital altitude. Each entry shows $T$/$P$ (total satellites/planes) and inclination $i$. The composite constellation combines two regional Walker-$\Delta$ constellations (0--55\textdegree{} and 55--90\textdegree{}); $T$ is their combined count.}'}
+    {'  \label{tab:constellation_params}'}
     {'  \centering'}
     {'  \renewcommand{\arraystretch}{1.2}'}
-    {'  \begin{tabular}{c|ccc|ccc|ccc}'}
+    {'  \begin{tabular}{c|l|l|r|l|l}'}
     {'    \hline\hline'}
-    {'    & \multicolumn{3}{c|}{\textbf{Walker-Star}} & \multicolumn{3}{c|}{\textbf{Delta (global)}} & \multicolumn{3}{c}{\textbf{Delta (split)}} \\'}
-    {'    \textbf{Alt.} & $T$ & $\bar{N}_{\mathrm{pop}}$ & $\eta$ & $T$ & $\bar{N}_{\mathrm{pop}}$ & $\eta$ & $T$ & $\bar{N}_{\mathrm{pop}}$ & $\eta$ \\'}
-    {'    \textbf{(km)} & & & & & & & & & \\'}
+    {'    & \textbf{Star} & \textbf{Delta} & \multicolumn{3}{c}{\textbf{Composite}} \\'}
+    {'    \textbf{Alt.~(km)} & $T$/$P$ $i$ & $T$/$P$ $i$ & $T$ & $0^\circ$--$55^\circ$ & $55^\circ$--$90^\circ$ \\'}
     {'    \hline'}
     row_strs
     {'    \hline\hline'}
     {'  \end{tabular}'}
     {'\end{table}'}
 ];
-tex_path = fullfile(tab_dir,'pop_weighted_coverage_table.tex');
-fid = fopen(tex_path,'w');
-fprintf(fid,'%s\n', tex_lines{:});
+tex_path = fullfile(tab_dir, 'constellation_params_table.tex');
+fid = fopen(tex_path, 'w');
+fprintf(fid, '%s\n', tex_lines{:});
 fclose(fid);
 fprintf('Table saved: %s\n', tex_path);
 
@@ -387,5 +404,17 @@ function vs = symmetrize_vis(v, mirror_idx, valid_mirror)
         if valid_mirror(ii)
             vs(ii) = mean([v(ii), v(mirror_idx(ii))]);
         end
+    end
+end
+
+%% =================================================================
+function [T, P, I] = get_delta_params(best_delta_sats, idx)
+% Extract T, P, I from a Walker-Delta result that may be a table or struct array.
+    if istable(best_delta_sats)
+        row = best_delta_sats(idx, :);
+        T = row.Total_sats;  P = row.Num_planes;  I = row.Inclination;
+    else
+        s = best_delta_sats(idx);
+        T = s.Total_sats;    P = s.Num_planes;    I = s.Inclination;
     end
 end
