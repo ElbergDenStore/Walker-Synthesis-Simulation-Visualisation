@@ -1,4 +1,4 @@
-% compare_simulator_speed.m
+% benchmark_simulator_speed.m
 % Combined benchmark: AER geometry methods, parallelism case studies,
 % and constellation_simulator worker scaling.
 %
@@ -19,10 +19,11 @@
 % Figures saved to: plotting_scripts/figures/optimisations/
 
 clear; close all; clc;
-addpath(fullfile(fileparts(mfilename('fullpath')), 'functions'));
-addpath(fullfile(fileparts(mfilename('fullpath')), 'functions', 'data'));
+repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> repo root
+addpath(fullfile(repo_root, 'functions'));                % bootstrap so path_setup is found
+path_setup();                                             % add repo root + all functions/ subfolders
 
-out_dir = fullfile(fileparts(mfilename('fullpath')), 'plotting_scripts', 'figures', 'optimisations');
+out_dir = fullfile(repo_root, 'plotting_scripts', 'figures', 'optimisations');
 if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 
 % =========================================================================
@@ -30,7 +31,7 @@ if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 % =========================================================================
 height_km = 1000;
 height_m  = height_km * 1e3;
-r_earth_m = 6378.14e3;
+r_earth_m = 6378.137e3;
 Min_elev  = 20;
 Lat_range = [54 + 35/60, 83 + 40/60];   % Denmark–Greenland
 
@@ -222,7 +223,7 @@ stop_stage3  = start_time + seconds((n_steps - 1) * sample_time);
 
 fprintf('  Stage-3: %d UEs x %d steps x %d sats\n\n', n_ues_stage3, n_steps, Total_sats);
 
-[lats_c, lons_c] = generate_equal_ish_area_UEs(Lat_range, [-180, 180], n_ues_stage3);
+[lats_c, lons_c] = generate_equal_area_ues(Lat_range, [-180, 180], n_ues_stage3);
 Cfg.StartTime          = start_time;
 Cfg.StopTime           = stop_stage3;
 Cfg.SampleTime         = sample_time;

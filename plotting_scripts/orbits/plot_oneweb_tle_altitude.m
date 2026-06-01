@@ -10,6 +10,7 @@ function plot_oneweb_tle_altitude()
 %   Usage:
 %       plot_oneweb_tle_altitude()
 
+    addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));  % bootstrap so path_setup is found
     path_setup();
 
     %% TLE definitions ------------------------------------------------------

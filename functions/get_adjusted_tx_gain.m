@@ -2,6 +2,8 @@ function G_tx = get_adjusted_tx_gain(orbit_height, min_elevation_UE, frequency, 
     %%% To achieve same size beams on earth for different orbit heights, tx
     %%% gain can be adjusted
 
+    %TODO calculate constant beamsize compensated tx gain instead  -> instead of frequency and reference gain -> km radius?
+
     % A reference is needed
     f_ref = 20e9;   
     h_ref = 1200e3; 

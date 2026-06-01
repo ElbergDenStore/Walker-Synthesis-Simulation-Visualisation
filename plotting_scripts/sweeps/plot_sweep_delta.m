@@ -13,7 +13,7 @@ function plot_sweep_delta(sweep_folder)
 %   plot_sweep_delta('path/to/sweep')   – specific sweep folder
 
 script_dir     = fileparts(mfilename('fullpath'));
-workspace_root = fileparts(script_dir);
+workspace_root = fileparts(fileparts(script_dir));
 sim_dir        = fullfile(workspace_root, 'simulation_output');
 
 %% ---- Locate sweep folder -----------------------------------------------

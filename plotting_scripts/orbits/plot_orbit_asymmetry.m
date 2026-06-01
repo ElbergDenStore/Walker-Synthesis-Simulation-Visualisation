@@ -1,5 +1,5 @@
-function results = validate_satellite_initialization(HEIGHT_KM, INC_DEG)
-% VALIDATE_SATELLITE_INITIALIZATION
+function results = plot_orbit_asymmetry(HEIGHT_KM, INC_DEG)
+% PLOT_ORBIT_ASYMMETRY
 %   Shows how non-circular the propagated orbit really is, by comparing the
 %   altitude on the ascending vs descending equator crossing, and on the
 %   north vs south pole crossing.
@@ -21,13 +21,13 @@ function results = validate_satellite_initialization(HEIGHT_KM, INC_DEG)
 %                               asc-desc asymmetries are driven to zero.
 %
 %   Usage:
-%       validate_satellite_initialization()           % 1000 km, 90 deg
-%       validate_satellite_initialization(600, 87.9)
+%       plot_orbit_asymmetry()           % 1000 km, 90 deg
+%       plot_orbit_asymmetry(600, 87.9)
 
     if nargin < 1 || isempty(HEIGHT_KM), HEIGHT_KM = 1000; end
     if nargin < 2 || isempty(INC_DEG),   INC_DEG   = 90;   end
 
-    Re_eq_m = 6378.14e3;
+    Re_eq_m = 6378.137e3;
     mu      = 3.986004418e14;
     a_m     = Re_eq_m + HEIGHT_KM*1e3;
     T_s     = 2*pi*sqrt(a_m^3 / mu);

@@ -1,4 +1,4 @@
-function plot_star_altitude_spread(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, MIN_EL_DEG)
+function constellation_altitude_spread(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, MIN_EL_DEG)
 % CONSTELLATION_ALTITUDE_SPREAD
 %   Propagates every satellite in an asymmetrical Walker Star with BOTH the
 %   SGP4 and the numerical propagator and shows the min/max geodetic altitude

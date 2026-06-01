@@ -1,5 +1,5 @@
-function BeamGrid = calculate_OneWeb_beams()
-    Re_km = 6378.14; % Earth radius in km
+function BeamGrid = calculate_oneweb_beams()
+    Re_km = 6378.137; % Earth radius in km, WGS84
     orbit_height_km = 1200; 
 
     BeamGrid.OneWeb = true; % Bit quirky loss calculation to the mechanical presteering.

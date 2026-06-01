@@ -1,4 +1,4 @@
-function [UE_lats_flat, UE_lons_flat] = generate_equal_ish_area_UEs(lat_limits, lon_limits, num_ues)
+function [UE_lats_flat, UE_lons_flat] = generate_equal_area_ues(lat_limits, lon_limits, num_ues)
 % GENERATE_SPHERICAL_UES Creates uniformly spaced UEs accounting for true spherical
 % geometry at high latitudes, while strictly guaranteeing the exact num_ues.
     lat_min = min(lat_limits);

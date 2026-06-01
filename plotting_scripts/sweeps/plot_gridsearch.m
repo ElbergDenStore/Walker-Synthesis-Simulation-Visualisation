@@ -8,8 +8,9 @@ function plot_gridsearch(target)
 %   plot_gridsearch({'path1', 'path2'})          - list of run folders
 
 script_dir     = fileparts(mfilename('fullpath'));
-workspace_root = fileparts(script_dir);
-addpath(genpath(fullfile(workspace_root, 'functions')));
+workspace_root = fileparts(fileparts(script_dir));
+addpath(fullfile(workspace_root, 'functions'));  % bootstrap so path_setup is found
+path_setup();                                    % add repo root + all functions/ subfolders
 
 sim_dir   = fullfile(workspace_root, 'simulation_output');
 runs_root = fullfile(sim_dir, 'gridsearch_runs');

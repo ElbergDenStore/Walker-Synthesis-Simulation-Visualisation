@@ -1,12 +1,12 @@
 function path_setup()
-    % Find where this setup file lives (inside plotting_scripts)
-    [this_dir, ~, ~] = fileparts(mfilename('fullpath'));
-    
-    % Define the project root as one folder up
-    project_root = fullfile(this_dir, '..');
-    
-    % Add the paths to the MATLAB session
+% PATH_SETUP  Add the project root and ALL functions/ subfolders to the path.
+%   This file lives in functions/, so the project root is one folder up.
+%   genpath() is used so any nested subfolder of functions/ (e.g.
+%   functions/link_budget/, functions/generators/) is resolved automatically.
+%   You can move helper files into functions/<subfolder>/ freely without
+%   breaking MATLAB's filename-based function lookup.
+    this_dir     = fileparts(mfilename('fullpath'));   % .../functions
+    project_root = fileparts(this_dir);                % repo root
     addpath(project_root);
-    addpath(fullfile(project_root, 'functions'));
-    addpath(fullfile(project_root, 'functions', 'data'));
+    addpath(genpath(fullfile(project_root, 'functions')));  % recursive; covers functions/data
 end

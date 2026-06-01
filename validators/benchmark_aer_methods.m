@@ -1,12 +1,12 @@
-function out = AER_comparison(height_km, ue_grid_size, duration)
-% AER_COMPARISON Compare MATLAB AER workflow against vectorized geometry math.
+function out = benchmark_aer_methods(height_km, ue_grid_size, duration)
+% BENCHMARK_AER_METHODS Compare MATLAB AER workflow against vectorized geometry math.
 %
 % This benchmark runs both methods on the same constellation and UEs,
 % then prints timing and numerical agreement. No plotting is performed.
 %
 % Example:
-%   AER_comparison();
-%   AER_comparison(1000, "medium", "short");
+%   benchmark_aer_methods();
+%   benchmark_aer_methods(1000, "medium", "short");
 
     if nargin < 1
         height_km = 1000;
@@ -17,6 +17,12 @@ function out = AER_comparison(height_km, ue_grid_size, duration)
     if nargin < 3
         duration = "long";
     end
+
+    % Ensure repo root + all functions/ subfolders are on the path,
+    % regardless of the caller's current working directory.
+    repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> repo root
+    addpath(fullfile(repo_root, 'functions'));                % bootstrap so path_setup is found
+    path_setup();
 
     Cfg = get_cfg(height_km, "walkerdelta", ue_grid_size, duration);
 
@@ -92,7 +98,7 @@ function [num_visible, best_range, best_el, best_az, best_sat, setup_time, propa
     sc.StopTime = Cfg.StopTime;
     sc.SampleTime = Cfg.SampleTime;
 
-    r_earth = 6378.14e3;
+    r_earth = 6378.137e3;
     sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
         Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
         Name="S4D", OrbitPropagator="sgp4");
@@ -151,7 +157,7 @@ function [num_visible, best_range, best_el, best_az, best_sat, setup_time, propa
     sc.StopTime = Cfg.StopTime;
     sc.SampleTime = Cfg.SampleTime;
 
-    r_earth = 6378.14e3;
+    r_earth = 6378.137e3;
     sats = walkerDelta(sc, Cfg.Orbit_height + r_earth, ...
         Cfg.Inclination, Cfg.Total_sats, Cfg.Num_planes, Cfg.Phasing, ...
         Name="S4D", OrbitPropagator="sgp4");

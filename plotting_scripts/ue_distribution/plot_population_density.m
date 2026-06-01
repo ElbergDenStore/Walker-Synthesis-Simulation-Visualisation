@@ -1,7 +1,7 @@
 clearvars; close all; clc;
 
 % Population density map for the same region as the Jutland zoom used in
-% plotting_scripts/beams_on_earth_matlab_viewer.m:
+% plotting_scripts/beams/plot_beams_on_earth.m:
 % geolimits([lat-0.8, lat+0.8], [lon-1.5, lon+1.5]) with lat=57, lon=9.3
 
 center_lat = 57.0;
@@ -11,7 +11,8 @@ lonlim = [center_lon - 1.5, center_lon + 1.5];
 %%% FILE IS HUGE AND CAN BE DOWNLOADED FROM https://data.worldpop.org/GIS/Population/Global_2000_2020/2020/0_Mosaicked/ppp_2020_1km_Aggregated.tif
 filename = 'ppp_2020_1km_Aggregated.tif';
 script_dir = fileparts(mfilename('fullpath'));
-repo_root = fullfile(script_dir, '..');  % matlab_code/
+repo_root = fullfile(script_dir, '..', '..');  % matlab_code/
+addpath(fullfile(repo_root, 'functions'));  % bootstrap so path_setup is found
 path_setup();
 
 candidate_files = {

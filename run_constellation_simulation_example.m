@@ -1,6 +1,6 @@
-% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run_single_coverage_test"
+% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run_constellation_simulation_example"
 % /opt/VirtualGL/bin/vglrun matlab & - run it interactively with GPU rendering
-function run_single_coverage_test()
+function run_constellation_simulation_example()
 clear all; close all; clc;
 % delete(gcp('nocreate'));
 % Cfg = get_cfg(1000,"walkerdelta","medium","long");
@@ -26,8 +26,8 @@ RU  = 1;
 
 NumUEs = 100000;
 
-[UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
-% [UE_lats, UE_lons] = generate_population_based_UEs(Lat_range_deg, Lon_range_deg, 3000);
+[UE_lats, UE_lons] = generate_equal_area_ues(Lat_range_deg, Lon_range_deg, NumUEs);
+% [UE_lats, UE_lons] = generate_population_ues(Lat_range_deg, Lon_range_deg, 3000);
 %% ===== BUILD BASE CFG (fields shared by both constellations) =====
 BaseCfg.Orbit_height             = height_km * 1e3;  % m
 BaseCfg.Min_elevation_UE         = min_elevation_UE;

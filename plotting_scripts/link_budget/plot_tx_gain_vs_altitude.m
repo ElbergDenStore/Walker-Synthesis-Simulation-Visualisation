@@ -1,9 +1,9 @@
-% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run('plotting_scripts/plot_tx_gain_vs_altitude.m')"
+% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run('plotting_scripts/link_budget/plot_tx_gain_vs_altitude.m')"
 close all; clearvars; clc;
-addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))), 'functions'));
+addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));
 
 %% Output directory
-out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'plotting_scripts/figures');
+out_dir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'plotting_scripts/figures');
 if ~exist(out_dir, 'dir'); mkdir(out_dir); end
 
 %% Parameters

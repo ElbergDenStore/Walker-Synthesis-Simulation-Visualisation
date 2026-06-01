@@ -16,14 +16,15 @@ function plot_constellation_comparison()
 % xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "plot_constellation_comparison"
 
 %% ── Path setup ──────────────────────────────────────────────────────────
-path_setup();   % adds project root + functions/ to MATLAB path
+addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));  % bootstrap so path_setup is found
+path_setup();   % adds project root + all functions/ subfolders to MATLAB path
 
 script_dir  = fileparts(mfilename('fullpath'));
 out_dir     = fullfile(script_dir, 'figures', 'constellations');
 if ~exist(out_dir, 'dir'), mkdir(out_dir); end
 
 %% ── Load optimal constellations ─────────────────────────────────────────
-project_root = fileparts(script_dir);
+project_root = fileparts(fileparts(script_dir));
 opt          = load(fullfile(project_root, 'optimal_constellations.mat'));
 target_h_km  = 700;
 idx          = find(opt.heights_km == target_h_km, 1, 'first');

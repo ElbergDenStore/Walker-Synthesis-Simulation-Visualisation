@@ -1,5 +1,5 @@
-function out = p618_aalborg_freq_elevation_study(mode, data_file)
-% P618_AALBORG_FREQ_ELEVATION_STUDY Generate and/or plot P.618 attenuation.
+function out = plot_p618_aalborg_study(mode, data_file)
+% PLOT_P618_AALBORG_STUDY Generate and/or plot P.618 attenuation.
 %
 % This study isolates atmospheric attenuation (At) for one fixed location
 % (Aalborg, Denmark) across elevation angle and frequency.
@@ -10,10 +10,10 @@ function out = p618_aalborg_freq_elevation_study(mode, data_file)
 % Location: Aalborg (lat=57.0488, lon=9.9217)
 %
 % Usage:
-%   p618_aalborg_freq_elevation_study();                 % generate + plot
-%   p618_aalborg_freq_elevation_study("generate");       % generate + save only
-%   p618_aalborg_freq_elevation_study("plot");           % plot from saved file only
-%   p618_aalborg_freq_elevation_study("plot", "mydata.mat");
+%   plot_p618_aalborg_study();                 % generate + plot
+%   plot_p618_aalborg_study("generate");       % generate + save only
+%   plot_p618_aalborg_study("plot");           % plot from saved file only
+%   plot_p618_aalborg_study("plot", "mydata.mat");
 %
 % Output:
 %   Returns a struct with generated/loaded data and figure handle (if plot).
@@ -208,7 +208,7 @@ function [pl, tsky] = safe_p618_point_eval(lat0, lon0, elev, f_hz, exceedance_pc
         end
     end
 
-    error("p618_aalborg_freq_elevation_study:NoValidNeighbor", ...
+    error("plot_p618_aalborg_study:NoValidNeighbor", ...
         "No valid P.618 map value near lat=%.4f lon=%.4f.", lat0, lon0);
 end
 

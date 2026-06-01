@@ -272,7 +272,7 @@ function generate_elevation_dist(all_el_deg, out_dir)
 end
 
 function generate_nadir_dist(all_el_deg, orbit_height, out_dir)
-    Re = 6378.14e3;
+    Re = 6378.137e3;
     r = Re + orbit_height; 
     eta = rad2deg(asin((Re/r) * cosd(all_el_deg)));
 

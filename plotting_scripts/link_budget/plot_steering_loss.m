@@ -1,9 +1,9 @@
-Re = 6378.14e3;     
+Re = 6378.137e3;     
 cos_exponent = 1.5;
 el_vec = linspace(20,90,100);
 orbit_height = [1000e3];
 
-out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'plotting_scripts/figures', 'steering_loss');
+out_dir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'plotting_scripts/figures', 'steering_loss');
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end

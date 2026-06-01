@@ -1,8 +1,8 @@
-% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run('plotting_scripts/plot_coverage_area_vs_altitude.m')"
+% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run('plotting_scripts/sweeps/plot_coverage_area_vs_altitude.m')"
 close all; clearvars; clc;
 
 %% Output directory
-out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'plotting_scripts/figures');
+out_dir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'plotting_scripts/figures');
 if ~exist(out_dir, 'dir'); mkdir(out_dir); end
 
 %% Parameters

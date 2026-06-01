@@ -49,7 +49,7 @@ function validate_rk4_j2_stability(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, M
     %% --- 1. Generate frozen-orbit initial states ---
     fprintf('  Generating frozen-orbit initial states ...\n');
     tic;
-    [r0, v0] = generate_walker_star_states(HEIGHT_KM*1e3, INC_DEG, PLANES, SATS_PER_PLANE, MIN_EL_DEG);
+    [r0, v0] = generate_walker_states(HEIGHT_KM*1e3, INC_DEG, PLANES, SATS_PER_PLANE, true, 0, MIN_EL_DEG);
     fprintf('  IC generation : %.2f s\n\n', toc);
 
     %% --- 2. Propagate ---

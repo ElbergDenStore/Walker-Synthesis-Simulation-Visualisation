@@ -2,7 +2,7 @@
 function compare_ue_distribution()
 clear all; close all; clc;
 delete(gcp('nocreate'));
-addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));  % bootstrap so path_setup is found
+addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))), 'functions'));  % bootstrap so path_setup is found
 path_setup();
 %% ===== SHARED PARAMETERS =====
 height_km        = 1000;

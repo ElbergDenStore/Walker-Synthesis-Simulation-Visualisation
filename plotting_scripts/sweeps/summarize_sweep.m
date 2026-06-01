@@ -13,7 +13,7 @@ function summarize_sweep(sweep_folder)
 %   summarize_sweep('path/to/sweep')   - specific sweep folder
 
 script_dir     = fileparts(mfilename('fullpath'));
-workspace_root = fileparts(script_dir);
+workspace_root = fileparts(fileparts(script_dir));
 sim_dir        = fullfile(workspace_root, 'simulation_output');
 
 %% ---- Locate sweep folder -----------------------------------------------

@@ -1,7 +1,7 @@
-function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclination, planes, sats_per_plane, min_elevation_deg, propagator, min_latitude_deg)
+function sats = generate_walker_star_scenario(sc, orbit_height, inclination, planes, sats_per_plane, min_elevation_deg, propagator, min_latitude_deg)
     arguments
         sc (1,1) satelliteScenario
-        orbit_height (1,1) double % Assumed to be in meters based on r_earth = 6378.14e3
+        orbit_height (1,1) double % Assumed to be in meters based on r_earth = 6378.137e3
         inclination (1,1) double
         planes (1,1) double {mustBeInteger, mustBePositive}
         sats_per_plane (1,1) double {mustBeInteger, mustBePositive}
@@ -10,7 +10,7 @@ function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclinatio
         min_latitude_deg (1,1) double = 0  % coverage reference latitude (deg); 0 = equatorial
     end
 
-    r_earth = 6378.14e3;
+    r_earth = 6378.137e3;
     a = r_earth + orbit_height;
 
     % No eccentricity prewarping: SGP4 interprets the elements as Brouwer
@@ -23,7 +23,7 @@ function sats = asymmetrical_walker_star_generation(sc, orbit_height, inclinatio
 
     %  Calculate EXACT Seam Ratio for equal overlap ---
     orbit_height_km = orbit_height / 1000;
-    Re_eq_km = 6378.14;                             % equatorial radius for orbital mechanics
+    Re_eq_km = 6378.137;                            % equatorial radius for orbital mechanics, WGS84
     Rs_km    = Re_eq_km + orbit_height_km;          % orbital radius from Earth centre
     % WGS84 surface radius at the minimum coverage latitude (for seam geometry)
     a_wgs = 6378.137; b_wgs = 6356.7523142;

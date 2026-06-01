@@ -56,11 +56,11 @@ function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, fr
     %%%%% UE GRID SIZE %%%%
     switch lower(ue_grid_size)
         case 'small'
-            [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, 6);
+            [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_area_ues(Lat_range_deg, Lon_range_deg, 6);
         case 'medium'
-            [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, 69);
+            [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_area_ues(Lat_range_deg, Lon_range_deg, 69);
         case 'big'
-            [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, 420);
+            [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = generate_equal_area_ues(Lat_range_deg, Lon_range_deg, 420);
         otherwise
             error('Invalid ue_grid_size');
     end

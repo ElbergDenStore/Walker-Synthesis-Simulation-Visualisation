@@ -1,7 +1,7 @@
 clearvars; close all; clc;
 
 %% Output Directory
-out_dir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'plotting_scripts/figures', 'beam_utilization');
+out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'plotting_scripts/figures', 'beam_utilization');
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end

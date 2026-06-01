@@ -3,7 +3,7 @@ close all force;
 clear variables;
 clc;
 
-addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));  % bootstrap so path_setup is found
+addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))), 'functions'));  % bootstrap so path_setup is found
 path_setup()
 % Call the function we created to get the beam definitions
 BeamGrid = calculate_oneweb_beams();

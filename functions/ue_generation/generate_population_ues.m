@@ -1,4 +1,4 @@
-function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_based_UEs(lat_vec, lon_vec, people_per_ue)
+function [UE_lats_flat, UE_lons_flat, Total_Pop] = generate_population_ues(lat_vec, lon_vec, people_per_ue)
     % 1. Load the population data
     path_setup();
     filename = 'ppp_2020_1km_Aggregated.tif';

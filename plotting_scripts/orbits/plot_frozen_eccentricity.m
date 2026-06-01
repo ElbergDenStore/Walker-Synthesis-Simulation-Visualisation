@@ -1,4 +1,4 @@
-function survey_frozen_eccentricity()
+function plot_frozen_eccentricity()
 % SURVEY_FROZEN_ECCENTRICITY
 %   Runs the Newton frozen-orbit solver at altitudes from 500 to 1200 km
 %   (i = 90 deg) and plots the required initialization eccentricity and
@@ -15,7 +15,7 @@ function survey_frozen_eccentricity()
     heights_km = 500 : 50 : 1200;   % 15 points
     nH         = numel(heights_km);
 
-    Re_eq_m = 6378.14e3;
+    Re_eq_m = 6378.137e3;
     mu      = 3.986004418e14;
     J2      = 1.0826e-3;
 

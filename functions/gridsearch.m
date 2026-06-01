@@ -505,7 +505,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     t1 = tic;
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Ultrafast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
-        generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Ultrafast.Num_UEs);
+        generate_equal_area_ues(master_config.Lat_range_deg, [-180, 180], master_config.Ultrafast.Num_UEs);
     m1 = constellation_simulator(Cfg, false, false, false);
     result.t_faster = toc(t1);
     result.faster_cov = m1.worst_coverage_percent;
@@ -522,7 +522,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     t2 = tic;
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Fast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
-        generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Fast.Num_UEs);
+        generate_equal_area_ues(master_config.Lat_range_deg, [-180, 180], master_config.Fast.Num_UEs);
     m2 = constellation_simulator(Cfg, false, false, true); % reuse satelliteScenario handle, use matlab two body
     result.t_fast = toc(t2);
 
@@ -558,7 +558,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     t3 = tic;
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Detailed.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
-        generate_equal_ish_area_UEs(master_config.Lat_range_deg, [-180, 180], master_config.Detailed.Num_UEs);
+        generate_equal_area_ues(master_config.Lat_range_deg, [-180, 180], master_config.Detailed.Num_UEs);
 
     % CancelToken bridges the worker's PollableDataQueue to the simulator.
     % After the run, token.ConsumedThreshold reflects any stricter threshold

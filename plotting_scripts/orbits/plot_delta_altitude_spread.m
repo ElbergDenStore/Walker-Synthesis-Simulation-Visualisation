@@ -1,4 +1,4 @@
-function walker_delta_altitude_spread(HEIGHT_KM, INC_DEG, TOTAL_SATS, PLANES, PHASING)
+function plot_delta_altitude_spread(HEIGHT_KM, INC_DEG, TOTAL_SATS, PLANES, PHASING)
 % WALKER_DELTA_ALTITUDE_SPREAD
 %   Propagates every satellite in a Walker Delta constellation with the
 %   Kepler, SGP4, and numerical toolbox propagators plus the own fast-math
@@ -28,7 +28,7 @@ function walker_delta_altitude_spread(HEIGHT_KM, INC_DEG, TOTAL_SATS, PLANES, PH
         TOTAL_SATS, PLANES, SATS_PER_PLANE, PHASING);
 
     %% Orbit period ----------------------------------------------------------
-    Re_m = 6378.14e3;
+    Re_m = 6378.137e3;
     mu   = 3.986004418e14;
     a_m  = Re_m + HEIGHT_KM*1e3;
     T_s  = 2*pi * sqrt(a_m^3 / mu);

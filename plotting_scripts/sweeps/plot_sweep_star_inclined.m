@@ -1,9 +1,9 @@
-% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run('plotting_scripts/plot_walker_star_inclined_sweep.m')"
+% xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run('plotting_scripts/sweeps/plot_sweep_star_inclined.m')"
 close all; clearvars; clc;
-addpath(fullfile(fileparts(fileparts(mfilename('fullpath'))), 'functions'));
+addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));
 
 %% Output directory
-out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'plotting_scripts/figures', 'walker_star_inclined');
+out_dir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'plotting_scripts/figures', 'walker_star_inclined');
 if ~exist(out_dir, 'dir'); mkdir(out_dir); end
 
 %% Parameters
@@ -20,7 +20,7 @@ total_sats_all = zeros(n_heights, n_inc);
 fprintf('Computing Walker Star coverage (%d inclinations x %d altitudes)...\n', n_inc, n_heights);
 for ii = 1:n_inc
     for hi = 1:n_heights
-        [~, ~, ts] = calculate_walker_star_inclined( ...
+        [~, ~, ts] = calculate_walker_star( ...
             heights_km(hi), Min_latitude_deg, Min_elevation_UE, inc_array(ii));
         if isinf(ts); ts = NaN; end
         total_sats_all(hi, ii) = ts;

@@ -27,7 +27,7 @@ lat_vec = linspace(Lat_range_deg(1), Lat_range_deg(2), 8);       % 6 latitudes
 lon_vec = linspace(Lon_range_deg(1), Lon_range_deg(2), 4);       % 6 longitudes
 [UE_lats,UE_lons ] = meshgrid(lat_vec, lon_vec);
 
-% [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range_deg, Lon_range_deg, NumUEs);
+% [UE_lats, UE_lons] = generate_equal_area_ues(Lat_range_deg, Lon_range_deg, NumUEs);
 
 %% ===== BUILD BASE CFG (fields shared by both constellations) =====
 BaseCfg.Orbit_height             = height_km * 1e3;  % m

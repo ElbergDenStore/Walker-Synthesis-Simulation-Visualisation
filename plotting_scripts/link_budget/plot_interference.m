@@ -201,8 +201,8 @@ for c = 1:2
     end
     beam_set = [mb, nbs];
 
-    u0 = sind(asind((6378.14e3 / (6378.14e3 + Cfg.Orbit_height)) * cosd(el(t_idx)))) * cosd(az(t_idx) + 180);
-    v0 = sind(asind((6378.14e3 / (6378.14e3 + Cfg.Orbit_height)) * cosd(el(t_idx)))) * sind(az(t_idx) + 180);
+    u0 = sind(asind((6378.137e3 / (6378.137e3 + Cfg.Orbit_height)) * cosd(el(t_idx)))) * cosd(az(t_idx) + 180);
+    v0 = sind(asind((6378.137e3 / (6378.137e3 + Cfg.Orbit_height)) * cosd(el(t_idx)))) * sind(az(t_idx) + 180);
 
     du_set = u0 - b_u(beam_set);
     dv_set = v0 - b_v(beam_set);

@@ -1,12 +1,14 @@
-% compare_toolbox_vs_math.m
-% Validates the pure-math ECEF generators (fast_walker_ecef / fast_walker_star_ecef)
+% validate_propagator_accuracy.m
+% Validates the pure-math ECEF generator (fast_walker_ecef, Walker Star + Delta)
 % against the MATLAB Satellite Toolbox two-body-keplerian propagator.
 % Runs three tests for BOTH Walker Star and Walker Delta:
 %   TEST 1 – Direct satellite position error at t = 0
 %   TEST 2 – Worst-case coverage difference over 3 hours
 %   TEST 3 – Worst-case coverage difference over 24 hours
 clc; clear; close all;
-addpath('functions');
+repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> repo root
+addpath(fullfile(repo_root, 'functions'));                % bootstrap so path_setup is found
+path_setup();                                             % add repo root + all functions/ subfolders
 
 StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
 NumUEs    = 200;
@@ -48,7 +50,7 @@ for ci = 1:numel(configs)
         labels{ci}, Cfg.Total_sats, Cfg.Orbit_height/1e3, Cfg.Inclination);
     fprintf('%s\n', repmat('=', 1, 65));
 
-    r_earth = 6378.14e3;
+    r_earth = 6378.137e3;
     a_m  = r_earth + Cfg.Orbit_height;
     inc  = deg2rad(Cfg.Inclination);
     P = Cfg.Num_planes;  S = Cfg.Sats_per_plane;  T = P * S;
@@ -80,7 +82,7 @@ for ci = 1:numel(configs)
     sc_test.StopTime   = StartTime + seconds(Cfg.SampleTime);
     sc_test.SampleTime = Cfg.SampleTime;
     if Cfg.WalkerStar
-        sats_tb = asymmetrical_walker_star_generation(sc_test, Cfg.Orbit_height, ...
+        sats_tb = generate_walker_star_scenario(sc_test, Cfg.Orbit_height, ...
             Cfg.Inclination, P, S, Cfg.Min_elevation_UE, "two-body-keplerian", ...
             Cfg.Lat_range_deg(1));
     else
@@ -99,7 +101,7 @@ for ci = 1:numel(configs)
     fprintf('Mean position error at t=0: %.2f m\n', mean(pos_err));
 
     %% TEST 2 & 3: Coverage statistics -------------------------------------
-    [UE_lats, UE_lons] = generate_equal_ish_area_UEs(Cfg.Lat_range_deg, [-180, 180], NumUEs);
+    [UE_lats, UE_lons] = generate_equal_area_ues(Cfg.Lat_range_deg, [-180, 180], NumUEs);
     Cfg.Flat_UE_array.Lats = UE_lats;
     Cfg.Flat_UE_array.Lons = UE_lons;
 
@@ -149,9 +151,9 @@ function [raans, nu0s] = build_elements(Cfg)
     nu0s  = zeros(1, T);
 
     if Cfg.WalkerStar
-        % Replicate asymmetrical_walker_star_generation element assignment
+        % Replicate generate_walker_star_scenario element assignment
         orbit_height_km = Cfg.Orbit_height / 1000;
-        Re_eq_km = 6378.14;
+        Re_eq_km = 6378.137;
         Rs_km    = Re_eq_km + orbit_height_km;
         a_wgs = 6378.137;  b_wgs = 6356.7523142;
         lat_r = deg2rad(Cfg.Lat_range_deg(1));

@@ -1,4 +1,4 @@
-function [UE_lats_flat, UE_lons_flat] = generate_random_UEs(lat_vec, lon_vec, num_UEs)
+function [UE_lats_flat, UE_lons_flat] = generate_random_ues(lat_vec, lon_vec, num_UEs)
     latlim = [min(lat_vec), max(lat_vec)];
     lonlim = [min(lon_vec), max(lon_vec)];
     nLat = 1e3; nLon = 1e3; 

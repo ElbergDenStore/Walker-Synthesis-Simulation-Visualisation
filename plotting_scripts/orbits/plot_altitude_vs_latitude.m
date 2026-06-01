@@ -15,7 +15,7 @@ if nargin < 1 || isempty(HEIGHT_KM), HEIGHT_KM = 1000; end
 
 
 %% ── Propagate ────────────────────────────────────────────────────────────
-r_earth = 6378.14e3;              % matches constellation_simulator.m
+r_earth = 6378.137e3;             % matches constellation_simulator.m
 a       = r_earth + HEIGHT_KM*1e3;
 T_s     = 2*pi * sqrt(a^3 / 3.986004418e14);
 

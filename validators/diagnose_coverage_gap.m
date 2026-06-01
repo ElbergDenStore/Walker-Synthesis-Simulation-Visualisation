@@ -10,7 +10,9 @@
 % an interactive satellite scenario viewer.
 
 clear; close all; clc;
-addpath('functions');
+repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> repo root
+addpath(fullfile(repo_root, 'functions'));                % bootstrap so path_setup is found
+path_setup();                                             % add repo root + all functions/ subfolders
 
 %% ---- Exact config from validate_generator_fix ---------------------------
 rng(42);
@@ -26,8 +28,8 @@ StopTime   = StartTime + hours(duration_h);
 
 fprintf('Epoch: %s\n\n', char(StartTime));
 
-% UEs are deterministic (generate_equal_ish_area_UEs uses no random numbers)
-[UE_lats, UE_lons] = generate_equal_ish_area_UEs(Lat_range, Lon_range, NumUEs);
+% UEs are deterministic (generate_equal_area_ues uses no random numbers)
+[UE_lats, UE_lons] = generate_equal_area_ues(Lat_range, Lon_range, NumUEs);
 ue_pos_ecef = lla2ecef([UE_lats, UE_lons, zeros(NumUEs, 1)]);
 
 % Pre-build ENU rotation matrices [3 x 3 x NumUEs]
@@ -43,7 +45,7 @@ heights_km = [760, 1070];
 BATCH = 50;   % UEs processed at once — keeps memory under ~0.5 GB per batch
 
 for h = heights_km
-    [p_incl, s_incl, t_incl] = calculate_walker_star_inclined(h, lat, elev, 90);
+    [p_incl, s_incl, t_incl] = calculate_walker_star(h, lat, elev, 90);
     fprintf('=== %d km  P=%d S=%d T=%d ===\n', h, p_incl, s_incl, t_incl);
 
     % Build satellite positions using MATLAB two-body Keplerian — identical to
@@ -52,7 +54,7 @@ for h = heights_km
     sc_diag.StartTime  = StartTime;
     sc_diag.StopTime   = StopTime;
     sc_diag.SampleTime = sample_time;
-    sats_diag = asymmetrical_walker_star_generation(sc_diag, h*1e3, 90, p_incl, s_incl, ...
+    sats_diag = generate_walker_star_scenario(sc_diag, h*1e3, 90, p_incl, s_incl, ...
                                                     elev, "two-body-keplerian", lat);
     [sat_pos_raw, ~, simTimes_diag] = states(sats_diag, "CoordinateFrame", "ECEF");
     % states() returns [3 x nT x numSats]; permute to [3 x numSats x nT]

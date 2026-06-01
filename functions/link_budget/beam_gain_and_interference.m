@@ -8,7 +8,7 @@ function [carrier_density_dBmHz_mat, serving_beam_idx_mat, serving_beam_signal_d
     serving_beam_signal_density_dBmHz_mat = nan(NumUEs, nT);
     interference_density_dBmHz_mat = nan(NumUEs, nT);
 
-    Re = 6378.14e3;   
+    Re = 6378.137e3;   
     
     % Step 1: Create a validity mask to only compute for active links (ignores NaNs)
     valid_mask = ~isnan(el_mat) & ~isnan(az_mat);

@@ -40,7 +40,7 @@ min_elev = cfg.Min_elevation_UE;
 n          = numel(heights_km);
 incl90_T   = zeros(n, 1);
 for k = 1:n
-    [~, ~, incl90_T(k)] = calculate_walker_star_inclined( ...
+    [~, ~, incl90_T(k)] = calculate_walker_star( ...
         heights_km(k), min_lat, min_elev, 90);
 end
 

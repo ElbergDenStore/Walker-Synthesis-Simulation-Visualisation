@@ -3,7 +3,7 @@ This tool has been developed to help any constellation designer to run high fide
 
 Features: (I have an idea of grouping them into simulation, illustration and validation or something? hmmm i dont know yet)
 
-It has been developed to be easily used for future development.
+It has been developed to be easily extended for future research.
 
 
 ## Recommended usage:
@@ -14,11 +14,11 @@ It has been developed to be easily used for future development.
 - Modify to suit your specific needs
     Modify from 100% coverage requirement to max revisit time
 
-## 
- - Required tools
+## Required tools
+ - MATLAB tools
   - Parallel computing
   - Satellite communications
-  -     
+ - 
 
 
 
@@ -42,7 +42,6 @@ Plotting and visualisation
     - 
 
 
-
 Functions:
  - Link budget folder
     - link calc matrix
@@ -61,6 +60,10 @@ Validation
  - Propagators
  - Analytical SOC and Walker-Star
 
+## Running on external server
+For synthesis and large simulations, external servers can be used. Recommended workflow is VS code and MATLAB extension. For some functionality use virtual display via xvfb and tmux.
+
+example: xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "numerical_walker_synthesis" > log.txt 
 
 # TODO
 Changes to code that i want
@@ -77,6 +80,23 @@ Changes to code that i want
 - Develop satellite focused view?
 - Add Uplink functionality
 - Revive UE focus view from the dead?
-- I need to validate the smarter SOC with lower inclinations to also work for 90 degrees: it did so now i need to remove the old one.
-- publish to github
 
+
+
+
+
+option b:
+
+main scripts in the root:
+ - Numerical Walker-Delta and Walker-Star combined and combined with "Run single grid search"?
+ - Analytical Walker-Star (SOC)
+ - Run simulator
+ - plot simulation
+ - show constellation
+ - get config
+
+Plotting_scripts
+Validators
+Functions
+
+Where to put generate p618 LUT? in functions?

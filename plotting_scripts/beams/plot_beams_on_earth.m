@@ -3,7 +3,7 @@ clear variables;
 clc;
 
 %% Output Directory
-out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'plotting_scripts/figures', 'beams_on_earth');
+out_dir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'plotting_scripts/figures', 'beams_on_earth');
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
