@@ -87,7 +87,7 @@ color_best = [1.0 0.8 0.0];
 sz_inv  = 35;  sz_cand = 50;  sz_best = 120;
 export_dpi = 300;
 leg_loc    = 'northeast';
-fig_pos    = [100, 100, 600, 500];
+fig_pos    = [100, 100, 500, 400];
 
 %% Derived data
 was_evaluated = ~isnan(evaluated_coverage);
@@ -119,12 +119,16 @@ scatter(jx_inc(isInvalid), jy_loss(isInvalid), sz_inv,  color_inv,  'x');
 scatter(jx_inc(isCand),    jy_loss(isCand),    sz_cand, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
 scatter(jx_inc(isBest),    jy_loss(isBest),    sz_best, history_Loss(isBest), 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
 if ~isnan(worst_accepted_sats)
-    yline(worst_accepted_sats + 0.5, '--r', 'Exhausted Search Space Below', ...
-        'LineWidth', 1.5, 'LabelHorizontalAlignment', 'left', ...
-        'LabelVerticalAlignment', 'top', 'FontWeight', 'bold', 'Color', [0.8 0 0 0.7]);
+    yl_val = worst_accepted_sats + 0.5;
+    yline(yl_val, '--r', 'LineWidth', 1.5, 'Color', [0.8 0 0]);
+    xl = xlim;
+    text(xl(1), yl_val, ' Exhausted Search Space Below', ...
+        'Color', [0.8 0 0], 'FontWeight', 'bold', ...
+        'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left', ...
+        'BackgroundColor', 'white', 'EdgeColor', 'none', 'Margin', 3);
 end
-xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Num Sats', 'FontWeight', 'bold');
-title("Candidate Inclinations @ " + num2str(orbit_height_km) + " km");
+xlabel('Inclination (deg)', 'FontWeight', 'bold'); ylabel('Satellite Count', 'FontWeight', 'bold');
+% title("Candidate Inclinations @ " + num2str(orbit_height_km) + " km");
 legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
 colormap(f1, 'parula'); set(gca, 'CLim', clim_val);
 grid on; hold off;
@@ -144,8 +148,8 @@ if any(was_detailed)
     scatter(jx_sats(det_status==0), jy_cov(det_status==0), sz_inv,  color_inv,  'x', 'LineWidth', 1.0);
     scatter(jx_sats(det_status==1), jy_cov(det_status==1), sz_cand, det_grid.Total_sats(det_status==1), 'filled', 'MarkerEdgeColor', 'k');
     scatter(jx_sats(det_status==2), jy_cov(det_status==2), sz_best, det_grid.Total_sats(det_status==2), 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
-    xlabel('Num Sats', 'FontWeight', 'bold'); ylabel('Worst Coverage %', 'FontWeight', 'bold');
-    title("Coverage percentage @ " + num2str(orbit_height_km) + " km");
+    xlabel('Satellite Count', 'FontWeight', 'bold'); ylabel('Worst Coverage %', 'FontWeight', 'bold');
+    % title("Coverage percentage @ " + num2str(orbit_height_km) + " km");
     legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
     colormap(f_trade, 'parula'); set(gca, 'CLim', clim_val);
     grid on; hold off;
@@ -163,8 +167,8 @@ hold on;
 scatter(jx_planes(isInvalid), jy_sats_pp(isInvalid), sz_inv,  color_inv,  'x');
 scatter(jx_planes(isCand),    jy_sats_pp(isCand),    sz_cand, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
 scatter(jx_planes(isBest),    jy_sats_pp(isBest),    sz_best, history_Loss(isBest), 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
-xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Sats per Plane', 'FontWeight', 'bold');
-title("Evaluated Constellations @ " + num2str(orbit_height_km) + " km");
+xlabel('Orbital Plane Count', 'FontWeight', 'bold'); ylabel('Satellites per Plane', 'FontWeight', 'bold');
+% title("Evaluated Constellations @ " + num2str(orbit_height_km) + " km");
 legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
 colormap(f4, 'parula'); set(gca, 'CLim', clim_val);
 grid on; hold off;
@@ -178,12 +182,12 @@ hold on;
 scatter(jx_phase_p(isInvalid), jy_phase_deg(isInvalid), sz_inv,  color_inv,  'x');
 scatter(jx_phase_p(isCand),    jy_phase_deg(isCand),    sz_cand, history_Loss(isCand), 'filled', 'MarkerEdgeColor', 'k');
 scatter(jx_phase_p(isBest),    jy_phase_deg(isBest),    sz_best, history_Loss(isBest), 'diamond', 'filled', 'MarkerEdgeColor', 'k', 'LineWidth', 1.2);
-xlabel('Num Planes', 'FontWeight', 'bold'); ylabel('Phasing (deg)', 'FontWeight', 'bold');
-title("Candidate Phasing @ " + num2str(orbit_height_km) + " km");
+xlabel('Orbital Plane Count', 'FontWeight', 'bold'); ylabel('Normalised Phasing (deg)', 'FontWeight', 'bold');
+% title("Candidate Phasing @ " + num2str(orbit_height_km) + " km");
 legend('Invalid', 'Candidate', 'Minimum', 'Location', leg_loc);
 ylim([0 360]); yticks(0:45:360);
 colormap(f_phase, 'parula'); set(gca, 'CLim', clim_val);
-cb = colorbar; cb.Label.String = 'Total Satellites';
+cb = colorbar; cb.Label.String = 'Satellite Count';
 grid on; hold off;
 exportgraphics(f_phase, fullfile(out_dir, 'NumPlanes_Phasing.png'), 'Resolution', export_dpi);
 close(f_phase);

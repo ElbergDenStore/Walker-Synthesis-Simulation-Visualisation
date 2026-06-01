@@ -251,9 +251,9 @@ for ai = 1:nAlt
     plot(x_sine, vis_star,  '-',  'Color', col_star,  'LineWidth', FIG.lw, ...
         'DisplayName', ['Walker-Star  (T=' num2str(total_sats_mat(idx_st,ai)) ')']);
     plot(x_sine, vis_glob,  '-', 'Color', col_glob,  'LineWidth', FIG.lw, ...
-        'DisplayName', ['Walker-\Delta global  (T=' num2str(total_sats_mat(idx_gl,ai)) ')']);
+        'DisplayName', ['Walker-Delta  (T=' num2str(total_sats_mat(idx_gl,ai)) ')']);
     plot(x_sine, vis_split, '-', 'Color', col_split, 'LineWidth', FIG.lw, ...
-        'DisplayName', ['Walker-\Delta split  (T=' num2str(split_total_sats(ai)) ')']);
+        'DisplayName', ['Walker-Delta Composite  (T=' num2str(split_total_sats(ai)) ')']);
 
     ylabel('Avg. satellites in view');
     xlabel('Latitude');
