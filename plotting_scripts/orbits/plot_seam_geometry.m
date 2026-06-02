@@ -1,9 +1,11 @@
 function plot_seam_geometry(save_path)
 % PLOT_SEAM_GEOMETRY  Napier's Circle derivation and counter-rotating seam geometry.
-%   Produces three PNG figures:
-%     napiers_circle.png        – annotated pentagon showing the SIN-TAAD derivation
-%     seam_gap_vs_latitude.png  – per-satellite longitude drift and growing seam gap
-%     seam_track_bowing.png     – track bowing visualisation + great-circle gap with peak
+%   Produces five PNG figures:
+%     napiers_circle.png           – annotated pentagon showing the SIN-TAAD derivation
+%     seam_longitude_drift.png     – per-satellite longitude drift Δλ(φ)
+%     seam_gap_vs_latitude.png     – seam longitude gap growing with latitude
+%     seam_track_bowing.png        – counter-rotating track bowing visualisation
+%     seam_gc_gap_vs_latitude.png  – great-circle seam gap vs latitude
 %
 % Counter-rotating seam geometry summary:
 %   Ascending track (plane 1, RAAN=0): at latitude φ drifts EAST by Δλ(φ)
@@ -18,14 +20,14 @@ function plot_seam_geometry(save_path)
 script_dir = fileparts(mfilename('fullpath'));
 
 if nargin < 1 || isempty(save_path)
-    save_path = fullfile(script_dir, 'figures');
+    save_path = fullfile(script_dir, '../figures/seam_gap');
 end
 
 set(0, 'DefaultAxesFontSize', 14);
 set(0, 'DefaultTextFontSize', 14);
 
 %% ── Figure 1: Napier's Circle ────────────────────────────────────────────
-f1 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 600 600], ...
+f1 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 500 400], ...
     'Name', 'Napier''s Circle');
 ax1 = axes('Parent', f1);
 hold(ax1, 'on');
@@ -93,7 +95,7 @@ exportgraphics(f1, out1, 'Resolution', 300);
 close(f1);
 fprintf('Saved: %s\n', out1);
 
-%% ── Figure 2: Longitude drift and growing seam gap ─────────────────────
+%% ── Figure 2a: Per-satellite longitude drift ────────────────────────────
 % From Napier's circle:  Δλ(φ) = arcsin( tan(φ) / tan(i) )
 %
 % Ascending track  (plane 1, RAAN = 0):          lon(φ) = +Δλ(φ)  (bows east)
@@ -109,7 +111,7 @@ inc_array    = [80, 87, 90];
 seam_gap_deg = 26;   % equatorial RAAN gap between the two seam planes (degrees)
 line_colors  = {'#0072BD', '#D95319', '#EDB120'};
 
-f2 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 1100 420], ...
+f2 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 500 400], ...
     'Name', 'Seam Gap Geometry');
 
 %% ── Left panel: Δλ(φ) — per-satellite longitude drift from ascending node
@@ -165,7 +167,7 @@ exportgraphics(f2, out2, 'Resolution', 300);
 close(f2);
 fprintf('Saved: %s\n', out2);
 
-%% ── Figure 3: Track bowing and great-circle seam gap ────────────────────
+%% ── Figure 3a: Counter-rotating seam track bowing ───────────────────────
 % Left:  The two seam tracks drawn as longitude-vs-latitude (centred on seam
 %        midpoint).  Both tracks bow OUTWARD as latitude grows — the ascending
 %        track drifts east (+Δλ) and the descending track drifts west (−Δλ).
@@ -179,12 +181,10 @@ fprintf('Saved: %s\n', out2);
 %        intermediate latitude before shrinking toward zero near the pole.
 %        That peak is the latitude hardest to cover across the seam.
 
-f3 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 1100 420], ...
-    'Name', 'Counter-Rotating Seam Track Bowing');
-
-%% ── Left: both track longitudes vs latitude, centred on seam midpoint
-ax3L = subplot(1, 2, 1, 'Parent', f3);
-hold(ax3L, 'on');
+f3a = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 500 450], ...
+    'Name', 'Seam Track Bowing');
+ax3a = axes('Parent', f3a);
+hold(ax3a, 'on');
 
 for ii = 1:length(inc_array)
     inc  = inc_array(ii);
@@ -193,25 +193,32 @@ for ii = 1:length(inc_array)
     asc_lon  =  seam_gap_deg/2 + d_lon;    % ascending track bows east
     desc_lon = -seam_gap_deg/2 - d_lon;    % descending track bows west
 
-    plot(ax3L, asc_lon, lat, '-',  'LineWidth', 2, 'Color', line_colors{ii}, ...
+    plot(ax3a, asc_lon, lat, '-',  'LineWidth', 2, 'Color', line_colors{ii}, ...
         'DisplayName', sprintf('%d^\\circ', inc_array(ii)));
-    plot(ax3L, desc_lon, lat, '--', 'LineWidth', 2, 'Color', line_colors{ii}, ...
+    plot(ax3a, desc_lon, lat, '--', 'LineWidth', 2, 'Color', line_colors{ii}, ...
         'HandleVisibility', 'off');
 end
 
-xline(ax3L, 0, 'k:', 'LineWidth', 1, 'HandleVisibility', 'off');
-xlabel(ax3L, 'Longitude from seam centre (deg)', 'FontWeight', 'bold');
-ylabel(ax3L, 'Latitude (deg)', 'FontWeight', 'bold');
-title(ax3L, {'Counter-Rotating Seam: Track Bowing', ...
+xline(ax3a, 0, 'k:', 'LineWidth', 1, 'HandleVisibility', 'off');
+xlabel(ax3a, 'Longitude from seam centre (deg)', 'FontWeight', 'bold');
+ylabel(ax3a, 'Latitude (deg)', 'FontWeight', 'bold');
+title(ax3a, {'Counter-Rotating Seam: Track Bowing', ...
     'solid = ascending   |   dashed = descending'}, 'FontSize', 12);
-legend(ax3L, 'Location', 'northeast', 'FontSize', 11);
-ylim(ax3L, [0 90]);
-grid(ax3L, 'on');
-set(ax3L, 'FontSize', 12);
+legend(ax3a, 'Location', 'northeast', 'FontSize', 11);
+ylim(ax3a, [0 90]);
+grid(ax3a, 'on');
+set(ax3a, 'FontSize', 12);
 
-%% ── Right: great-circle distance between the two seam tracks vs latitude
-ax3R = subplot(1, 2, 2, 'Parent', f3);
-hold(ax3R, 'on');
+out3a = fullfile(save_path, 'seam_track_bowing.png');
+exportgraphics(f3a, out3a, 'Resolution', 300);
+close(f3a);
+fprintf('Saved: %s\n', out3a);
+
+%% ── Figure 3b: Great-circle distance between the two seam tracks ─────────
+f3b = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 500 450], ...
+    'Name', 'Seam Great-Circle Gap');
+ax3b = axes('Parent', f3b);
+hold(ax3b, 'on');
 
 for ii = 1:length(inc_array)
     inc  = inc_array(ii);
@@ -224,26 +231,25 @@ for ii = 1:length(inc_array)
 
     % [gc_max, idx_max] = max(gc_gap);
 
-    plot(ax3R, lat, gc_gap, 'LineWidth', 2, 'Color', line_colors{ii}, ...
-        'DisplayName', sprintf('%d^\\circ)', ...
+    plot(ax3b, lat, gc_gap, 'LineWidth', 2, 'Color', line_colors{ii}, ...
+        'DisplayName', sprintf('%d^\\circ', ...
         inc_array(ii)));
     % % Mark the peak
-    % plot(ax3R, lat(idx_max), gc_max, 'o', 'MarkerSize', 8, ...
+    % plot(ax3b, lat(idx_max), gc_max, 'o', 'MarkerSize', 8, ...
     %     'Color', line_colors{ii}, 'MarkerFaceColor', line_colors{ii}, ...
     %     'HandleVisibility', 'off');
 end
 
-xlabel(ax3R, 'Latitude (deg)', 'FontWeight', 'bold');
-ylabel(ax3R, 'Great-Circle Seam Gap (deg)', 'FontWeight', 'bold');
-title(ax3R, 'Physical Distance Between Seam Tracks', 'FontSize', 12);
-legend(ax3R, 'Location', 'northeast', 'FontSize', 11);
-xlim(ax3R, [0 90]);
-grid(ax3R, 'on');
-set(ax3R, 'FontSize', 12);
-hold(ax3R, 'off');
+xlabel(ax3b, 'Latitude (deg)', 'FontWeight', 'bold');
+ylabel(ax3b, 'Great-Circle Seam Gap (deg)', 'FontWeight', 'bold');
+title(ax3b, 'Physical Distance Between Seam Tracks', 'FontSize', 12);
+legend(ax3b, 'Location', 'northeast', 'FontSize', 11);
+xlim(ax3b, [0 90]);
+grid(ax3b, 'on');
+set(ax3b, 'FontSize', 12);
 
-out3 = fullfile(save_path, 'seam_track_bowing.png');
-exportgraphics(f3, out3, 'Resolution', 300);
-close(f3);
-fprintf('Saved: %s\n', out3);
+out3b = fullfile(save_path, 'seam_gc_gap_vs_latitude.png');
+exportgraphics(f3b, out3b, 'Resolution', 300);
+close(f3b);
+fprintf('Saved: %s\n', out3b);
 end

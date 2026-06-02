@@ -10,7 +10,7 @@ function plot_sweep_delta(sweep_folder)
 %
 % Usage:
 %   plot_sweep_delta()                  – most recent Master_Sweep_* (non-WalkerStar) folder
-%   plot_sweep_delta('path/to/sweep')   – specific sweep folder
+%   plot_sweep_delta('simulation_output/Master_Sweep_20260522_172327')   – specific sweep folder
 
 script_dir     = fileparts(mfilename('fullpath'));
 workspace_root = fileparts(fileparts(script_dir));
@@ -360,7 +360,7 @@ set(0, 'DefaultAxesFontSize', 14);
 set(0, 'DefaultTextFontSize', 14);
 
 %% ---- Phasing -----------------------------------------------------------
-f1 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+f1 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 500 400]);
 scatter(phasing_deg, delta_planes, sz, heights_km, 'filled', ...
     'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
 colormap(parula); clim(alt_clim);
@@ -374,7 +374,7 @@ exportgraphics(f1, fullfile(sweep_folder, 'Delta_Phasing_vs_Altitude.png'), 'Res
 close(f1);
 
 %% ---- Inclination -------------------------------------------------------
-f2 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+f2 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 500 400]);
 scatter(delta_inc, heights_km, sz, heights_km, 'filled', ...
     'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
 colormap(parula); clim(alt_clim);
@@ -386,7 +386,7 @@ exportgraphics(f2, fullfile(sweep_folder, 'Delta_Inclination_vs_Altitude.png'), 
 close(f2);
 
 %% ---- Number of planes --------------------------------------------------
-f3 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+f3 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 500 400]);
 scatter(delta_planes, heights_km, sz, heights_km, 'filled', ...
     'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
 colormap(parula); clim(alt_clim);
@@ -398,7 +398,7 @@ exportgraphics(f3, fullfile(sweep_folder, 'Delta_Planes_vs_Altitude.png'), 'Reso
 close(f3);
 
 %% ---- Architecture map (sats/plane vs planes) ---------------------------
-f4 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 620 500]);
+f4 = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 500 400]);
 scatter(delta_planes, delta_satspp, sz, heights_km, 'filled', ...
     'MarkerEdgeColor', 'k', 'LineWidth', 0.5);
 colormap(parula); clim(alt_clim);

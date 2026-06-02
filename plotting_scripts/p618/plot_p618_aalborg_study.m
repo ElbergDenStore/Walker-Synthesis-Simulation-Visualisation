@@ -108,7 +108,8 @@ function D = generate_data(settings)
 end
 
 function fig = plot_data(D)
-    fig = figure("Color", "w", "Name", "P.618 Attenuation vs Elevation (Aalborg)");
+    fig = figure("Color", "w", "Name", "P.618 Attenuation vs Elevation (Aalborg)", ...
+        "Position", [100 100 600 400]);
     hold on;
 
     colors = [0.00 0.45 0.74; 0.47 0.67 0.19; 0.85 0.33 0.10];
@@ -125,17 +126,18 @@ function fig = plot_data(D)
     legend_labels = arrayfun(@(f) sprintf("f = %.0f GHz", f / 1e9), D.frequencies_hz, "UniformOutput", false);
     legend(legend_labels, "Location", "northeast");
 
-    title(sprintf("P.618 Atmospheric Attenuation | %s (%.4f, %.4f) |p=%.2f%%", ...
+    title(sprintf("P.618 Attenuation | %s (%.1f, %.1f) |p=%.2f%%", ...
         D.location_name, D.latitude_deg, D.longitude_deg,D.total_annual_exceedance_pct));
 
     % subtitle(sprintf("No FSPL, no orbit-height term | Exceedance %.2f%%", D.total_annual_exceedance_pct));
     hold off;
 
-    save_plot_to_screenshots(fig);
+    save_figure(fig);
 end
 
-function save_plot_to_screenshots(fig)
-    out_dir = "screenshots";
+function save_figure(fig)
+    script_dir = fileparts(mfilename('fullpath'));
+    out_dir    = fullfile(script_dir, '..', 'figures', 'p618');
     if ~isfolder(out_dir)
         mkdir(out_dir);
     end

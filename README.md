@@ -21,7 +21,6 @@ It has been developed to be easily extended for future research.
  - 
 
 
-
 ## Main simulations: 
  - Numerical Walker-Delta
  - Numerical Walker-Star
@@ -68,35 +67,12 @@ example: xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -no
 # TODO
 Changes to code that i want
 - SEARCH FOR ALL TODOs
+- Update this root todo to explain what the files area
 - Remove stupid and unnecessary comments
-- Fix names of files to be more easier read
-  - walker-star and walker-delta version of different files? what to do? generate_walker_delta_states.m generate_walker_star_states.m? I think it should be 1 file that has if else basically.
 - Follow code style
-- Big cleanup in the files
-- Move all the plotting files to the plotting folder
+- Make the plotting scripts scripts instead of functions to be run more easily
 - Coverage simulator is ugly due to the early stopping and workers might not be able to not die using it
 - The gridsearch is ugly due to all the fallback mechanisms, I need to clean it up in one go.
-- Create understandable read-me so others can use the code, including the dependencies.
 - Develop satellite focused view?
 - Add Uplink functionality
 - Revive UE focus view from the dead?
-
-
-
-
-
-option b:
-
-main scripts in the root:
- - Numerical Walker-Delta and Walker-Star combined and combined with "Run single grid search"?
- - Analytical Walker-Star (SOC)
- - Run simulator
- - plot simulation
- - show constellation
- - get config
-
-Plotting_scripts
-Validators
-Functions
-
-Where to put generate p618 LUT? in functions?

@@ -107,7 +107,7 @@ end
 %% ========================================================================
 
 function generate_global_stats(Cfg, metrics, all_thpt, all_snr, all_sinr, thpt_scale, thpt_unit, b_unit, out_dir)
-    f1 = figure('Visible', 'off', 'Name', 'Combined Constellation Stats', 'Color', 'w', 'Position', [100 100 1000 600]); 
+    f1 = figure('Visible', 'off', 'Name', 'Combined Constellation Stats', 'Color', 'w', 'Position', [100 100 600 400]); 
     t2 = tiledlayout(f1, 2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
     
     nexttile; histogram(all_thpt./thpt_scale, 'Normalization', 'pdf', 'FaceColor', '#D95319', 'EdgeColor', 'none');

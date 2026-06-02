@@ -75,7 +75,7 @@ calc_link    = true;
 %% ===== SHARED OUTPUT DIRECTORY =====
 script_dir = fileparts(mfilename('fullpath'));
 date_str   = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
-run_dir    = fullfile(script_dir, 'figures', 'compare_ue_distribution', sprintf('Compare_UE_%s', date_str));
+run_dir    = fullfile(script_dir, '..', 'figures', 'ue_distribution', sprintf('Compare_UE_%s', date_str));
 mkdir(fullfile(run_dir, 'uniform'));
 mkdir(fullfile(run_dir, 'population'));
 fprintf('Saving all outputs to: %s\n', run_dir);

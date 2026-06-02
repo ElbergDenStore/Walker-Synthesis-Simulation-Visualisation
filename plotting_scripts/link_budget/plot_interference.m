@@ -6,11 +6,16 @@ ue_grid_size = "small";
 duration = "short";
 frequency = "ku";
 height_km = 1000;
+frf = 3;
+ru = 1;
 
 Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, frequency);
 Cfg.SampleTime = 0.1; % seconds
 Cfg.StopTime = datetime('1-Jun-2025 12:29:59', 'TimeZone', 'UTC');
 
+Cfg.FRF = frf;
+Cfg.RU = ru;
+Cfg.DL.BeamGrid = calculate_hexagonal_beams(Cfg.DL.G_tx, Cfg.DL.f, Cfg.Orbit_height, Cfg.Min_elevation_UE, Cfg.DL.Max_EIRP_dBm_Hz, Cfg.FRF);
 % Force exactly one UE in Aalborg.
 Cfg.Flat_UE_array.Lats = 57.0488;
 Cfg.Flat_UE_array.Lons = 9.9217;
@@ -66,7 +71,7 @@ fprintf('Best %s = %.2f dB at %s\n', metric_name, best_metric, datestr(t(t_best)
 fprintf('Worst %s = %.2f dB at %s\n', metric_name, worst_metric, datestr(t(t_worst)));
 
 %% 2) Plots from online link-calculation output
-out_dir = fullfile('figures', 'interference');
+out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'figures', 'interference');
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
@@ -104,7 +109,7 @@ end
 % fprintf('Saved current diagnostics to: %s\n', out_dir);
 
 %% 3) Restore the old best/worst beam diagnostics
-out_dir = fullfile('plotting_scripts/figures', 'interference');
+out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'figures', 'interference');
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end

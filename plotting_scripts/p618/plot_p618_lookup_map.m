@@ -11,12 +11,18 @@ function plot_p618_lookup_map(lutMatFile, target_el)
     addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));  % bootstrap so path_setup is found
     path_setup()
     if nargin < 1 || strlength(string(lutMatFile)) == 0
-        files = dir("p618_lookup_*.mat");
+        repo_root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+        data_dir  = fullfile(repo_root, 'functions', 'data');
+        files = dir(fullfile(data_dir, 'p618_lookup_*.mat'));
+        if isempty(files)
+            % Fallback: search current working directory
+            files = dir('p618_lookup_*.mat');
+        end
         if isempty(files)
             error("No LUT file found. Run generate_p618_lookup_table first.");
         end
         [~, newest_idx] = max([files.datenum]);
-        lutMatFile = files(newest_idx).name;
+        lutMatFile = fullfile(files(newest_idx).folder, files(newest_idx).name);
         target_el = 20;
     end
     if nargin < 2
@@ -93,8 +99,11 @@ function plot_p618_lookup_map(lutMatFile, target_el)
     title(title_str, 'FontSize', 16);
 
     % 7. Save output to file and close
-    out_name = sprintf("screenshots/Map_P618_el%ddeg_f%.1fGHz_%s.png", ...
-        LUT.el_deg(el_idx), LUT.frequency_hz / 1e9, datestr(now, "yyyymmdd_HHMMSS"));
+    script_dir = fileparts(mfilename('fullpath'));
+    out_dir    = fullfile(script_dir, '..', 'figures');
+    if ~exist(out_dir, 'dir'); mkdir(out_dir); end
+    out_name = fullfile(out_dir, sprintf("Map_P618_el%ddeg_f%.1fGHz_%s.png", ...
+        LUT.el_deg(el_idx), LUT.frequency_hz / 1e9, datestr(now, "yyyymmdd_HHMMSS")));
         
     fprintf("Rendering map and saving to %s...\n", out_name);
     exportgraphics(f, out_name, 'Resolution', 300);
