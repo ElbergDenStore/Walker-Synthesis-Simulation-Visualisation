@@ -1,15 +1,13 @@
-function plot_roi(save_path)
 % PLOT_ROI  Plot the simulation region of interest (ROI) without any data overlay.
 %   Renders the land map using a Lambert projection for the ROI defined in
 %   run_constellation_simulation_example.m (the smaller, Europe-centred longitude range).
 %
-% Usage:
-%   plot_roi()                          – saves ROI_Map.png next to this script
-%   plot_roi('path/to/output/dir')      – saves to the given directory
+%   Edit SAVE_PATH below ('' = figures/ next to this script).
+
+save_path = '';   % output folder for ROI_Map.png
 
 script_dir = fileparts(mfilename('fullpath'));
-
-if nargin < 1 || isempty(save_path)
+if isempty(save_path)
     save_path = fullfile(script_dir, 'figures');
 end
 
@@ -46,4 +44,3 @@ out_file = fullfile(save_path, 'ROI_Map.png');
 exportgraphics(f, out_file, 'Resolution', 300);
 close(f);
 fprintf('ROI map saved to: %s\n', out_file);
-end

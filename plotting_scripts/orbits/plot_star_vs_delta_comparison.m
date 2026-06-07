@@ -1,4 +1,6 @@
-function plot_star_vs_delta_comparison()
+% PLOT_STAR_VS_DELTA_COMPARISON  Compare Walker Star and Walker Delta coverage.
+%   Runs matched-altitude Walker Star and Walker Delta constellations over the
+%   same scenario and plots their coverage and elevation statistics side by side.
 clear; close all; clc;
 % xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "plot_star_vs_delta_comparison"
 %% ===== SHARED SCENARIO SETTINGS =====
@@ -90,10 +92,10 @@ use_parallel = false;
 calc_link    = true;
 
 fprintf('\nRunning Walker Star simulation...\n');
-metrics_star = constellation_simulator(CfgStar, use_parallel, calc_link);
+metrics_star = Constellation_simulator(CfgStar, use_parallel, calc_link);
 
 fprintf('\nRunning Walker Delta simulation...\n');
-metrics_delta = constellation_simulator(CfgDelta, use_parallel, calc_link);
+metrics_delta = Constellation_simulator(CfgDelta, use_parallel, calc_link);
 
 %% ===== PLOT RESULTS =====
 plot_simulation(metrics_star,  use_parallel);
@@ -108,6 +110,4 @@ if ~isempty(getenv('DISPLAY'))
     show_constellation(CfgDelta, show_interactive, save_fig);
 else
     disp('Skipping show_constellation: no display available');
-end
-
 end

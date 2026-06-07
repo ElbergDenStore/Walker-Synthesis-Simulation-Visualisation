@@ -1,4 +1,3 @@
-function plot_oneweb_tle_altitude()
 % PLOT_ONEWEB_TLE_ALTITUDE
 %   Propagates 4 OneWeb satellites in the same orbital plane from their
 %   TLEs using MATLAB's SGP4 propagator and plots geodetic altitude vs
@@ -7,10 +6,12 @@ function plot_oneweb_tle_altitude()
 %   All 4 satellites share RAAN ~41.8 deg, inc ~87.89 deg (same plane).
 %   TLE epochs: 2026-May-20 UTC
 %
-%   Usage:
-%       plot_oneweb_tle_altitude()
+%   Run directly (no inputs).
 
-    addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));  % bootstrap so path_setup is found
+    % Add the project to the MATLAB path (robust to the script's folder depth).
+    repo_root = fileparts(mfilename('fullpath'));
+    while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
+    addpath(fullfile(repo_root, 'functions'));
     path_setup();
 
     %% TLE definitions ------------------------------------------------------
@@ -102,7 +103,6 @@ function plot_oneweb_tle_altitude()
     fname = fullfile(out_dir, 'oneweb_same_plane_altitude_vs_latitude.png');
     exportgraphics(f, fname, 'Resolution',300);
     fprintf('\nPlot saved -> %s\n', fname);
-end
 
 %--------------------------------------------------------------------------
 function dt = parse_tle_epoch(epoch_str)

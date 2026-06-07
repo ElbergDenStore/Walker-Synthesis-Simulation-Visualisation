@@ -2,8 +2,8 @@
 % /opt/VirtualGL/bin/vglrun matlab & - run it interactively with GPU rendering
 function run_constellation_simulation_example()
 clear all; close all; clc;
-% delete(gcp('nocreate'));
-% Cfg = get_cfg(1000,"walkerdelta","medium","long");
+% delete(gcp('nocreate')); % kill parallel workers if it stops working
+% Cfg = default_config(1000,"walkerdelta","medium","long"); % instead of writing every field manually, default configs can be retrieved
 
 height_km        = 1000;
 min_elevation_UE = 20;
@@ -24,7 +24,7 @@ Target_PFD_MHz = -125;      % dBW/m²/MHz
 FRF = 3;
 RU  = 1;
 
-NumUEs = 100000;
+NumUEs = 100;
 
 [UE_lats, UE_lons] = generate_equal_area_ues(Lat_range_deg, Lon_range_deg, NumUEs);
 % [UE_lats, UE_lons] = generate_population_ues(Lat_range_deg, Lon_range_deg, 3000);
@@ -70,18 +70,18 @@ CfgStar.Inclination    = 90;
 CfgStar.Phasing        = CfgStar.Num_planes / 2;
 
 %% ===== RUN SIMULATIONS =====
-use_parallel = true;
+use_parallel = false;
 calc_link    = true;
 
 % fprintf('\nRunning Walker Star simulation...\n');
-metrics_star = constellation_simulator(CfgStar, use_parallel, calc_link);
+metrics_star = Constellation_simulator(CfgStar, use_parallel, calc_link);
 fprintf("coverage percentage %0.8f",metrics_star.worst_coverage_percent)
 
 %% ===== PLOT RESULTS =====
 plot_simulation(metrics_star,  use_parallel);
 
-% show_interactive = true;
-% save_fig = false;
-% show_constellation(CfgStar, show_interactive, save_fig)
+show_interactive = true;
+save_fig = false;
+show_constellation(CfgStar, show_interactive, save_fig)
 
 end

@@ -1,5 +1,4 @@
-function plot_delta_altitude_spread(HEIGHT_KM, INC_DEG, TOTAL_SATS, PLANES, PHASING)
-% WALKER_DELTA_ALTITUDE_SPREAD
+% PLOT_DELTA_ALTITUDE_SPREAD
 %   Propagates every satellite in a Walker Delta constellation with the
 %   Kepler, SGP4, and numerical toolbox propagators plus the own fast-math
 %   two-body propagator, and shows the min/max geodetic altitude across ALL
@@ -7,15 +6,13 @@ function plot_delta_altitude_spread(HEIGHT_KM, INC_DEG, TOTAL_SATS, PLANES, PHAS
 %   The spread reveals how bad the initialisation error (e=0, w=0 passed as
 %   osculating elements) is and whether it differs between propagators.
 %
-%   Usage:
-%       walker_delta_altitude_spread()                           % defaults
-%       walker_delta_altitude_spread(1000, 53, 60, 5, 1)
+%   Edit the constellation parameters below, then run.
 
-    if nargin < 1 || isempty(HEIGHT_KM),   HEIGHT_KM  = 1000; end
-    if nargin < 2 || isempty(INC_DEG),     INC_DEG    = 75;   end
-    if nargin < 3 || isempty(TOTAL_SATS),  TOTAL_SATS = 56;   end
-    if nargin < 4 || isempty(PLANES),      PLANES     = 4;    end
-    if nargin < 5 || isempty(PHASING),     PHASING    = 2;  end
+    HEIGHT_KM  = 1000;   % orbital altitude (km)
+    INC_DEG    = 75;     % inclination (deg)
+    TOTAL_SATS = 56;     % total satellites
+    PLANES     = 4;      % number of orbital planes
+    PHASING    = 2;      % Walker phasing factor
 
     SATS_PER_PLANE = TOTAL_SATS / PLANES;
     if SATS_PER_PLANE ~= floor(SATS_PER_PLANE)
@@ -68,7 +65,6 @@ function plot_delta_altitude_spread(HEIGHT_KM, INC_DEG, TOTAL_SATS, PLANES, PHAS
     plot_and_save(bins_fast, lat_ctrs, TOTAL_SATS, HEIGHT_KM, INC_DEG, ...
         'Walker Delta  Fast Math (own)', [0.93 0.69 0.13], out_dir, ...
         sprintf('wd_altitude_spread_fastmath_%s.png', tag));
-end
 
 %% =========================================================================
 function plot_and_save(bins, lat_ctrs, total_sats, HEIGHT_KM, INC_DEG, label, col, out_dir, fname)

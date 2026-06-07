@@ -1,5 +1,4 @@
-function plot_frozen_eccentricity()
-% SURVEY_FROZEN_ECCENTRICITY
+% PLOT_FROZEN_ECCENTRICITY
 %   Runs the Newton frozen-orbit solver at altitudes from 500 to 1200 km
 %   (i = 90 deg) and plots the required initialization eccentricity and
 %   argument of perigee as functions of altitude.
@@ -9,8 +8,7 @@ function plot_frozen_eccentricity()
 %   so you can judge whether a fixed formula is good enough for your
 %   simulator (avoiding the Newton solve at run-time).
 %
-%   Usage:
-%       survey_frozen_eccentricity()
+%   Run directly (no inputs).
 
     heights_km = 500 : 50 : 1200;   % 15 points
     nH         = numel(heights_km);
@@ -83,7 +81,6 @@ function plot_frozen_eccentricity()
     fname = fullfile(out_dir, 'frozen_eccentricity_survey.png');
     exportgraphics(f, fname, 'Resolution',200);
     fprintf('Plot saved -> %s\n', fname);
-end
 
 %% --------------------------------------------------------------------
 function [ex, ey, it] = solve_frozen(sc, a, inc)

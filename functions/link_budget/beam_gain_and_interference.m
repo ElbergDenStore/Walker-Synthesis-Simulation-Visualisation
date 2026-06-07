@@ -1,4 +1,9 @@
 function [carrier_density_dBmHz_mat, serving_beam_idx_mat, serving_beam_signal_density_dBmHz_mat, interference_density_dBmHz_mat] = beam_gain_and_interference(el_mat, az_mat, BeamGrid, Cfg)
+% BEAM_GAIN_AND_INTERFERENCE  Serving-beam carrier and co-channel interference.
+%   For each UE (rows) and time step (columns) in the elevation/azimuth matrices
+%   EL_MAT/AZ_MAT, selects the serving beam from BEAMGRID and returns the carrier
+%   and co-channel interference power spectral densities (dBm/Hz), the serving
+%   beam index, and its signal density.  NaN inputs (no link) are returned as NaN.
     NumUEs = size(az_mat, 1);
     nT = size(az_mat, 2);
     
@@ -102,7 +107,7 @@ end
 
 % --- Local Helper Function ---
 function loss_dB = calculate_total_gain_dB(u_ue, v_ue, u_center, v_center, BeamGrid)
-    % 1. Array Factor (AF) - Same for both
+    % Array Factor (AF) - Same for both
     du = u_ue - u_center;
     dv = v_ue - v_center;
     
@@ -121,7 +126,7 @@ function loss_dB = calculate_total_gain_dB(u_ue, v_ue, u_center, v_center, BeamG
         BeamGrid.OneWeb = false; % Default to Flat Phased Array
     end
 
-    % 2. Element Factor (EF) Routing
+    % Element Factor (EF) Routing
     if BeamGrid.OneWeb
         % === ONEWEB MODE ===
         % Element face is mechanically tilted to point directly at the beam center.

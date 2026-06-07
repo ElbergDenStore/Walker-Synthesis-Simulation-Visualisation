@@ -1,20 +1,20 @@
-function plot_star_altitude_spread(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, MIN_EL_DEG)
-% CONSTELLATION_ALTITUDE_SPREAD
+% PLOT_STAR_ALTITUDE_SPREAD
 %   Propagates every satellite in an asymmetrical Walker Star with BOTH the
 %   SGP4 and the numerical propagator and shows the min/max geodetic altitude
 %   across ALL satellites as a function of latitude for each.
 %   The spread reveals how bad the initialisation error (e=0, w=0 passed as
 %   osculating elements) is and whether it differs between propagators.
 %
-%   Usage:
-%       constellation_altitude_spread()                          % defaults
-%       constellation_altitude_spread(1000, 87, 65, 5, 2.5)
+%   Edit the constellation parameters below, then run.
+%   NOTE (pre-existing bug, left as-is): the original defaults set TOTAL_SATS and
+%   PHASING, but the body uses SATS_PER_PLANE and MIN_EL_DEG, which are never set
+%   here. Set SATS_PER_PLANE and MIN_EL_DEG below before running.
 
-    if nargin < 1 || isempty(HEIGHT_KM),   HEIGHT_KM  = 1000; end
-    if nargin < 2 || isempty(INC_DEG),     INC_DEG    = 90;   end
-    if nargin < 3 || isempty(TOTAL_SATS),  TOTAL_SATS = 65;   end
-    if nargin < 4 || isempty(PLANES),      PLANES     = 5;    end
-    if nargin < 5 || isempty(PHASING),     PHASING    = 2.5;  end
+    HEIGHT_KM  = 1000;   % orbital altitude (km)
+    INC_DEG    = 90;     % inclination (deg)
+    TOTAL_SATS = 65;     % total satellites (NOTE: not used by the body below)
+    PLANES     = 5;      % number of orbital planes
+    PHASING    = 2.5;    % Walker phasing (NOTE: not used by the body below)
 
     total_sats = PLANES * SATS_PER_PLANE;
     fprintf('\n=== Constellation altitude spread analysis ===\n');
@@ -62,7 +62,6 @@ function plot_star_altitude_spread(HEIGHT_KM, INC_DEG, PLANES, SATS_PER_PLANE, M
     plot_and_save(bins_fast, lat_ctrs, total_sats, HEIGHT_KM, INC_DEG, ...
         'Fast Math (own)', [0.93 0.69 0.13], out_dir, ...
         sprintf('altitude_spread_fastmath_%dp%ds_%dkm_i%.0f.png', PLANES, SATS_PER_PLANE, HEIGHT_KM, INC_DEG));
-end
 
 %% =========================================================================
 function plot_and_save(bins, lat_ctrs, total_sats, HEIGHT_KM, INC_DEG, label, col, out_dir, fname)

@@ -1,3 +1,6 @@
+% PLOT_BEAM_UTILIZATION  Illustrate how user equipment spreads across the beams.
+%   Runs a scenario and plots per-beam utilisation, showing which beams carry
+%   load and how evenly traffic is distributed across the footprint.
 clearvars; close all; clc;
 
 %% Output Directory
@@ -23,7 +26,7 @@ set(groot, 'DefaultTextFontSize',                FIG.font_size);
 set(groot, 'DefaultAxesTitleFontSizeMultiplier', FIG.title_size / FIG.font_size);
 set(groot, 'DefaultLineLineWidth',               FIG.lw);
 
-%% 1. Configuration & Region Selection
+%% Configuration & Region Selection
 % Toggle between 'Nordjylland', 'Denmark', 'Full3000', or 'Full30000'
 REGION = 'Full3000';
 
@@ -47,13 +50,13 @@ switch REGION
 end
 
 fprintf('Running simulation for %s...\n', REGION);
-Cfg = get_cfg(1000,"walkerdelta");
+Cfg = default_config(1000,"walkerdelta");
 calc_link = false; use_parallel = false;
 [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons, Total_Pop] = generate_population_ues(latlim, lonlim, people_per_ue);
 Cfg.NumUEs = length(Cfg.Flat_UE_array.Lats);
-metrics = constellation_simulator(Cfg, use_parallel, calc_link);
+metrics = Constellation_simulator(Cfg, use_parallel, calc_link);
 
-%% 2. System-Wide Utilization Analysis
+%% System-Wide Utilization Analysis
 nT = length(metrics.SimData(1).Time);
 TotalSats = Cfg.Total_sats;
 time_vec = metrics.SimData(1).Time;
@@ -119,7 +122,7 @@ exportgraphics(gcf, fullfile(out_dir, 'ActiveSatUtilization.png'), 'Resolution',
 
 fprintf('Peak Found: Sat %d at %s with %d UEs.\n', peakSat, datestr(time_vec(t_peak)), max_val);
 
-%% 3. Geometry & Beam Grid
+%% Geometry & Beam Grid
 Re = 6371; h = Cfg.Orbit_height/1000; Min_Elev_deg = 20;
 f = 20e9; c = 3e8; lambda = c/f; G = 40;
 Beamwidth_deg = sqrt(32400./(10.^(G/10)));
@@ -152,7 +155,7 @@ b_r = b_r(sort_idx);
 
 num_beams = length(b_u);
 
-%% 4. Vectorize UE Projections (FILTERED BY PEAK SAT)
+%% Vectorize UE Projections (filtered by peak sat)
 u_ues_peak = nan(Cfg.NumUEs, nT);
 v_ues_peak = nan(Cfg.NumUEs, nT);
 
@@ -167,7 +170,7 @@ for i = 1:Cfg.NumUEs
     end
 end
 
-%% 5. Resource Analysis for the Single Peak Satellite
+%% Resource Analysis for the Single Peak Satellite
 beam_activity_matrix = false(num_beams, nT);
 for t = 1:nT
     u_t = u_ues_peak(~isnan(u_ues_peak(:,t)), t);
@@ -181,7 +184,7 @@ for t = 1:nT
     end
 end
 
-%% 6. Snapshot at PEAK UTILIZATION (in Degrees)
+%% Snapshot at peak utilization (in degrees)
 fig1 = figure('Color', 'w', 'Visible', 'off', 'Position', FIG.square); hold on; axis equal; grid on;
 theta = linspace(0, 2*pi, 100);
 
@@ -257,7 +260,7 @@ title(sprintf('Sat %d: Spatial Congestion Waterfall', peakSat));
 
 exportgraphics(gcf, fullfile(out_dir, 'peak_sat_congestion_waterfall.png'), 'Resolution', FIG.dpi);
 
-%% 7. Spatial Load Heatmap (Steering Angle Perspective)
+%% Spatial Load Heatmap (Steering Angle Perspective)
 counts_at_peak = beam_ue_count_matrix(:, t_peak);
 active_beam_indices = find(counts_at_peak > 0);
 active_counts = counts_at_peak(active_beam_indices);
@@ -367,7 +370,7 @@ title(sprintf('Zoomed Active Region: Sat %d\nCentered on Peak Beam %d (Max Load)
 
 exportgraphics(fig_zoom, fullfile(out_dir, 'peak_sat_spatial_zoomed_deg.png'), 'Resolution', FIG.dpi);
 
-%% 8. Beam Load Percentile Distribution
+%% Beam Load Percentile Distribution
 counts_at_peak = beam_ue_count_matrix(:, t_peak);
 active_counts = counts_at_peak(counts_at_peak > 0);
 sorted_counts = sort(active_counts, 'ascend');
@@ -400,7 +403,7 @@ exportgraphics(fig_hist, fullfile(out_dir, 'peak_sat_load_percentile.png'), 'Res
 fprintf('Percentile Load Distribution plot saved.\n');
 
 
-%% 9. Beam Load CDF
+%% Beam Load CDF
 counts_at_peak = beam_ue_count_matrix(:, t_peak);
 active_counts = counts_at_peak(counts_at_peak > 0);
 sorted_counts = sort(active_counts, 'ascend');

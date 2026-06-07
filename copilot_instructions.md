@@ -1,5 +1,5 @@
 Software development guideline: 
-Allow it to crash if the "protection code" is too complex. If I am finding all the valid indices by using >20 filter, it is possible to not have any valid indices, but only if the constellation is completely retarded or the simulation settings are fucked. It needs to be very human readable
+Allow it to crash if the "protection code" is too complex. If I am finding all the valid indices by using >20 filter, it is possible to not have any valid indices, but only if the constellation is completely wrong or the simulation settings are fucked, for example using m instead of km. It needs to be very human readable
 
 Software style guide:
 I need to be consistent, I dont care about following some IEEE standard or whatever, but i want it consistent.
@@ -14,10 +14,11 @@ I hate the naming of AI generated code such as "%% 2. The Smart Filters". It sho
 
 I need the technical code to be clearly visible so noise needs to be moved to local functions: example:
 
-script_dir     = fileparts(mfilename('fullpath'));
-workspace_root = fileparts(script_dir);
-addpath(fullfile(workspace_root, 'functions'));  % bootstrap so path_setup is found
-path_setup();                                    % add repo root + all functions/ subfolders
+% Add the project to the MATLAB path (robust to the script's folder depth).
+workspace_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(workspace_root, 'functions', 'path_setup.m')), workspace_root = fileparts(workspace_root); end
+addpath(fullfile(workspace_root, 'functions'));
+path_setup();
 
 sim_dir   = fullfile(workspace_root, 'simulation_output');
 runs_root = fullfile(sim_dir, 'gridsearch_runs');

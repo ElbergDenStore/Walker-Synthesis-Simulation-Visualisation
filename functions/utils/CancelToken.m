@@ -1,5 +1,5 @@
 classdef CancelToken < handle
-% CANCELTOKEN  Cancellation handle for constellation_simulator.
+% CANCELTOKEN  Cancellation handle for Constellation_simulator.
 %
 %   token = CancelToken(queue, total_sats)
 %
@@ -7,7 +7,7 @@ classdef CancelToken < handle
 % coordinator and decides whether the current simulation should abort.
 %
 % Pass `@() token.check()` as the `should_cancel` argument to
-% constellation_simulator.  After the simulation returns, read
+% Constellation_simulator.  After the simulation returns, read
 % `token.ConsumedThreshold` to update the worker's local skip threshold.
 %
 % Recognised queue messages
@@ -16,7 +16,7 @@ classdef CancelToken < handle
 %
 % Example (gridsearch worker)
 %   token = CancelToken(q_in, Cfg.Total_sats);
-%   m     = constellation_simulator(Cfg, false, false, true, @() token.check());
+%   m     = Constellation_simulator(Cfg, false, false, true, @() token.check());
 %   if m.cancelled
 %       skip_above_sats = min(skip_above_sats, token.ConsumedThreshold);
 %   end

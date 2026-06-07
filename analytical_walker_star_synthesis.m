@@ -15,8 +15,9 @@
 
 clear; close all; clc;
 
-% Ensure project root + all functions/ subfolders are on the path
+% Add the project to the MATLAB path (robust to the script's folder depth).
 repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
 addpath(fullfile(repo_root, 'functions'));
 path_setup();
 

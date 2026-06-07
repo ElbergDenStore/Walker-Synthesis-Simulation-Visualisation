@@ -1,3 +1,6 @@
+% PLOT_STEERING_LOSS  Plot phased-array steering loss versus elevation angle.
+%   Sweeps user elevation and plots the cosine-taper scan loss (dB) of the
+%   transmit phased array as the beam steers away from boresight.
 Re = 6378.137e3;     
 cos_exponent = 1.5;
 el_vec = linspace(20,90,100);

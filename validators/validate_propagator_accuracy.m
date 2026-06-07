@@ -6,9 +6,11 @@
 %   TEST 2 – Worst-case coverage difference over 3 hours
 %   TEST 3 – Worst-case coverage difference over 24 hours
 clc; clear; close all;
-repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> repo root
-addpath(fullfile(repo_root, 'functions'));                % bootstrap so path_setup is found
-path_setup();                                             % add repo root + all functions/ subfolders
+% Add the project to the MATLAB path (robust to the script's folder depth).
+repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
+addpath(fullfile(repo_root, 'functions'));
+path_setup();
 
 StartTime = datetime('1-Jun-2025 12:00:00', 'TimeZone', 'UTC');
 NumUEs    = 200;
@@ -107,15 +109,15 @@ for ci = 1:numel(configs)
 
     fprintf('\n--- TEST 2: Coverage statistics (3 Hours) ---\n');
     Cfg.StopTime = StartTime + hours(3);
-    m2_toolbox = constellation_simulator(Cfg, false, false, true);
-    m2_math    = constellation_simulator(Cfg, false, false, false);
+    m2_toolbox = Constellation_simulator(Cfg, false, false, true);
+    m2_math    = Constellation_simulator(Cfg, false, false, false);
     fprintf('Worst Coverage:\n  Toolbox: %.4f%%\n  Math:    %.4f%%\n', ...
         m2_toolbox.worst_coverage_percent, m2_math.worst_coverage_percent);
 
     fprintf('\n--- TEST 3: Coverage statistics (24 Hours) ---\n');
     Cfg.StopTime = StartTime + hours(24);
-    m3_toolbox = constellation_simulator(Cfg, false, false, true);
-    m3_math    = constellation_simulator(Cfg, false, false, false);
+    m3_toolbox = Constellation_simulator(Cfg, false, false, true);
+    m3_math    = Constellation_simulator(Cfg, false, false, false);
     fprintf('Worst Coverage:\n  Toolbox: %.4f%%\n  Math:    %.4f%%\n', ...
         m3_toolbox.worst_coverage_percent, m3_math.worst_coverage_percent);
 

@@ -1,15 +1,15 @@
 function ok = validate_simulators(verbose)
-% VALIDATE_SIMULATORS  Prove constellation_simulator is correct across modes.
+% VALIDATE_SIMULATORS  Prove Constellation_simulator is correct across modes.
 %
 %   ok = validate_simulators()        % run all checks, print summary
 %   ok = validate_simulators(true)    % print extra per-test detail
 %
-% constellation_simulator has two propagation backends, selected by the
+% Constellation_simulator has two propagation backends, selected by the
 % use_toolbox flag:
 %
 %   use_toolbox = true   Satellite Toolbox states(), driven through a
 %                        PERSISTENT cached satelliteScenario (see
-%                        reuse_or_create_scenario in constellation_simulator).
+%                        reuse_or_create_scenario in Constellation_simulator).
 %                        The scenario container is reused between calls; only
 %                        satellites/ground stations are rebuilt. This reuse is
 %                        the "caching".
@@ -39,9 +39,10 @@ function ok = validate_simulators(verbose)
     if nargin < 1, verbose = false; end
 
     % ---- Path bootstrap (independent of caller cwd) ---------------------
-    repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> root
+    % Add the project to the MATLAB path (robust to the script's folder depth).
+    repo_root = fileparts(mfilename('fullpath'));
+    while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
     addpath(fullfile(repo_root, 'functions'));
-    addpath(repo_root);
     path_setup();
 
     % Tolerances for TEST 2 (different propagators, not bit-identical).
@@ -52,8 +53,8 @@ function ok = validate_simulators(verbose)
 
     % Two genuinely different constellations so the cache is really stressed:
     % different altitude, type, and geometry.
-    cfgA = get_cfg(1000, "walkerdelta", "small", "short");
-    cfgB = get_cfg( 600, "walkerstar",  "small", "short");
+    cfgA = default_config(1000, "walkerdelta", "small", "short");
+    cfgB = default_config( 600, "walkerstar",  "small", "short");
     fprintf('Config A: walkerdelta 1000 km, %d sats (%dx%d)\n', ...
         cfgA.Total_sats, cfgA.Num_planes, cfgA.Sats_per_plane);
     fprintf('Config B: walkerstar   600 km, %d sats (%dx%d)\n', ...
@@ -66,7 +67,7 @@ function ok = validate_simulators(verbose)
     % =====================================================================
     fprintf('\n[1] Cache integrity (toolbox backend)...\n');
 
-    clear constellation_simulator;   % reset the persistent cached scenario
+    clear Constellation_simulator;   % reset the persistent cached scenario
 
     A1  = run_q(cfgA, true);         % A cold
     A1b = run_q(cfgA, true);         % A again, back-to-back (warm, same cfg)
@@ -151,7 +152,7 @@ end
 
 function m = run_full(Cfg, use_toolbox)
 % Run the simulator with stdout suppressed (keeps the report clean).
-    evalc('m = constellation_simulator(Cfg, false, false, use_toolbox);');
+    evalc('m = Constellation_simulator(Cfg, false, false, use_toolbox);');
 end
 
 function s = mk(name, pass, detail)

@@ -1,6 +1,6 @@
 % benchmark_simulator_speed.m
 % Combined benchmark: AER geometry methods, parallelism case studies,
-% and constellation_simulator worker scaling.
+% and Constellation_simulator worker scaling.
 %
 % Section A: AER method comparison — geometry cost vs UE count
 %     1. aer()          — per-UE toolbox call (baseline)
@@ -11,7 +11,7 @@
 %     4. par-gridsearch — many independent small sims via parfor
 %     5. par-toolbox    — parfor over UEs within a single large sim
 %
-% Section C: constellation_simulator worker scaling
+% Section C: Constellation_simulator worker scaling
 %     Toolbox propagator (Processes pool, matches Stage-3 gridsearch).
 %     Sweeps parfeval workers 1→32. Shows throughput (sims/s) vs simultaneous workers.
 %     Parameters match gridsearch Stage-3 defaults.
@@ -19,9 +19,11 @@
 % Figures saved to: plotting_scripts/figures/optimisations/
 
 clear; close all; clc;
-repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> repo root
-addpath(fullfile(repo_root, 'functions'));                % bootstrap so path_setup is found
-path_setup();                                             % add repo root + all functions/ subfolders
+% Add the project to the MATLAB path (robust to the script's folder depth).
+repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
+addpath(fullfile(repo_root, 'functions'));
+path_setup();
 
 out_dir = fullfile(repo_root, 'plotting_scripts', 'figures', 'optimisations');
 if ~exist(out_dir, 'dir'), mkdir(out_dir); end
@@ -136,7 +138,7 @@ end
 %   4. par-gridsearch: n_sims independent small sims via parfor
 %      (models real gridsearch: many configs × few UEs each)
 %   5. par-toolbox:    parfor over UEs within a single large sim
-%      (models constellation_simulator with use_parallel=true)
+%      (models Constellation_simulator with use_parallel=true)
 % =========================================================================
 fprintf('--- Section B: Parallelism case studies ---\n');
 
@@ -206,13 +208,13 @@ fprintf('    par-toolbox: %.2f s  (setup %.2f + geom %.2f)  ->  speedup vs vec-t
     t_par_tb_total, t_par_tb_setup, t_par_tb_geom, tb_speedup);
 
 % =========================================================================
-% SECTION C: constellation_simulator worker scaling
+% SECTION C: Constellation_simulator worker scaling
 %   Vary simultaneous parfeval calls 1→32.  Toolbox propagator (use_toolbox=true),
 %   matching Stage-3 gridsearch.  Requires a Processes pool — toolbox objects
 %   (satelliteScenario) cannot be constructed on Threads pool workers.
 %     SampleTime=660 s,  nUEs=nSteps≈2146  (certainty=99%, fa=ft=0.1%)
 % =========================================================================
-fprintf('--- Section C: constellation_simulator worker scaling ---\n');
+fprintf('--- Section C: Constellation_simulator worker scaling ---\n');
 
 certainty    = 0.99;
 fa = 0.001;  ft = 0.001;
@@ -254,7 +256,7 @@ nw        = pool.NumWorkers;
 fprintf('  Warming up pool (%d workers)...\n', nw);
 wf = cell(nw, 1);
 for w = 1:nw
-    wf{w} = parfeval(pool, @(C) constellation_simulator(C, false, false, true), 1, Cfg);
+    wf{w} = parfeval(pool, @(C) Constellation_simulator(C, false, false, true), 1, Cfg);
 end
 for w = 1:nw
     wait(wf{w});
@@ -275,7 +277,7 @@ for ci = 1:n_wc
 
     futs = cell(npar, 1);  tw = tic;
     for w = 1:npar
-        futs{w} = parfeval(pool, @(C) constellation_simulator(C, false, false, true), 1, Cfg);
+        futs{w} = parfeval(pool, @(C) Constellation_simulator(C, false, false, true), 1, Cfg);
     end
     for w = 1:npar
         wait(futs{w});

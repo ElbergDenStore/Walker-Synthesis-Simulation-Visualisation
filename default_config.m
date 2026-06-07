@@ -1,4 +1,9 @@
-function Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, frequency)
+function Cfg = default_config(height_km, constellation_type, ue_grid_size, duration, frequency)
+% DEFAULT_CONFIG  Build the default simulation configuration struct (Cfg).
+%   Returns a fully-populated Cfg with constellation, link-budget, beam and
+%   timing settings derived from HEIGHT_KM, CONSTELLATION_TYPE ("walkerdelta" or
+%   "walkerstar"), UE_GRID_SIZE, DURATION and FREQUENCY band.  All arguments are
+%   optional and default to a small Ku-band Walker Delta run.
     arguments %Set default behaviors if not all inputs are input
         height_km (1,1) double = 1000
         constellation_type (1,1) string = "walkerdelta"

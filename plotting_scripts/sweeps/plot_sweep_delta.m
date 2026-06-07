@@ -1,4 +1,3 @@
-function plot_sweep_delta(sweep_folder)
 % PLOT_SWEEP_DELTA  Plot and summarize a Walker Delta gridsearch sweep.
 %   Compares the analytical Walker-Star formula (SOC baseline) against
 %   the numerical Walker-Delta gridsearch result at each altitude.
@@ -12,12 +11,15 @@ function plot_sweep_delta(sweep_folder)
 %   plot_sweep_delta()                  – most recent Master_Sweep_* (non-WalkerStar) folder
 %   plot_sweep_delta('simulation_output/Master_Sweep_20260522_172327')   – specific sweep folder
 
+% Edit SWEEP_FOLDER below ('' = auto-detect the most recent matching sweep).
+sweep_folder = '';
+
 script_dir     = fileparts(mfilename('fullpath'));
 workspace_root = fileparts(fileparts(script_dir));
 sim_dir        = fullfile(workspace_root, 'simulation_output');
 
 %% ---- Locate sweep folder -----------------------------------------------
-if nargin == 0
+if isempty(sweep_folder)
     hits = dir(fullfile(sim_dir, 'Master_Sweep_*'));
     hits = hits([hits.isdir]);
     % Exclude Walker Star sweeps so we pick up delta-only runs
@@ -225,8 +227,6 @@ end
 
 %% ---- Multi-stage filtering table ---------------------------------------
 print_multistage_table(loaded, sweep_folder, workspace_root);
-
-end
 
 %% ========================================================================
 %  Local helpers

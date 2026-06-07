@@ -1,3 +1,6 @@
+% PLOT_POPULATION_DENSITY  Map WorldPop population density over the Jutland ROI.
+%   Reads the WorldPop 1 km GeoTIFF and plots population density for the same
+%   Aalborg region used by the beams-on-Earth figure.
 clearvars; close all; clc;
 
 % Population density map for the same region as the Jutland zoom used in
@@ -10,9 +13,10 @@ latlim = [center_lat - 0.8, center_lat + 0.8];
 lonlim = [center_lon - 1.5, center_lon + 1.5];
 %%% FILE IS HUGE AND CAN BE DOWNLOADED FROM https://data.worldpop.org/GIS/Population/Global_2000_2020/2020/0_Mosaicked/ppp_2020_1km_Aggregated.tif
 filename = 'ppp_2020_1km_Aggregated.tif';
-script_dir = fileparts(mfilename('fullpath'));
-repo_root = fullfile(script_dir, '..', '..');  % matlab_code/
-addpath(fullfile(repo_root, 'functions'));  % bootstrap so path_setup is found
+% Add the project to the MATLAB path (robust to the script's folder depth).
+repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
+addpath(fullfile(repo_root, 'functions'));
 path_setup();
 
 candidate_files = {

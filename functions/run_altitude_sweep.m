@@ -20,7 +20,7 @@ function out_dir = run_altitude_sweep(Master_config, heights_km, resume_dir)
 %     out_dir       - the sweep output folder under simulation_output/.
 %
 %   Saved variables use the legacy names (best_delta_sats / best_star_sats,
-%   all_delta_sats / all_star_sats) so get_cfg.m and plot_sweep_*.m keep working.
+%   all_delta_sats / all_star_sats) so default_config.m and plot_sweep_*.m keep working.
 
     if nargin < 3 || isempty(resume_dir); resume_dir = ''; end
 
@@ -124,7 +124,7 @@ function out_dir = run_altitude_sweep(Master_config, heights_km, resume_dir)
         Master_config, gridsearch_dirs, best_field, all_field);
     fprintf('Results saved to: %s\n', out_dir);
 
-    % Walker Delta sweeps feed get_cfg.m via optimal_constellations.mat
+    % Walker Delta sweeps feed default_config.m via optimal_constellations.mat
     if ~is_star
         best_delta_sats = best_sats; %#ok<NASGU>
         save('optimal_constellations.mat', 'heights_km', 'star_sats', 'best_delta_sats');

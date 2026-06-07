@@ -1,9 +1,14 @@
 % xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "run('plotting_scripts/sweeps/plot_sweep_star_inclined.m')"
 close all; clearvars; clc;
-addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));
+
+% Add the project to the MATLAB path (robust to the script's folder depth).
+repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
+addpath(fullfile(repo_root, 'functions'));
+path_setup();
 
 %% Output directory
-out_dir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'plotting_scripts/figures', 'walker_star_inclined');
+out_dir = fullfile(repo_root, 'plotting_scripts', 'figures', 'walker_star_inclined');
 if ~exist(out_dir, 'dir'); mkdir(out_dir); end
 
 %% Parameters

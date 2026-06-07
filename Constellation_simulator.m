@@ -1,8 +1,8 @@
-function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_toolbox, should_cancel)
+function metrics = Constellation_simulator(Cfg, use_parallel, calc_link, use_toolbox, should_cancel)
 % CONSTELLATION_SIMULATOR  Satellite coverage + optional link budget.
 %
-%   metrics = constellation_simulator(Cfg)
-%   metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_toolbox, should_cancel)
+%   metrics = Constellation_simulator(Cfg)
+%   metrics = Constellation_simulator(Cfg, use_parallel, calc_link, use_toolbox, should_cancel)
 %
 % Pipeline
 %   propagate orbits -> compute per-UE visibility / best satellite
@@ -24,7 +24,8 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_too
 % Returns
 %   metrics struct with: worst_coverage_percent, prob_coverage, Num_visible,
 %   minNumberSatellites, meanNumberSatellites, throughput_10pct,
-%   throughput_mean, UEs, SimData, Cfg, cancelled.
+%   throughput_mean, UEs, Cfg, cancelled.
+%   (Per-UE time series live in UEs(i).SimData; flatten with [metrics.UEs.SimData].)
 
     %% Defaults
     if nargin < 2 || isempty(use_parallel),  use_parallel  = false;       end
@@ -37,7 +38,7 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_too
         ternary(use_toolbox, 'toolbox', 'fast-math'), ...
         ternary(calc_link,   ', link budget', ''));
 
-    %% 1. Orbit propagation
+    %% Orbit propagation
     tic;
     [sat_pos_ecef, simTimes] = propagate(Cfg, use_toolbox);
     sat_pos_ecef = single(sat_pos_ecef);   % L2-friendly + faster inner loop
@@ -45,7 +46,7 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_too
     num_sats = size(sat_pos_ecef, 2);
     nT       = size(sat_pos_ecef, 3);
 
-    %% 2. UE positions
+    %% UE positions
     if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats')
         error('Cfg.Flat_UE_array.Lats/Lons required.');
     end
@@ -56,7 +57,7 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_too
     ue_pos_ecef = single(lla2ecef([UE_lats, UE_lons, zeros(numUEs, 1)]));
     min_el      = Cfg.Min_elevation_UE;
 
-    %% 3. Result matrices (pre-allocate; written via sliced row writes)
+    %% Result matrices (pre-allocate; written via sliced row writes)
     num_vis_mat = zeros(numUEs, nT, 'int16');
     if calc_link
         best_rng_mat = NaN(numUEs, nT, 'single');
@@ -68,7 +69,7 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_too
         best_el_mat  = [];  best_az_mat  = [];
     end
 
-    %% 4. Inner UE loop
+    %% Inner UE loop
     %  Serial when cancellation is requested (deterministic poll order).
     %  parfor otherwise iff use_parallel.
     metrics.cancelled = false;
@@ -80,7 +81,6 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_too
                 metrics.cancelled              = true;
                 metrics.worst_coverage_percent = NaN;
                 metrics.Num_visible            = [];
-                metrics.SimData                = [];
                 metrics.throughput_10pct       = NaN;
                 metrics.throughput_mean        = NaN;
                 fprintf('\n[cancel] aborted at UE %d/%d.\n', idx, numUEs);
@@ -115,7 +115,7 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_too
     end
     fprintf('\nGeometry complete (%.1f sec).\n', toc);
 
-    %% 5. Coverage statistics
+    %% Coverage statistics
     prob_coverage = 100 * sum(num_vis_mat >= 1, 2) ./ nT;
     metrics.worst_coverage_percent = min(prob_coverage);
     metrics.prob_coverage          = prob_coverage;
@@ -125,11 +125,11 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_too
     metrics.throughput_10pct       = NaN;
     metrics.throughput_mean        = NaN;
 
-    %% 6. UEs struct array
+    %% UEs struct array
     UEs = build_ues_struct(UE_lats, UE_lons, simTimes, num_vis_mat, ...
         best_rng_mat, best_sat_mat, best_el_mat, best_az_mat, calc_link, Cfg, nT);
 
-    %% 7. Optional link budget
+    %% Optional link budget
     if calc_link && isfield(Cfg, 'DL')
         tic;
         [UEs, metrics.throughput_10pct, metrics.throughput_mean] = ...
@@ -139,7 +139,6 @@ function metrics = constellation_simulator(Cfg, use_parallel, calc_link, use_too
 
     metrics.UEs     = UEs;
     metrics.Cfg     = Cfg;
-    metrics.SimData = [UEs.SimData];
 end
 
 % =========================================================================

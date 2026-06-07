@@ -1,4 +1,3 @@
-function plot_constellation_comparison()
 % PLOT_CONSTELLATION_COMPARISON
 %   Side-by-side 3D globe visualisation of the two optimal 1000 km
 %   constellations synthesised in the thesis:
@@ -16,8 +15,11 @@ function plot_constellation_comparison()
 % xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -nodesktop -batch "plot_constellation_comparison"
 
 %% ── Path setup ──────────────────────────────────────────────────────────
-addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));  % bootstrap so path_setup is found
-path_setup();   % adds project root + all functions/ subfolders to MATLAB path
+% Add the project to the MATLAB path (robust to the script's folder depth).
+repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
+addpath(fullfile(repo_root, 'functions'));
+path_setup();
 
 script_dir  = fileparts(mfilename('fullpath'));
 out_dir     = fullfile(script_dir, 'figures', 'constellations');
@@ -41,12 +43,12 @@ fprintf('Walker Star   – planes: %d  sats/plane: %d  inc: %g°  total: %d\n', 
     star_raw.Num_planes, star_raw.Sats_per_plane, star_raw.Inclination, star_raw.Total_sats);
 
 %% ── Build full Cfg structs ───────────────────────────────────────────────
-% get_cfg resolves optimal_constellations.mat relative to pwd, so we must
+% default_config resolves optimal_constellations.mat relative to pwd, so we must
 % temporarily be in the project root when calling it.
 prev_dir = pwd();
 cd(project_root);
 
-Cfg_delta              = get_cfg(target_h_km, 'walkerdelta', 'medium', 'short');
+Cfg_delta              = default_config(target_h_km, 'walkerdelta', 'medium', 'short');
 Cfg_delta.Num_planes   = delta_raw.Num_planes;
 Cfg_delta.Sats_per_plane = delta_raw.Sats_per_plane;
 Cfg_delta.Total_sats   = delta_raw.Num_planes * delta_raw.Sats_per_plane;
@@ -54,7 +56,7 @@ Cfg_delta.Inclination  = delta_raw.Inclination;
 Cfg_delta.Phasing      = delta_raw.Phasing;
 Cfg_delta.WalkerStar   = false;
 
-Cfg_star               = get_cfg(target_h_km, 'walkerstar', 'medium', 'short');
+Cfg_star               = default_config(target_h_km, 'walkerstar', 'medium', 'short');
 Cfg_star.Num_planes    = star_raw.Num_planes;
 Cfg_star.Sats_per_plane = star_raw.Sats_per_plane;
 Cfg_star.Total_sats    = star_raw.Num_planes * star_raw.Sats_per_plane;
@@ -100,4 +102,3 @@ for k = 1:2
 end
 
 fprintf('\nDone. Images saved to:\n  %s\n', out_dir);
-end

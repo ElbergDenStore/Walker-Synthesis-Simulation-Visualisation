@@ -1,21 +1,22 @@
-function plot_gridsearch(target)
 % PLOT_GRIDSEARCH  Regenerate gridsearch plots from saved plot_data.mat files.
 %
-% Usage:
-%   plot_gridsearch()                            - most recent Master_Sweep_*/gridsearch_runs/
-%   plot_gridsearch('path/to/sweep')             - all runs inside a Master_Sweep folder
-%   plot_gridsearch('path/to/run')               - one specific gridsearch run folder
-%   plot_gridsearch({'path1', 'path2'})          - list of run folders
+% Set TARGET below, then run:
+%   ''                  - most recent Master_Sweep_*/gridsearch_runs/
+%   'path/to/sweep'     - all runs inside a Master_Sweep folder
+%   'path/to/run'       - one specific gridsearch run folder
+%   {'path1','path2'}   - list of run folders
+target = '';
 
-script_dir     = fileparts(mfilename('fullpath'));
-workspace_root = fileparts(fileparts(script_dir));
-addpath(fullfile(workspace_root, 'functions'));  % bootstrap so path_setup is found
-path_setup();                                    % add repo root + all functions/ subfolders
+% Add the project to the MATLAB path (robust to the script's folder depth).
+workspace_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(workspace_root, 'functions', 'path_setup.m')), workspace_root = fileparts(workspace_root); end
+addpath(fullfile(workspace_root, 'functions'));
+path_setup();
 
 sim_dir   = fullfile(workspace_root, 'simulation_output');
 runs_root = fullfile(sim_dir, 'gridsearch_runs');
 
-if nargin == 0
+if isempty(target)
     % Prefer the most recent Master_Sweep folder's nested gridsearch_runs;
     % fall back to the legacy top-level gridsearch_runs directory.
     sweep_hits = dir(fullfile(sim_dir, 'Master_Sweep_*'));
@@ -65,7 +66,6 @@ for i = 1:numel(folders)
     generate_plots(s.plot_data, folder);
 end
 fprintf('Done.\n');
-end
 
 % -------------------------------------------------------------------------
 function generate_plots(pd, out_dir)

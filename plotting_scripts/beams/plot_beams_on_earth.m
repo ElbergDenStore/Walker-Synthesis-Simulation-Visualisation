@@ -1,3 +1,6 @@
+% PLOT_BEAMS_ON_EARTH  Overlay a satellite's beam footprints on a map of Jutland.
+%   Computes the beam grid for a single satellite over the Aalborg region and
+%   draws the beam footprints on a geographic map for visual inspection.
 close all force;
 clear variables;
 clc;
@@ -8,7 +11,7 @@ if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
 
-%% 1. User Config
+%% User Config
 lat = 57;
 lon = 9.3;
 alt_m = 550e3;
@@ -22,7 +25,7 @@ frf = 3;
 fig_size   = [500, 500];   % [width, height] in pixels
 font_size  = 14;           % axis labels, tick labels, title
 
-%% 2. Scenario & Satellite
+%% Scenario & Satellite
 startTime = datetime('now');
 stopTime = startTime + minutes(1);
 sc = satelliteScenario(startTime, stopTime, 10);
@@ -31,7 +34,7 @@ posData = [lat, lon, alt_m; lat, lon, alt_m];
 tt = timetable([startTime; stopTime], posData);
 sat = satellite(sc, tt, 'Name', 'Multi-Beam LEO', 'CoordinateFrame', 'geographic');
 
-%% 3. Use calculate_hexagonal_beams (single geometry source)
+%% Use calculate_hexagonal_beams (single geometry source)
 BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_hz, alt_m, min_elev_deg, [], frf);
 
 b_u = BeamGrid.u_center(:);
@@ -81,7 +84,7 @@ eta_max_deg = asind((Re_km / (Re_km + h_km)) * cosd(min_elev_deg));
 %     fprintf('No nadir beams matched the cutoff %.1f deg.\n', nadir_cutoff_deg);
 % end
 
-%% 5. Ellipsoidal plot in steering-angle space (exported)
+%% Ellipsoidal plot in steering-angle space (exported)
 theta = linspace(0, 2*pi, 80);
 b_eta = eta_deg;
 b_az = atan2d(b_v, b_u);
@@ -125,7 +128,7 @@ set(gca, 'FontSize', font_size);
 exportgraphics(fig, fullfile(out_dir, 'beams_ellipsoidal_steering_space.png'), 'Resolution', 600);
 fprintf('Saved plot: %s\n', fullfile(out_dir, 'beams_ellipsoidal_steering_space.png'));
 
-%% 6. Phased Array Projection on Geographic Map
+%% Phased Array Projection on Geographic Map
 % This projects the steering-space ellipses onto the WGS84 Earth surface
 
 % Earth geometry

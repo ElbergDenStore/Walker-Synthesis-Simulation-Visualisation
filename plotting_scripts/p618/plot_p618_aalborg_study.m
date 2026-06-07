@@ -1,4 +1,3 @@
-function out = plot_p618_aalborg_study(mode, data_file)
 % PLOT_P618_AALBORG_STUDY Generate and/or plot P.618 attenuation.
 %
 % This study isolates atmospheric attenuation (At) for one fixed location
@@ -9,21 +8,16 @@ function out = plot_p618_aalborg_study(mode, data_file)
 % Elevation grid: 5:1:90 deg
 % Location: Aalborg (lat=57.0488, lon=9.9217)
 %
-% Usage:
-%   plot_p618_aalborg_study();                 % generate + plot
-%   plot_p618_aalborg_study("generate");       % generate + save only
-%   plot_p618_aalborg_study("plot");           % plot from saved file only
-%   plot_p618_aalborg_study("plot", "mydata.mat");
+% Set MODE and DATA_FILE below, then run:
+%   mode = "both"       generate + plot   (default)
+%   mode = "generate"   generate + save only
+%   mode = "plot"       plot from saved file only
+%   data_file           .mat file to save to / load from
 %
-% Output:
-%   Returns a struct with generated/loaded data and figure handle (if plot).
+% Leaves a struct `out` (data + figure handle) in the workspace.
 
-    if nargin < 1 || strlength(string(mode)) == 0
-        mode = "both";
-    end
-    if nargin < 2 || strlength(string(data_file)) == 0
-        data_file = "p618_aalborg_freq_elevation.mat";
-    end
+    mode      = "both";                              % "both" | "generate" | "plot"
+    data_file = "p618_aalborg_freq_elevation.mat";   % data file to save/load
 
     mode = lower(string(mode));
     data_file = string(data_file);
@@ -64,7 +58,6 @@ function out = plot_p618_aalborg_study(mode, data_file)
     end
 
     out = struct("data", D, "figure", fig, "data_file", data_file, "mode", mode);
-end
 
 function D = generate_data(settings)
     n_el = numel(settings.elevation_deg);

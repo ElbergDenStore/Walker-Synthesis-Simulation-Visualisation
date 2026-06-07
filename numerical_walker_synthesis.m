@@ -18,26 +18,27 @@
 clear; close all; clc;
 delete(gcp('nocreate'));   % clean parallel state before a long run
 
-% Ensure project root + all functions/ subfolders are on the path
+% Add the project to the MATLAB path (robust to the script's folder depth).
 repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
 addpath(fullfile(repo_root, 'functions'));
 path_setup();
 
 %% ===================== USER CONFIG ======================================
-% 1) Pick a preset. It fills Master_config + a default altitude vector.
+% Pick a preset. It fills Master_config + a default altitude vector.
 %      "regional_delta" - Walker Delta, Arctic/Nordic (54.6-83.7 N), i swept 70-80
 %      "global_delta"   - Walker Delta, tropical band (0-30 N), wider grid
 %      "star"           - Walker Star, polar (i = 90), Arctic/Nordic
 preset = "regional_delta";
 
-% 2) Resume a previous run? Point at its folder to continue where it stopped.
+% Resume a previous run? Point at its folder to continue where it stopped.
 %    Leave '' to start fresh.
 %      e.g. resume_dir = 'simulation_output/Master_Sweep_20260530_135908';
 resume_dir = '';
 
 [Master_config, heights_km] = synthesis_preset(preset);
 
-% 3) Common knobs to override (delete/comment any line to keep the preset default).
+% Common knobs to override (delete/comment any line to keep the preset default).
 %    heights_km: a vector sweeps; a scalar runs a single altitude.
 % heights_km                   = 500:10:1200;          % [km]
 % Master_config.Lat_range_deg  = [54+(35/60), 83+(40/60)];  % [min max] latitude band

@@ -20,11 +20,13 @@ function out = benchmark_aer_methods(height_km, ue_grid_size, duration)
 
     % Ensure repo root + all functions/ subfolders are on the path,
     % regardless of the caller's current working directory.
-    repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> repo root
-    addpath(fullfile(repo_root, 'functions'));                % bootstrap so path_setup is found
+    % Add the project to the MATLAB path (robust to the script's folder depth).
+    repo_root = fileparts(mfilename('fullpath'));
+    while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
+    addpath(fullfile(repo_root, 'functions'));
     path_setup();
 
-    Cfg = get_cfg(height_km, "walkerdelta", ue_grid_size, duration);
+    Cfg = default_config(height_km, "walkerdelta", ue_grid_size, duration);
 
     fprintf('\n=== AER vs Vectorized Geometry Benchmark ===\n');
     fprintf('Height: %d km | UEs: %d | Sats: %d\n', ...

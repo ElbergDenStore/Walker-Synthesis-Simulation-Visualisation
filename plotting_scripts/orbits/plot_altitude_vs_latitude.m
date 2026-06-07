@@ -1,4 +1,3 @@
-function plot_altitude_vs_latitude(HEIGHT_KM)
 % PLOT_ALTITUDE_VS_LATITUDE
 %   Propagates a single polar satellite with 'two-body-keplerian', 'numerical'
 %   (J2+J3+J4+drag+SRP), and 'sgp4', showing geodetic altitude (= nadir range)
@@ -7,15 +6,13 @@ function plot_altitude_vs_latitude(HEIGHT_KM)
 %   The sawtooth artefact of sorting by latitude is avoided by splitting
 %   the trace into ascending (dlat>0) and descending (dlat<0) passes.
 %
-%   Usage:
-%     plot_altitude_vs_latitude()       % default: 1000 km
-%     plot_altitude_vs_latitude(600)
+%   Edit HEIGHT_KM below to choose the orbital altitude.
 
-if nargin < 1 || isempty(HEIGHT_KM), HEIGHT_KM = 1000; end
+HEIGHT_KM = 1000;   % orbital altitude (km)
 
 
 %% ── Propagate ────────────────────────────────────────────────────────────
-r_earth = 6378.137e3;             % matches constellation_simulator.m
+r_earth = 6378.137e3;             % matches Constellation_simulator.m
 a       = r_earth + HEIGHT_KM*1e3;
 T_s     = 2*pi * sqrt(a^3 / 3.986004418e14);
 
@@ -123,4 +120,3 @@ grid on; xlim([0 t_m(end)]);
 fname3 = fullfile(out_dir, sprintf('propagator_alt_deviation_%dkm.png', HEIGHT_KM));
 exportgraphics(f3, fname3, 'Resolution',300);
 fprintf('Saved → %s\n', fname3);
-end

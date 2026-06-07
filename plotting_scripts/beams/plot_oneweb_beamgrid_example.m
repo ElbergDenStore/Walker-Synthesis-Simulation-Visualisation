@@ -3,8 +3,11 @@ close all force;
 clear variables;
 clc;
 
-addpath(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'functions'));  % bootstrap so path_setup is found
-path_setup()
+% Add the project to the MATLAB path (robust to the script's folder depth).
+repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
+addpath(fullfile(repo_root, 'functions'));
+path_setup();
 % Call the function we created to get the beam definitions
 BeamGrid = calculate_oneweb_beams();
 
@@ -30,7 +33,7 @@ cos_theta(sin_theta_sq <= 1) = sqrt(1 - sin_theta_sq(sin_theta_sq <= 1));
 EF_dB = 10 * log10(max(cos_theta.^BeamGrid.Cos_exponent, 1e-10));
 
 for b = 1:num_beams
-    % 1. Distance from beam center (Mechanical face)
+    % Distance from beam center (Mechanical face)
     du = U - BeamGrid.u_center(b);
     dv = V - BeamGrid.v_center(b);
     
@@ -38,7 +41,7 @@ for b = 1:num_beams
     du(du == 0) = eps; 
     dv(dv == 0) = eps;
     
-    % 2. Calculate Standard Array Factor (Assumes 0.5 lambda spacing)
+    % Calculate Standard Array Factor (Assumes 0.5 lambda spacing)
     Nu = BeamGrid.Nu;
     Nv = BeamGrid.Nv;
     
@@ -48,7 +51,7 @@ for b = 1:num_beams
     % Array Factor in dB
     AF_dB = 20 * log10(abs(AF_u .* AF_v));
     
-    % 3. ELEMENT FACTOR (Centered on the beam, NOT Nadir)
+    % ELEMENT FACTOR (Centered on the beam, NOT Nadir)
     % Because the stick is mechanically tilted, theta is just the distance from beam center
     rho_sq = du.^2 + dv.^2;
     rho_sq(rho_sq > 1) = 1; 
@@ -56,7 +59,7 @@ for b = 1:num_beams
     cos_theta = sqrt(1 - rho_sq);
     EF_loss_dB = 10 * BeamGrid.Cos_exponent * log10(max(cos_theta, eps));
     
-    % 4. Total Normalized Gain
+    % Total Normalized Gain
     % Because the element is broadside to the beam, the peak is naturally exactly 0 dB.
     loss_dB = AF_dB + EF_loss_dB;
     loss_dB = max(loss_dB, -60); % Cap at -60dB for visual clarity

@@ -1,6 +1,9 @@
+% PLOT_INTERFERENCE  Plot co-channel interference for a single-UE scenario.
+%   Configures an Aalborg single-user scenario, runs the link budget, and plots
+%   the serving-beam carrier against the co-channel interference over the pass.
 clearvars; close all; clc;
 
-%% 1) Single-UE scenario (Aalborg)
+%% Single-UE scenario (Aalborg)
 constellation_type = "walkerdelta";
 ue_grid_size = "small";
 duration = "short";
@@ -9,7 +12,7 @@ height_km = 1000;
 frf = 3;
 ru = 1;
 
-Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, frequency);
+Cfg = default_config(height_km, constellation_type, ue_grid_size, duration, frequency);
 Cfg.SampleTime = 0.1; % seconds
 Cfg.StopTime = datetime('1-Jun-2025 12:29:59', 'TimeZone', 'UTC');
 
@@ -22,7 +25,7 @@ Cfg.Flat_UE_array.Lons = 9.9217;
 
 calc_link = true;
 use_parallel = false;
-metrics = constellation_simulator(Cfg, use_parallel, calc_link);
+metrics = Constellation_simulator(Cfg, use_parallel, calc_link);
 
 UE = metrics.UEs(1);
 t = UE.SimData.Time;
@@ -70,7 +73,7 @@ fprintf('Single UE (Aalborg) complete. Mean %s = %.2f dB, P10 %s = %.2f dB\n', m
 fprintf('Best %s = %.2f dB at %s\n', metric_name, best_metric, datestr(t(t_best)));
 fprintf('Worst %s = %.2f dB at %s\n', metric_name, worst_metric, datestr(t(t_worst)));
 
-%% 2) Plots from online link-calculation output
+%% Plots from online link-calculation output
 out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'figures', 'interference');
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);
@@ -108,7 +111,7 @@ end
 
 % fprintf('Saved current diagnostics to: %s\n', out_dir);
 
-%% 3) Restore the old best/worst beam diagnostics
+%% Restore the old best/worst beam diagnostics
 out_dir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'figures', 'interference');
 if ~exist(out_dir, 'dir')
     mkdir(out_dir);

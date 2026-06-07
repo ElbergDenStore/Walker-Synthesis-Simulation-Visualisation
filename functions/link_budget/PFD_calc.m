@@ -1,4 +1,9 @@
 function max_P_tx_dBm = PFD_calc(target_PFD_MHz, g_tx, bandwidth, orbit_height, min_elevation_UE)
+% PFD_CALC  Maximum transmit power allowed by a Power Flux Density limit.
+%   Back-solves the per-beam transmit power MAX_P_TX_DBM (dBm) that just meets the
+%   PFD limit TARGET_PFD_MHz at the worst-case nadir slant range, given transmit
+%   gain G_TX (dBi), BANDWIDTH (Hz), ORBIT_HEIGHT (m) and the minimum user
+%   elevation MIN_ELEVATION_UE (deg).
     Re = 6371e3;    
     cos_exponent = 1.5;
 

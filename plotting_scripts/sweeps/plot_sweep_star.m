@@ -1,4 +1,3 @@
-function plot_sweep_star(sweep_folder)
 % PLOT_SWEEP_STAR  Plot and summarize a Walker Star gridsearch sweep.
 %   Compares the analytical Walker-Star formula against the numerical
 %   gridsearch result at each altitude.
@@ -12,12 +11,15 @@ function plot_sweep_star(sweep_folder)
 %   plot_sweep_star()                  – most recent Master_Sweep_WalkerStar_* folder
 %   plot_sweep_star('path/to/sweep')   – specific sweep folder
 
+% Edit SWEEP_FOLDER below ('' = auto-detect the most recent matching sweep).
+sweep_folder = '';
+
 script_dir     = fileparts(mfilename('fullpath'));
 workspace_root = fileparts(fileparts(script_dir));
 sim_dir        = fullfile(workspace_root, 'simulation_output');
 
 %% ---- Locate sweep folder -----------------------------------------------
-if nargin == 0
+if isempty(sweep_folder)
     hits = dir(fullfile(sim_dir, 'Master_Sweep_WalkerStar_*'));
     hits = hits([hits.isdir]);
     if isempty(hits)
@@ -228,8 +230,6 @@ print_multistage_table(loaded, sweep_folder, workspace_root);
 %% ---- Coverage gap analysis at target latitude --------------------------
 if isfield(loaded, 'Master_config')
     print_gap_table(heights_km, best_star_sats, loaded.Master_config);
-end
-
 end
 
 %% ========================================================================

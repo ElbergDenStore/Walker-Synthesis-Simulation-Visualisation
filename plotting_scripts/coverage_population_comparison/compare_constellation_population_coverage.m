@@ -4,7 +4,7 @@
 % basis, weighted by global population density (WorldPop 2020, 1 km).
 %
 % Self-contained: reads pre-computed constellation tables from data/*.mat.
-% Adds repo root + functions/ to the path so constellation_simulator
+% Adds repo root + functions/ to the path so Constellation_simulator
 % and helpers are available regardless of caller cwd.
 %
 % Outputs:
@@ -24,11 +24,11 @@ tab_dir  = fullfile(this_dir, 'tables');
 if ~exist(fig_dir,'dir'), mkdir(fig_dir); end
 if ~exist(tab_dir,'dir'), mkdir(tab_dir); end
 
-% Repo root is two folders up (plotting_scripts/coverage_population_comparison)
-repo_root = fileparts(fileparts(this_dir));
-addpath(repo_root);
+% Add the project to the MATLAB path (robust to the script's folder depth).
+repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
 addpath(fullfile(repo_root, 'functions'));
-path_setup();   % adds data/ etc. to MATLAB path so readgeoraster finds the tif
+path_setup();
 
 %% ===== Run config =====
 altitudes_km   = [500, 700, 1000, 1200];
@@ -38,7 +38,7 @@ sim_hours      = 12;
 sample_time_s  = 60;
 min_elev_deg   = 20;
 % Serial execution avoids broadcast-variable memory blowup.
-% constellation_simulator with use_parallel=true sends sat_pos_ecef
+% Constellation_simulator with use_parallel=true sends sat_pos_ecef
 % to every worker; after 3-4 large sims the workers run out of heap.
 % Each per-UE iteration is fast vectorised geometry, so serial is fine.
 use_parallel   = false;
@@ -168,7 +168,7 @@ for ai = 1:nAlt
         Cfg.Flat_UE_array.Lons = probe_UE_lons;
         Cfg.NumUEs = numel(probe_UE_lats);
 
-        m = constellation_simulator(Cfg, use_parallel, false);
+        m = Constellation_simulator(Cfg, use_parallel, false);
 
         % Extract ONLY Num_visible, then immediately free the full metrics struct.
         % metrics.UEs contains all time series (Time, Range, Elevation, Azimuth,
@@ -346,12 +346,12 @@ fprintf('\nAll done.\n');
 
 %% =================================================================
 function Cfg = build_cfg_for_scenario(sc_def, h_km, sample_time_s, min_elev_deg, sim_hours)
-% Build a complete Cfg by starting from get_cfg's defaults (which fill all
+% Build a complete Cfg by starting from default_config's defaults (which fill all
 % link / FRF / etc. fields) and overriding only the constellation params.
     if sc_def.is_star
-        Cfg = get_cfg(h_km, "walkerstar");
+        Cfg = default_config(h_km, "walkerstar");
     else
-        Cfg = get_cfg(h_km, "walkerdelta");
+        Cfg = default_config(h_km, "walkerdelta");
     end
 
     % --- Override scenario constellation from the scenario's source .mat ---

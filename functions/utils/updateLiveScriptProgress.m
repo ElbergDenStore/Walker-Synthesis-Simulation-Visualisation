@@ -1,4 +1,8 @@
 function updateLiveScriptProgress(total_pts, reset_flag)
+% UPDATELIVESCRIPTPROGRESS  Print an in-place percentage progress counter.
+%   Call once per iteration with TOTAL_PTS (the total expected number of calls)
+%   to advance a persistent counter and refresh a single-line percentage in the
+%   command window.  Pass RESET_FLAG = true to reset the counter before a new run.
     persistent p last_percent reverseStr
     
     % Initialization / Reset

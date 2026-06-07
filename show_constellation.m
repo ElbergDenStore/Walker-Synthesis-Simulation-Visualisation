@@ -1,7 +1,7 @@
 function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_details)
     % Set default behaviors if you don't provide all inputs
     if nargin < 1
-        Cfg = get_cfg(1000,"walkerdelta","big","short")
+        Cfg = default_config(1000,"walkerdelta","big","short")
     end
     if nargin < 2, show_interactive = true; end
     if nargin < 3, save_fig = false; end
@@ -43,7 +43,7 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
     
     %% UEs Array
     if ~isfield(Cfg, 'Flat_UE_array') || ~isfield(Cfg.Flat_UE_array, 'Lats') || ~isfield(Cfg.Flat_UE_array, 'Lons')
-        error('Cfg.Flat_UE_array with fields Lats and Lons is required. Generate UEs before calling constellation_simulator.');
+        error('Cfg.Flat_UE_array with fields Lats and Lons is required. Generate UEs before calling Constellation_simulator.');
     end
 
     UE_lats = Cfg.Flat_UE_array.Lats;
@@ -64,10 +64,10 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
     %% Vectorized UE Array Creation
     % NumUEs = length(UE_lats);
 
-    % 1. Generate all names at once as a string array (e.g., ["UE1", "UE2", ...])
+    % Generate all names at once as a string array (e.g., ["UE1", "UE2", ...])
     % ue_names = compose('UE%d', 1:NumUEs); 
 
-    % 2. Create ALL ground stations in one single call
+    % Create ALL ground stations in one single call
     % By passing arrays for lat/lon/names, MATLAB handles the loop internally in C++
     if ~isempty(UE_lats)
         groundStation(sc, UE_lats(:), UE_lons(:), ...
@@ -77,7 +77,7 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
 
     if show_interactive || save_fig
         
-        % 1. Launch the viewer FIRST so it's ready to receive graphics
+        % Launch the viewer FIRST so it's ready to receive graphics
         v = satelliteScenarioViewer(sc, 'ShowDetails', show_details);
         % Jump to the requested start time when epoch differs (e.g. diagnostic mode)
         if isfield(Cfg, 'EpochTime')
@@ -88,7 +88,7 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
             sc.GroundStations(idx).ShowLabel = false; % even if showdetails is true, remove the UE labels
         end
         
-        % 2. Calculate and apply the sensors
+        % Calculate and apply the sensors
         a = r_earth + Cfg.Orbit_height;
         A = Cfg.Min_elevation_UE + 90;
         b = r_earth;
@@ -102,14 +102,14 @@ function show_constellation(Cfg, show_interactive, save_fig, out_dir, show_detai
         % Explicitly draw the 3D orbital rings in space
         orb = orbit(sats);
         
-        % 3. Position the camera
+        % Position the camera
         target_lat = 57;
         target_lon = -9;
         % target_alt = (r_earth + Cfg.Orbit_height) * 2;
         target_alt = (r_earth + 1000) * 2; % Same camera height for all runs. Does not change much, but anyway
         campos(v, target_lat, target_lon, target_alt);
         
-        % 4. Force the GPU to draw the cones by nudging the time forward by 1 second
+        % Force the GPU to draw the cones by nudging the time forward by 1 second
         % sc.SimulationTime = sc.StartTime + seconds(1); % throws error
         drawnow;
         if save_fig

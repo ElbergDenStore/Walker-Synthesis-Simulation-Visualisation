@@ -1,5 +1,5 @@
 function [UE_lats_flat, UE_lons_flat] = generate_equal_area_ues(lat_limits, lon_limits, num_ues)
-% GENERATE_SPHERICAL_UES Creates uniformly spaced UEs accounting for true spherical
+% GENERATE_EQUAL_AREA_UES Creates uniformly spaced UEs accounting for true spherical
 % geometry at high latitudes, while strictly guaranteeing the exact num_ues.
     lat_min = min(lat_limits);
     lat_max = max(lat_limits);
@@ -7,7 +7,7 @@ function [UE_lats_flat, UE_lons_flat] = generate_equal_area_ues(lat_limits, lon_
     lon_max = max(lon_limits);
     num_ues = max(1, round(num_ues));
 
-    %% 1. SPHERICAL GEOMETRY (The Shape)
+    %% Spherical geometry
     R = 6371; % Earth radius in km
     lat_rad = deg2rad([lat_min, lat_max]);
     lon_rad = deg2rad([lon_min, lon_max]);
@@ -28,7 +28,7 @@ function [UE_lats_flat, UE_lons_flat] = generate_equal_area_ues(lat_limits, lon_
     % Create the latitude rows (hitting the exact limits as preferred)
     lat_rows = linspace(lat_min, lat_max, num_lat_rows);
 
-    %% 2. STRICT ACCOUNTING (The Exact Count)
+    %% Strict accounting
     % Weight rows by the physical width of the Earth at that latitude
     row_weights = cosd(lat_rows);
     row_weights = max(row_weights, 0);
@@ -56,7 +56,7 @@ function [UE_lats_flat, UE_lons_flat] = generate_equal_area_ues(lat_limits, lon_
         end
     end
 
-    %% 3. BUILD THE FLAT ARRAYS
+    %% Build the flat arrays
     UE_lats_flat = zeros(num_ues, 1);
     UE_lons_flat = zeros(num_ues, 1);
     write_idx = 1;

@@ -1,8 +1,12 @@
 function plot_simulation(metrics, use_parallel)
+% PLOT_SIMULATION  Render and save the standard plots for a simulation run.
+%   Takes the METRICS struct returned by Constellation_simulator and writes the
+%   coverage, throughput, interference and geometry figures to the run's output
+%   folder (Cfg.Save_dir, or a timestamped simulation_output/Plots_* folder).
     Cfg = metrics.Cfg;
     UEs = metrics.UEs;
 
-    %% 2. Setup Output Directory
+    %% Setup Output Directory
     if isfield(Cfg, 'Save_dir')
         out_dir = Cfg.Save_dir;
     else
@@ -15,7 +19,7 @@ function plot_simulation(metrics, use_parallel)
     end
     save(fullfile(out_dir, 'Config.mat'), 'Cfg');
 
-    %% 3. Extract Arrays from UEs Struct (Fast Vectorization)
+    %% Extract Arrays from UEs Struct (Fast Vectorization)
     fprintf('Extracting plotting data from metrics...\n');
     lat_vector = [UEs.Lat]';
     lon_vector = [UEs.Lon]';
@@ -45,7 +49,7 @@ function plot_simulation(metrics, use_parallel)
         metrics.throughput_mean  = mean(valid_thpt);
     end
 
-    %% 4. Pre-calculate Shared Map Data
+    %% Pre-calculate Shared Map Data
     lat_lim = [min(Cfg.Flat_UE_array.Lats(:)) max(Cfg.Flat_UE_array.Lats(:))];
     lon_lim = [min(Cfg.Flat_UE_array.Lons(:)) max(Cfg.Flat_UE_array.Lons(:))];
     nLat = 500; nLon = 500; 
@@ -54,7 +58,7 @@ function plot_simulation(metrics, use_parallel)
     % Read shapefile once and broadcast to workers to prevent file lock errors
     land = shaperead('landareas.shp', 'UseGeoCoords', true);
 
-    %% 5. Parallel Plot Generation
+    %% Parallel Plot Generation
     num_tasks = 8;
     fprintf('Generating %d plots in parallel...\n', num_tasks);
     

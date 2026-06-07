@@ -1,4 +1,3 @@
-function summarize_sweep(sweep_folder)
 % SUMMARIZE_SWEEP  Generate paper-ready statistics from a Master_Sweep run.
 %
 % Outputs:
@@ -12,12 +11,15 @@ function summarize_sweep(sweep_folder)
 %   summarize_sweep()                  - most recent Master_Sweep_* folder
 %   summarize_sweep('path/to/sweep')   - specific sweep folder
 
+% Edit SWEEP_FOLDER below ('' = auto-detect the most recent sweep).
+sweep_folder = '';
+
 script_dir     = fileparts(mfilename('fullpath'));
 workspace_root = fileparts(fileparts(script_dir));
 sim_dir        = fullfile(workspace_root, 'simulation_output');
 
 %% ---- Locate sweep folder -----------------------------------------------
-if nargin == 0
+if isempty(sweep_folder)
     hits = dir(fullfile(sim_dir, 'Master_Sweep_*'));
     hits = hits([hits.isdir]);
     if isempty(hits)
@@ -278,8 +280,6 @@ else
             fprintf('\nMultistage LaTeX table saved to:\n  %s\n', ms_tex_file);
         end
     end
-end
-
 end
 
 % ---- Local helper -------------------------------------------------------

@@ -12,8 +12,8 @@ function ok = smoke_test(verbose)
 %                as undefined, so this layer will NOT catch dangling callers
 %                on its own - layers 2/3 and the rename-map grep do that.
 %
-%   2. RUNTIME - builds a tiny config via get_cfg() and runs the full
-%                constellation_simulator() pipeline (generators -> beams ->
+%   2. RUNTIME - builds a tiny config via default_config() and runs the full
+%                Constellation_simulator() pipeline (generators -> beams ->
 %                geometry -> coverage). This DOES throw if a function in the
 %                core call graph was renamed/moved and a caller wasn't updated.
 %
@@ -30,7 +30,9 @@ function ok = smoke_test(verbose)
     if nargin < 1, verbose = false; end
 
     % ---- Path bootstrap (independent of caller cwd) ---------------------
-    repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> root
+    % Add the project to the MATLAB path (robust to the script's folder depth).
+    repo_root = fileparts(mfilename('fullpath'));
+    while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
     addpath(fullfile(repo_root, 'functions'));
     path_setup();
 
@@ -78,13 +80,13 @@ function ok = smoke_test(verbose)
     % =====================================================================
     % LAYER 2 - tiny end-to-end run through the core pipeline
     % =====================================================================
-    fprintf('\n[2/3] Runtime smoke (constellation_simulator, tiny config)...\n');
+    fprintf('\n[2/3] Runtime smoke (Constellation_simulator, tiny config)...\n');
     pass2  = true;
     detail2 = '';
     try
         % Smallest meaningful config: ~6 UEs, 1 hour, fast-math propagator.
-        Cfg = get_cfg(1000, "walkerdelta", "small", "short");
-        metrics = constellation_simulator(Cfg, false, false, false);  % no parallel/link/toolbox
+        Cfg = default_config(1000, "walkerdelta", "small", "short");
+        metrics = Constellation_simulator(Cfg, false, false, false);  % no parallel/link/toolbox
 
         assert(isstruct(metrics), 'metrics is not a struct');
         assert(isfield(metrics, 'worst_coverage_percent'), 'missing worst_coverage_percent');
@@ -105,13 +107,13 @@ function ok = smoke_test(verbose)
     % =====================================================================
     fprintf('\n[3/3] Dependency resolution on entry points...\n');
     entry_points = {
-        'constellation_simulator.m'
+        'Constellation_simulator.m'
         'run_constellation_simulation_example.m'
         'numerical_walker_synthesis.m'
         'analytical_walker_star_synthesis.m'
         'plot_simulation.m'
         fullfile('functions', 'gridsearch.m')
-        'get_cfg.m'
+        'default_config.m'
     };
     pass3 = true;
     for k = 1:numel(entry_points)

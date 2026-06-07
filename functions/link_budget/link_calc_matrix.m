@@ -14,7 +14,7 @@ function Link_2D = link_calc_matrix(el_mat, az_mat, range_mat, lat_vec, lon_vec,
     % Absorption
     [Link_2D.Absorption_At, Link_2D.T_antenna] = Absorption_calc_2D(link_cfg.f, el_mat, lat_vec, lon_vec, general_config);
     
-    % 4. Total Loss
+    % Total Loss
     Link_2D.Total_loss = Link_2D.FSPL + Link_2D.Absorption_At + Link_2D.Rx_steering_loss;
     
     

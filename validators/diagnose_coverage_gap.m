@@ -10,9 +10,11 @@
 % an interactive satellite scenario viewer.
 
 clear; close all; clc;
-repo_root = fileparts(fileparts(mfilename('fullpath')));  % validators/ -> repo root
-addpath(fullfile(repo_root, 'functions'));                % bootstrap so path_setup is found
-path_setup();                                             % add repo root + all functions/ subfolders
+% Add the project to the MATLAB path (robust to the script's folder depth).
+repo_root = fileparts(mfilename('fullpath'));
+while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
+addpath(fullfile(repo_root, 'functions'));
+path_setup();
 
 %% ---- Exact config from validate_generator_fix ---------------------------
 rng(42);

@@ -1,4 +1,9 @@
 function sats = generate_walker_star_scenario(sc, orbit_height, inclination, planes, sats_per_plane, min_elevation_deg, propagator, min_latitude_deg)
+% GENERATE_WALKER_STAR_SCENARIO  Add a Walker Star constellation to a scenario.
+%   Populates the satelliteScenario SC with a Walker Star (asymmetric seam-ratio
+%   RAAN spacing and brick-wall in-plane stagger) and returns the satellite
+%   handles.  ORBIT_HEIGHT is in metres; INCLINATION, MIN_ELEVATION_DEG and
+%   MIN_LATITUDE_DEG in degrees.  PROPAGATOR selects "sgp4" (default), etc.
     arguments
         sc (1,1) satelliteScenario
         orbit_height (1,1) double % Assumed to be in meters based on r_earth = 6378.137e3

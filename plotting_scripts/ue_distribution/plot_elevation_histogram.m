@@ -1,6 +1,9 @@
+% PLOT_ELEVATION_HISTOGRAM  Histogram of serving-satellite elevation angles.
+%   Runs a geometry-only simulation and plots the distribution of elevation
+%   angles seen by the user equipment across the constellation pass.
 clearvars; close all; clc;
 
-%% 1) Simulation configuration
+%% Simulation configuration
 height_km = 1000;
 constellation_type = "walkerdelta";
 ue_grid_size = "big";
@@ -10,14 +13,14 @@ frequency = "ku";
 use_parallel = false;
 calc_link = false;     % Geometry only is enough for elevation histogram
 
-Cfg = get_cfg(height_km, constellation_type, ue_grid_size, duration, frequency);
+Cfg = default_config(height_km, constellation_type, ue_grid_size, duration, frequency);
 
-%% 2) Run simulation
+%% Run simulation
 fprintf('Running simulation for elevation histogram...\n');
-metrics = constellation_simulator(Cfg, use_parallel, calc_link);
+metrics = Constellation_simulator(Cfg, use_parallel, calc_link);
 
-%% 3) Collect elevation samples across all UEs and time steps
-SimDataArray = [metrics.SimData];
+%% Collect elevation samples across all UEs and time steps
+SimDataArray = [metrics.UEs.SimData];
 all_el_deg = vertcat(SimDataArray.Elevation_deg);
 all_el_deg = all_el_deg(isfinite(all_el_deg));
 
@@ -26,7 +29,7 @@ if isempty(all_el_deg)
 	return;
 end
 
-%% 4) Plot histogram
+%% Plot histogram
 f = figure('Color', 'w', 'Position', [100 100 1000 550]);
 histogram(all_el_deg, 50, 'Normalization', 'pdf', 'FaceColor', [0.0 0.45 0.74], 'EdgeColor', 'none');
 grid on; box on;
@@ -36,7 +39,7 @@ ylabel('Probability Density', 'FontWeight', 'bold');
 title(sprintf('Elevation Angle Distribution | %d km, min el = %d', ...
 	round(Cfg.Orbit_height/1e3),Cfg.Min_elevation_UE), 'FontSize', 14);
 
-%% 5) Save at 600 DPI
+%% Save at 600 DPI
 out_dir = fullfile('figures', 'elevation_angle_histogram');
 if ~exist(out_dir, 'dir')
 	mkdir(out_dir);

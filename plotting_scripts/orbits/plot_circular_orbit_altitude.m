@@ -1,4 +1,3 @@
-function plot_circular_orbit_altitude(HEIGHT_KM, INC_DEG)
 % PLOT_CIRCULAR_ORBIT_ALTITUDE
 %   Produces TWO publication-quality figures:
 %
@@ -12,12 +11,10 @@ function plot_circular_orbit_altitude(HEIGHT_KM, INC_DEG)
 %   With e=0 the orbit is perfectly circular in ECI; all altitude variation
 %   seen vs latitude is purely due to the WGS84 oblate ellipsoid.
 %
-%   Usage:
-%       plot_circular_orbit_altitude()              % defaults
-%       plot_circular_orbit_altitude(1000, 90)
+%   Edit HEIGHT_KM and INC_DEG below.
 
-    if nargin < 1 || isempty(HEIGHT_KM), HEIGHT_KM = 1000; end
-    if nargin < 2 || isempty(INC_DEG),   INC_DEG   = 90;   end
+    HEIGHT_KM = 1000;   % orbital altitude (km)
+    INC_DEG   = 90;     % inclination (deg)
 
     %% Constants ------------------------------------------------------------
     Re_m   = 6378.137e3;   % WGS-84 equatorial radius (m)
@@ -117,4 +114,3 @@ function plot_circular_orbit_altitude(HEIGHT_KM, INC_DEG)
         HEIGHT_KM, INC_DEG));
     exportgraphics(f2, fname2, 'Resolution',300);
     fprintf('Figure 2 saved -> %s\n', fname2);
-end

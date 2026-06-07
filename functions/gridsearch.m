@@ -1,8 +1,13 @@
 function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbit_height_km, min_sats, base_out_dir)
+% GRIDSEARCH  Brute-force search for the minimum-satellite constellation.
+%   Sweeps planes x sats-per-plane x inclination (and phasing for Walker Delta)
+%   as defined in MASTER_CONFIG, runs the coverage simulator on each candidate,
+%   and returns the best feasible design plus all evaluated candidates.  Runs are
+%   written under BASE_OUT_DIR (default simulation_output/gridsearch_runs).
     if nargin < 4 || isempty(base_out_dir)
         base_out_dir = fullfile('simulation_output', 'gridsearch_runs');
     end
-    %% 1. Build the Ascending Grid
+    %% Build the Ascending Grid
     % Walker Star mode: phasing fixed at p/2 (can be non-integer); no phasing loop.
     % Walker Delta mode: phase factor f = 0:(p-1) gives p values per plane count.
     walker_star_mode = isfield(master_config, 'WalkerStar') && master_config.WalkerStar;
@@ -32,7 +37,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
     search_grid = array2table(grid_data, 'VariableNames', ...
         {'Num_planes', 'Sats_per_plane', 'Inclination', 'Phasing', 'Total_sats'});
 
-    %% 2. Smart Filters
+    %% Filters
     isValidTarget = search_grid.Total_sats >= min_sats;
     search_grid = search_grid(isValidTarget, :);
 
@@ -42,7 +47,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
     fprintf('\n=== Starting Ascending Grid Search ===\n');
     fprintf('Testing %d valid architectures from %d satellites...\n\n', height(search_grid), min_sats);
 
-    %% 3. Setup Parallel Environment and Queue
+    %% Setup Parallel Environment and Queue
     best_params = [];
     all_candidates = table();
     target_num_candidates = master_config.Target_num_candidates;
@@ -76,7 +81,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
         stall_timeout_s = 3600; % 1 hour — low-altitude runs with many sats can take >500s
     end
     % Grace period after cancel_detailed is sent before the worker is force-killed.
-    % constellation_simulator polls every 100 UEs; 5 min is ample.
+    % Constellation_simulator polls every 100 UEs; 5 min is ample.
     cancel_grace_s  = 300;
     cancel_sent_at  = zeros(1, num_workers); % wall-time when cancel was sent (0 = not sent)
 
@@ -99,7 +104,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
     threshold_broadcast = false;                    % becomes true once skip-threshold is sent
     skip_above_sats = Inf;                          % cached threshold for late-registering workers
 
-    %% 4. Submit Interleaved Chunks (Glass Cockpit model)
+    %% Submit Interleaved Chunks (Glass Cockpit model)
     fprintf('\nSubmitting interleaved chunks to %d workers...\n\n', num_workers);
 
     for w = 1:num_workers
@@ -115,7 +120,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
         end
     end
 
-    %% 5. Synchronous Client Loop (The Glass Cockpit)
+    %% Synchronous Client Loop (Glass Cockpit)
     t_run_start = tic;
     t_last_update = tic;
 
@@ -279,7 +284,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
 
         % Cooperatively cancel DETAILED workers whose constellation is above the
         % skip threshold — sends a message via q_in; the worker polls it every
-        % 50 UEs inside constellation_simulator and returns early.
+        % 50 UEs inside Constellation_simulator and returns early.
         if threshold_broadcast
             for w = 1:length(futures)
                 if strcmp(w_states(w), "DETAILED") && ~isempty(worker_input_queues{w})
@@ -327,7 +332,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
         end
     end
 
-    %% 6. End-of-loop cleanup
+    %% End-of-loop cleanup
     % Signal workers to stop, then fire-and-forget.
     % cancel() is non-blocking (<0.005 s); workers finish their current states()
     % call in the background and become idle — the pool is not harmed.
@@ -367,7 +372,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
         status_flags(best_indices) = 2;
     end
 
-    %% 7. Create Output Directory (report + plots)
+    %% Create Output Directory (report + plots)
     date_str = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
     folder_name = sprintf('%.0f_%d_%s', orbit_height_km, best_params.Total_sats, date_str);
     out_dir = fullfile(base_out_dir, folder_name);
@@ -378,7 +383,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
         t_faster_all, t_fast_all, t_detailed_all, worker_run_counts, worker_total_math_time, ...
         best_params, all_candidates, search_grid, status_flags, Num_constellations, total_runs);
 
-    %% 8. Save Plot Data
+    %% Save Plot Data
     t1_valid = t_faster_all(~isnan(t_faster_all));
     t2_valid = t_fast_all(~isnan(t_fast_all));
     t3_valid = t_detailed_all(~isnan(t_detailed_all));
@@ -406,7 +411,7 @@ function [best_params, all_candidates, out_dir] = gridsearch(master_config, orbi
     plot_data.candidates_found      = candidates_found;
     plot_data.runs_skipped          = runs_skipped;
     save(fullfile(out_dir, 'plot_data.mat'), 'plot_data');
-    fprintf('Plot data saved. Regenerate plots with: plot_gridsearch(''%s'')\n', out_dir);
+    fprintf('Plot data saved. Regenerate plots: set target = ''%s'' in plot_gridsearch.m and run it.\n', out_dir);
 end
 
 % =========================================================================
@@ -501,12 +506,12 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     send(q, struct('worker_id', worker_id, 'run_idx', run_idx, 'state', "ULTRA", ...
                    'is_heartbeat', true, 'arch_msg', arch_str));
 
-    % 1. ULTRA-FAST
+    % ULTRA-FAST
     t1 = tic;
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Ultrafast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_area_ues(master_config.Lat_range_deg, [-180, 180], master_config.Ultrafast.Num_UEs);
-    m1 = constellation_simulator(Cfg, false, false, false);
+    m1 = Constellation_simulator(Cfg, false, false, false);
     result.t_faster = toc(t1);
     result.faster_cov = m1.worst_coverage_percent;
 
@@ -523,7 +528,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     Cfg.StopTime = Cfg.StartTime + hours(master_config.Fast.Duration_h);
     [Cfg.Flat_UE_array.Lats, Cfg.Flat_UE_array.Lons] = ...
         generate_equal_area_ues(master_config.Lat_range_deg, [-180, 180], master_config.Fast.Num_UEs);
-    m2 = constellation_simulator(Cfg, false, false, true); % reuse satelliteScenario handle, use matlab two body
+    m2 = Constellation_simulator(Cfg, false, false, true); % reuse satelliteScenario handle, use matlab two body
     result.t_fast = toc(t2);
 
     if m2.worst_coverage_percent < 99.9
@@ -564,7 +569,7 @@ function result = run_single_evaluation(q, local_config, master_config, run_idx,
     % After the run, token.ConsumedThreshold reflects any stricter threshold
     % we observed mid-simulation.
     token = CancelToken(q_in, local_config.Total_sats);
-    m3 = constellation_simulator(Cfg, false, false, true, @() token.check()); % toolbox propagator
+    m3 = Constellation_simulator(Cfg, false, false, true, @() token.check()); % toolbox propagator
     result.t_detailed = toc(t3);
     result.t_total = result.t_faster + result.t_fast + result.t_detailed;
 

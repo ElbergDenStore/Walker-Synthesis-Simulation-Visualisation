@@ -1,4 +1,3 @@
-function results = plot_orbit_asymmetry(HEIGHT_KM, INC_DEG)
 % PLOT_ORBIT_ASYMMETRY
 %   Shows how non-circular the propagated orbit really is, by comparing the
 %   altitude on the ascending vs descending equator crossing, and on the
@@ -20,12 +19,10 @@ function results = plot_orbit_asymmetry(HEIGHT_KM, INC_DEG)
 %                               solved by 2x2 Newton so that both N-S and
 %                               asc-desc asymmetries are driven to zero.
 %
-%   Usage:
-%       plot_orbit_asymmetry()           % 1000 km, 90 deg
-%       plot_orbit_asymmetry(600, 87.9)
+%   Edit HEIGHT_KM and INC_DEG below.
 
-    if nargin < 1 || isempty(HEIGHT_KM), HEIGHT_KM = 1000; end
-    if nargin < 2 || isempty(INC_DEG),   INC_DEG   = 90;   end
+    HEIGHT_KM = 1000;   % orbital altitude (km)
+    INC_DEG   = 90;     % inclination (deg)
 
     Re_eq_m = 6378.137e3;
     mu      = 3.986004418e14;
@@ -98,7 +95,6 @@ function results = plot_orbit_asymmetry(HEIGHT_KM, INC_DEG)
     fname = fullfile(out_dir, sprintf('eccentricity_check_%dkm_i%.0f.png', HEIGHT_KM, INC_DEG));
     exportgraphics(f, fname, 'Resolution',200);
     fprintf('Plot saved -> %s\n', fname);
-end
 
 %% --------------------------------------------------------------------
 function s = run_one(sc, a, e, inc, raan, w_deg, prop)

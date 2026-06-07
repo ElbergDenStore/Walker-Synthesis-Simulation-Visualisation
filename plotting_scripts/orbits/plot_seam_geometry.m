@@ -1,4 +1,3 @@
-function plot_seam_geometry(save_path)
 % PLOT_SEAM_GEOMETRY  Napier's Circle derivation and counter-rotating seam geometry.
 %   Produces five PNG figures:
 %     napiers_circle.png           – annotated pentagon showing the SIN-TAAD derivation
@@ -17,9 +16,10 @@ function plot_seam_geometry(save_path)
 %   plot_seam_geometry()                    – saves to plotting_scripts/figures/
 %   plot_seam_geometry('path/to/output')    – saves to the given directory
 
-script_dir = fileparts(mfilename('fullpath'));
+save_path = '';   % output folder for the seam-geometry PNGs ('' = figures/seam_gap)
 
-if nargin < 1 || isempty(save_path)
+script_dir = fileparts(mfilename('fullpath'));
+if isempty(save_path)
     save_path = fullfile(script_dir, '../figures/seam_gap');
 end
 
@@ -252,4 +252,3 @@ out3b = fullfile(save_path, 'seam_gc_gap_vs_latitude.png');
 exportgraphics(f3b, out3b, 'Resolution', 300);
 close(f3b);
 fprintf('Saved: %s\n', out3b);
-end

@@ -1,4 +1,7 @@
 function [UE_lats_flat, UE_lons_flat] = generate_random_ues(lat_vec, lon_vec, num_UEs)
+% GENERATE_RANDOM_UES  Sample NUM_UES random user locations in a lat/lon box.
+%   Draws uniformly random user-equipment positions within the bounding box of
+%   LAT_VEC x LON_VEC and returns their latitudes and longitudes as flat vectors.
     latlim = [min(lat_vec), max(lat_vec)];
     lonlim = [min(lon_vec), max(lon_vec)];
     nLat = 1e3; nLon = 1e3; 
