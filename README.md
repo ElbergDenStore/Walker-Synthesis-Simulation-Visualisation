@@ -4,16 +4,16 @@ This tool has been developed to help any constellation designer synthesise const
 ## Recommended usage:
 - Clone reposity
 - Run numerical_walker_synthesis
-  Quickly find valid constellations for your region of interest. This will make the helper function generate_default_config pull from your constellations.
+  - Find find valid constellations for your region of interest. This will make the helper function default_config pull from your constellations.
 - Play around with the example code
 - Modify to suit your specific needs
     Modify from 100% coverage requirement to max revisit time
 
-## Required tools
+## Required toolboxes
  - MATLAB tools
-  - Parallel computing
-  - Satellite communications
- - 
+   - Parallel Computing
+   - Satellite Communications
+   - Please add if you find others
 
 ## Repository structure
 - Main scripts in root
