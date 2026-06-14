@@ -5,7 +5,7 @@
 %   'path/to/sweep'     - all runs inside a Master_Sweep folder
 %   'path/to/run'       - one specific gridsearch run folder
 %   {'path1','path2'}   - list of run folders
-target = '';
+target = '/home/aau/master_matlab_sims/simulation_output/Iris2_20260613_183404';
 
 % Add the project to the MATLAB path (robust to the script's folder depth).
 workspace_root = fileparts(mfilename('fullpath'));

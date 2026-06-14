@@ -52,10 +52,10 @@ BaseCfg.DL.G_rx          = G_rx;
 BaseCfg.DL.Tx_type       = "array";
 BaseCfg.DL.Rx_type       = "array";
 BaseCfg.DL.G_tx          = get_adjusted_tx_gain(BaseCfg.Orbit_height, min_elevation_UE, f_DL);
-BaseCfg.DL.Max_P_tx_dBm  = PFD_calc(Target_PFD_MHz, BaseCfg.DL.G_tx, B_DL, BaseCfg.Orbit_height, min_elevation_UE);
-BaseCfg.DL.Max_EIRP_dBm  = BaseCfg.DL.Max_P_tx_dBm + BaseCfg.DL.G_tx;
-BaseCfg.DL.Max_EIRP_dBm_Hz = BaseCfg.DL.Max_EIRP_dBm - 10*log10(B_DL);
-BaseCfg.DL.BeamGrid      = calculate_hexagonal_beams(BaseCfg.DL.G_tx, f_DL, BaseCfg.Orbit_height, min_elevation_UE, BaseCfg.DL.Max_EIRP_dBm_Hz, FRF);
+BaseCfg.DL.BeamGrid      = calculate_hexagonal_beams(BaseCfg.DL.G_tx, f_DL, BaseCfg.Orbit_height, min_elevation_UE, BaseCfg.Target_PFD_MHz, FRF);
+BaseCfg.DL.Max_EIRP_dBm  = max(BaseCfg.DL.BeamGrid.BeamCenter_EIRP_dBmHz(:)) + 60;
+% BaseCfg.DL.Max_P_tx_dBm  = PFD_calc(Target_PFD_MHz, BaseCfg.DL.G_tx, B_DL, BaseCfg.Orbit_height, min_elevation_UE);
+% BaseCfg.DL.Max_EIRP_dBm_Hz = BaseCfg.DL.Max_EIRP_dBm - 10*log10(B_DL);
 
 %% ===== WALKER STAR CONFIGURATION =====
 CfgStar = BaseCfg;

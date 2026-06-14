@@ -41,6 +41,8 @@ example: xvfb-run -a --server-args="-screen 0 1920x1080x24" matlab -nosplash -no
 
 # Further work
 - Remake the tx gain adjuster to use beam on earth instead of size of antenna consistent across altitudes and frequency
+- function BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_Hz, orbit_height_m, Min_Elev_deg, target_EIRP_or_PFD, FRF) clean up this code to not accept EIRP. I dont care about bad backward compatibility.
+- Find out why the gain is very low from time to time. beam Gain and interference must be the reason
 - Make all variables follow code style.
 - Coverage simulator is ugly due to the early stopping, but it seems necessary unfortunately... I dont like it
 - Add Uplink functionality

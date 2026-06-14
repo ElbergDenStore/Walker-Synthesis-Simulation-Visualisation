@@ -149,6 +149,7 @@ function generate_global_stats(Cfg, metrics, all_thpt, all_snr, all_sinr, thpt_s
         Cfg.DL.Max_P_tx_dBm = NaN;
     end
     if ~isfield(Cfg.DL, 'Max_EIRP_dBm'), Cfg.DL.Max_EIRP_dBm = NaN; end
+    if ~isfield(Cfg, 'Target_PFD_MHz'), Cfg.Target_PFD_MHz = NaN; end
     if ~isfield(Cfg.DL, 'Rx_type'), Cfg.DL.Rx_type = 'N/A'; end
     if ~isfield(Cfg, 'RU'), Cfg.RU = 1; end
     if ~isfield(Cfg, 'FRF'), Cfg.FRF = 1; end
@@ -158,7 +159,8 @@ function generate_global_stats(Cfg, metrics, all_thpt, all_snr, all_sinr, thpt_s
         ['Direction:      ' char(Cfg.DL.Direction)];
         ['Freq / BW:      ' num2str(Cfg.DL.f/1e9, '%.2f') ' GHz / ' num2str(Cfg.DL.B/thpt_scale, '%.1f') sprintf(' %s', b_unit)];
         ['Tx Type/Gain:   ' char(Cfg.DL.Tx_type) '  / ' num2str(Cfg.DL.G_tx, '%.1f') ' dBi'];
-        ['P\_tx / EIRP:    ' num2str(Cfg.DL.Max_P_tx_dBm, '%.1f') ' dBm / ' num2str(Cfg.DL.Max_EIRP_dBm, '%.1f') ' dBm'];
+        ['PFD Target:     ' num2str(Cfg.Target_PFD_MHz, '%.1f') ' dBW/m' char(178)'/MHz'];
+        ['Max P\_{tx}/EIRP:    ' num2str(Cfg.DL.Max_P_tx_dBm, '%.1f') ' dBm / ' num2str(Cfg.DL.Max_EIRP_dBm, '%.1f') ' dBm'];
         ['Rx Type/Gain:   ' char(Cfg.DL.Rx_type) '  / ' num2str(Cfg.DL.G_rx, '%.1f') ' dBi'];
         ['Noise Fig:      ' num2str(Cfg.DL.NF, '%.1f') ' dB'];
         ['RU / FRF:       ' num2str(Cfg.RU*100, '%.0f') '% / ' num2str(Cfg.FRF)];
@@ -187,7 +189,7 @@ function generate_global_stats(Cfg, metrics, all_thpt, all_snr, all_sinr, thpt_s
 end
 
 function generate_map_min_sats(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_lim, land, nUEs, out_dir)
-    ValG = griddata(lon_v, lat_v, vals, LonG, LatG, 'cubic');
+    ValG = interp_scattered_to_grid(lat_v, lon_v, vals, LatG, LonG, 3);
     f = figure('Visible', 'off', 'Color', 'w');
     axesm('lambertstd', 'MapLatLimit', lat_lim, 'MapLonLimit', lon_lim, 'Frame', 'on', 'Grid', 'on', 'MeridianLabel','on','ParallelLabel','on');
     axis off;  
@@ -205,7 +207,7 @@ function generate_map_min_sats(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_lim,
 end
 
 function generate_map_mean_sats(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_lim, land, nUEs, out_dir)
-    ValG = griddata(lon_v, lat_v, vals, LonG, LatG, 'cubic');
+    ValG = interp_scattered_to_grid(lat_v, lon_v, vals, LatG, LonG, 3);
     f = figure('Visible', 'off', 'Color', 'w');
     axesm('lambertstd', 'MapLatLimit', lat_lim, 'MapLonLimit', lon_lim, 'Frame', 'on', 'Grid', 'on', 'MeridianLabel','on','ParallelLabel','on');
     axis off;  
@@ -223,7 +225,7 @@ function generate_map_mean_sats(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_lim
 end
 
 function generate_map_coverage(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_lim, land, nUEs, out_dir)
-    ValG = griddata(lon_v, lat_v, vals, LonG, LatG, 'cubic');
+    ValG = interp_scattered_to_grid(lat_v, lon_v, vals, LatG, LonG, 3);
     f = figure('Visible', 'off', 'Color', 'w');
     axesm('lambertstd', 'MapLatLimit', lat_lim, 'MapLonLimit', lon_lim, 'Frame', 'on', 'Grid', 'on', 'MeridianLabel','on','ParallelLabel','on');
     axis off; 
@@ -242,12 +244,8 @@ end
 
 function generate_map_throughput(vals, lat_v, lon_v, LonG, LatG, lat_lim, lon_lim, land, nUEs, thpt_scale, thpt_unit, out_dir)
     lats = lat_v(:); lons = lon_v(:); thpt_vals = vals(:) / thpt_scale;
-    ValG = griddata(lats, lons, thpt_vals, LatG, LonG, 'cubic'); 
-    
-    [~, dist_to_nearest_UE] = dsearchn([lons, lats], [LonG(:), LatG(:)]);
-    mask = reshape(dist_to_nearest_UE, size(LonG)) > 2.5;
-    ValG(mask) = NaN; % choose between unlimited interpolation or masked
-    
+    ValG = interp_scattered_to_grid(lats, lons, thpt_vals, LatG, LonG, 2.5);
+
     f = figure('Visible', 'off', 'Color', 'w');
     axesm('lambertstd', 'MapLatLimit', lat_lim, 'MapLonLimit', lon_lim, 'Frame', 'on', 'Grid', 'on', 'MeridianLabel','on','ParallelLabel','on');
     axis off;  
@@ -307,4 +305,32 @@ function generate_map_ue_distribution(Cfg, lat_v, lon_v, lat_lim, lon_lim, land,
     set(gca, 'FontSize', 14);
     exportgraphics(f, fullfile(out_dir, 'Map_UE_Distribution.png'), 'Resolution', 300);
     close(f);
+end
+
+function ValG = interp_scattered_to_grid(lat_v, lon_v, vals, LatG, LonG, mask_dist_deg)
+% INTERP_SCATTERED_TO_GRID  Smoothly interpolate per-UE values onto a regular grid.
+%   Uses natural-neighbour interpolation, which is *bounded* (the result stays
+%   within the range of surrounding samples). This avoids the radial "ray" /
+%   overshoot artifacts that griddata(...,'cubic') produces on the clustered,
+%   irregularly-spaced points of a population-weighted UE distribution.
+%
+%   Grid cells farther than MASK_DIST_DEG (degrees) from the nearest UE are set
+%   to NaN, so the field is not stretched across empty regions (oceans, gaps)
+%   where there is no data to support it. Pass [] to disable masking.
+    lat_v = double(lat_v(:));
+    lon_v = double(lon_v(:));
+    vals  = double(vals(:));
+
+    % Collapse coincident coordinates (population UEs can share a pixel) by
+    % averaging their values; scatteredInterpolant requires unique sample points.
+    [pts, ~, ic] = unique([lon_v, lat_v], 'rows', 'stable');
+    v_avg = accumarray(ic, vals, [], @mean);
+
+    F = scatteredInterpolant(pts(:,1), pts(:,2), v_avg, 'natural', 'none');
+    ValG = F(LonG, LatG);
+
+    if nargin >= 6 && ~isempty(mask_dist_deg)
+        [~, dist_to_nearest_UE] = dsearchn(pts, [LonG(:), LatG(:)]);
+        ValG(reshape(dist_to_nearest_UE, size(LonG)) > mask_dist_deg) = NaN;
+    end
 end

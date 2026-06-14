@@ -29,7 +29,8 @@ path_setup();
 %      "regional_delta" - Walker Delta, Arctic/Nordic (54.6-83.7 N), i swept 70-80
 %      "global_delta"   - Walker Delta, tropical band (0-30 N), wider grid
 %      "star"           - Walker Star, polar (i = 90), Arctic/Nordic
-preset = "regional_delta";
+%      "iris2"
+preset = "iris2";
 
 % Resume a previous run? Point at its folder to continue where it stopped.
 %    Leave '' to start fresh.

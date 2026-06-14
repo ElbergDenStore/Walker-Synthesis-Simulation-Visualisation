@@ -43,6 +43,24 @@ function [Master_config, default_heights_km] = synthesis_preset(preset)
             cfg.Max_workers             = 16;
             certainty = 0.99; fractional_area = 0.001; fractional_time = 0.001;
 
+        case "iris2"
+            default_heights_km          = [1200 8000];
+            cfg.WalkerStar              = false;
+            cfg.folder_prefix           = "Iris2";
+            cfg.Lat_range_deg           = [30, 60];  % Denmark min, Greenland max
+            cfg.Min_elevation_UE        = 20;
+            cfg.Num_Planes              = 2:25;
+            cfg.Sats_Plane              = 2:40;
+            cfg.Inc_vec                 = linspace(20, 80, 61);
+            cfg.Target_num_candidates   = 20;
+            cfg.SampleTime              = 660;
+            cfg.Ultrafast.Duration_h    = 3;
+            cfg.Ultrafast.Num_UEs       = 200;
+            cfg.Fast.Duration_h         = 50;
+            cfg.Fast.Num_UEs            = 800;
+            cfg.Max_workers             = 16;
+            certainty = 0.99; fractional_area = 0.001; fractional_time = 0.001;
+
         case "global_delta"
             default_heights_km          = 500:100:1200;
             cfg.WalkerStar              = false;

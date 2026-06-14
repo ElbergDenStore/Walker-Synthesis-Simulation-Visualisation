@@ -1,6 +1,6 @@
 %% compare_constellation_population_coverage.m
 % Compares Walker-Star, global Walker-Delta, and SPLIT Walker-Delta
-% (low-lat 0-55 + high-lat 55-85, summed) constellations on a per-latitude
+% (low-lat 0-55 + high-lat 55-90, summed) constellations on a per-latitude
 % basis, weighted by global population density (WorldPop 2020, 1 km).
 %
 % Self-contained: reads pre-computed constellation tables from data/*.mat.
@@ -37,10 +37,7 @@ probe_lons_deg = [-135, -45, 45, 135];   % 4 longitudes; results averaged
 sim_hours      = 12;
 sample_time_s  = 60;
 min_elev_deg   = 20;
-% Serial execution avoids broadcast-variable memory blowup.
-% Constellation_simulator with use_parallel=true sends sat_pos_ecef
-% to every worker; after 3-4 large sims the workers run out of heap.
-% Each per-UE iteration is fast vectorised geometry, so serial is fine.
+
 use_parallel   = false;
 
 %% ===== Figure style =====

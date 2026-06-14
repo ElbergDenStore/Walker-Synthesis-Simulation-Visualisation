@@ -1,8 +1,8 @@
-function BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_Hz, orbit_height_m, Min_Elev_deg, target_EIRP_or_PFD, FRF)
+function BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_Hz, orbit_height_m, Min_Elev_deg, target_PFD, FRF)
 %CALCULATE_HEXAGONAL_BEAMS Generate mathematical model of a flat phased array
 % creating a hexagonal grid of spot beams across the earth footprint.
     if nargin < 4 || isempty(Min_Elev_deg), Min_Elev_deg = 20; end
-    if nargin < 5 || isempty(target_EIRP_or_PFD), target_EIRP_or_PFD = -128; end % Treat as PFD target by default
+    if nargin < 5 || isempty(target_PFD), target_PFD = -125; end
     if nargin < 6 || isempty(FRF), FRF = 1; end
 
     % Array Physics
@@ -75,13 +75,8 @@ function BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_Hz, orbit_height_m, Mi
     slant_range_m = R_sat .* cos(theta_rad) - sqrt((Re_km*1000)^2 - (R_sat .* sin(theta_rad)).^2);
     area_spreading_dB = 10 * log10(4 * pi * (slant_range_m.^2));
 
-    if target_EIRP_or_PFD < -50
-        % Input was likely a PFD goal (-115 dBW/m2 etc), back calculate EIRP density required at bore
-        BeamGrid.BeamCenter_EIRP_dBmHz = (target_EIRP_or_PFD + 30) + area_spreading_dB;
-    else
-        % Input was EIRP, just apply it
-        BeamGrid.BeamCenter_EIRP_dBmHz = repmat(target_EIRP_or_PFD, 1, beam_count);
-    end
+
+    BeamGrid.BeamCenter_EIRP_dBmHz = ((target_PFD + 30) + area_spreading_dB - 60).';  % row [1 x beam_count], consistent with u/v_center
 
     % Calculate valid interference neighbors matching the channel ID
     max_neighbors = 15; % Preallocate
