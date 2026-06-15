@@ -14,10 +14,12 @@ end
 %% User Config
 lat = 57;
 lon = 9.3;
-alt_m = 550e3;
+% alt_m = 1200e3;
+alt_m = 8000e3;
 
 f_hz = 12e9;
-G_tx_dBi = 37;
+% G_tx_dBi = 37.1;
+G_tx_dBi = 53.5;
 min_elev_deg = 20;
 frf = 3;
 
@@ -202,7 +204,7 @@ title(gx, {'Phased Array Footprints on Earth', ...
 fprintf('Saving figures (pausing between views to allow map tiles to load)...\n');
 
 % Shot 1: Full Coverage Region
-geolimits(gx, [lat - lambda_max_deg - 2, lat + lambda_max_deg + 2], ...
+geolimits(gx, [max(-90, lat - lambda_max_deg - 2), min(90, lat + lambda_max_deg + 2)], ...
               [lon - lambda_max_deg*1.5 - 2, lon + lambda_max_deg*1.5 + 2]);
 drawnow;
 pause(5); % Wait 5 seconds for the massive full-res map to download

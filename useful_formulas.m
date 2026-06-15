@@ -1,5 +1,5 @@
 % amount of beams from  
-function BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_Hz, orbit_height_m, Min_Elev_deg, target_EIRP_or_PFD, FRF)
+% function BeamGrid = calculate_hexagonal_beams(G_tx_dBi, f_Hz, orbit_height_m, Min_Elev_deg, target_EIRP_or_PFD, FRF)
 
 % =========================================================================
 % SATELLITE & RF GEOMETRY UTILITY FORMULAS
@@ -8,12 +8,12 @@ repo_root = fileparts(mfilename('fullpath'));
 while ~isfile(fullfile(repo_root, 'functions', 'path_setup.m')), repo_root = fileparts(repo_root); end
 addpath(fullfile(repo_root, 'functions'));
 path_setup();
-freq_hz = 20e9;
+freq_hz = 12e9;
 efficiency = 0.6;
-element_gain_dbi = 5;
+element_gain_dbi = 6;
 
-orbit_height_km = 550;
-target_radius_km = 16;
+orbit_height_km = 1200;
+target_radius_km = 30;
 gain_dbi = gain_from_nadir_beam_size(orbit_height_km, target_radius_km)
 
 
@@ -24,7 +24,7 @@ elements = calc_array_elements(gain_dbi, element_gain_dbi)
 
 
 orbit_height_km = 8000;
-target_radius_km = 16;
+% target_radius_km = 16;
 gain_dbi = gain_from_nadir_beam_size(orbit_height_km, target_radius_km)
 
 r = calc_coverage_radius(8000, 20);

@@ -30,11 +30,11 @@ path_setup();
 %      "global_delta"   - Walker Delta, tropical band (0-30 N), wider grid
 %      "star"           - Walker Star, polar (i = 90), Arctic/Nordic
 %      "iris2"
-preset = "iris2";
+preset = "regional_delta";
 
 % Resume a previous run? Point at its folder to continue where it stopped.
 %    Leave '' to start fresh.
-%      e.g. resume_dir = 'simulation_output/Master_Sweep_20260530_135908';
+%      e.g. resume_dir = 'simulation_output/Master_Sweep_20260607_213558';
 resume_dir = '';
 
 [Master_config, heights_km] = synthesis_preset(preset);

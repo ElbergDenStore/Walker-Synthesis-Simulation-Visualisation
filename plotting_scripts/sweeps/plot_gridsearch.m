@@ -5,7 +5,18 @@
 %   'path/to/sweep'     - all runs inside a Master_Sweep folder
 %   'path/to/run'       - one specific gridsearch run folder
 %   {'path1','path2'}   - list of run folders
-target = '/home/aau/master_matlab_sims/simulation_output/Iris2_20260613_183404';
+target = '/home/aau/master_matlab_sims/simulation_output/gridsearch_runs/8000_18_IRIS2GlobalMEO';
+% ├── 1200_264_IRIS2GLOBALDELTA
+% │   ├── deep_profile_report.txt
+% │   └── plot_data.mat
+% ├── 1200_264_IRIS2GLOBALSTAR
+% │   ├── deep_profile_report.txt
+% │   └── plot_data.mat
+% ├── 1200_264_IRIS2REGIONALDELTA
+% │   ├── deep_profile_report.txt
+% │   └── plot_data.mat
+% ├── 1200_264_IRIS2REGIONALDELTAOLD
+% /home/aau/master_matlab_sims/simulation_output/gridsearch_runs/8000_18_IRIS2GlobalMEO
 
 % Add the project to the MATLAB path (robust to the script's folder depth).
 workspace_root = fileparts(mfilename('fullpath'));
