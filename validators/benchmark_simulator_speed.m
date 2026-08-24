@@ -37,7 +37,7 @@ r_earth_m = 6378.137e3;
 Min_elev  = 20;
 Lat_range = [54 + 35/60, 83 + 40/60];   % Denmark–Greenland
 
-opt     = load(fullfile(fileparts(mfilename('fullpath')), 'optimal_constellations.mat'));
+opt     = load(fullfile(repo_root, 'optimal_constellations.mat'));
 [~, ci] = min(abs(opt.heights_km - height_km));
 con     = table2struct(opt.best_delta_sats(ci, :));
 
@@ -142,8 +142,14 @@ end
 % =========================================================================
 fprintf('--- Section B: Parallelism case studies ---\n');
 
-% Start pool early (needed for both B and C)
+% Section B must run on a Threads pool: sat_ecef_fast is a large broadcast
+% variable, and a Processes pool re-serialises it to every worker per parfor.
 pool = gcp('nocreate');
+if ~isempty(pool) && ~isa(pool, 'parallel.ThreadPool')
+    fprintf('  Replacing %s pool with a Threads pool for Section B...\n', class(pool));
+    delete(pool);
+    pool = [];
+end
 if isempty(pool), pool = parpool('Threads'); end
 
 % Method 4: par-gridsearch

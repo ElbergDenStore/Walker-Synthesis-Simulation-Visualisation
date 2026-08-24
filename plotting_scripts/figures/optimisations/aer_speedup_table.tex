@@ -1,7 +1,7 @@
 \begin{table}[H]
     \centering
     \caption{Azimuth Elevation and Range, AER, geometry computation time as a function of \ac{UE} count.
-             Constellation: 104 satellites at 1000\,km, 2500 timesteps.
+             Constellation: 56 satellites at 1000\,km, 2500 timesteps.
              Speedup is relative to the MATLAB \texttt{aer()} baseline.}
     \label{tab:aer_speedup}
     \begin{tabular}{r r r r r r}
@@ -13,11 +13,11 @@
         \textbf{UEs} & \textbf{Total (s)} & \textbf{Total (s)} & \textbf{Speedup}
                      & \textbf{Total (s)} & \textbf{Speedup} \\
         \midrule
-           50 &   7.77 &  0.69 & $11\times$ &  0.15 & $51\times$ \\
-          150 &  21.72 &  0.94 & $23\times$ &  0.36 & $60\times$ \\
-          500 &  71.35 &  1.77 & $40\times$ &  1.20 & $59\times$ \\
-         1000 & 141.51 &  2.95 & $48\times$ &  2.46 & $57\times$ \\
-         2500 & 360.44 &  6.30 & $57\times$ &  5.86 & $61\times$ \\
+           50 &   6.70 &  1.08 & $6\times$ &  0.31 & $22\times$ \\
+          150 &  17.00 &  3.02 & $6\times$ &  1.64 & $10\times$ \\
+          500 &  75.02 &  4.48 & $17\times$ &  3.58 & $21\times$ \\
+         1000 & 117.99 &  8.32 & $14\times$ &  7.25 & $16\times$ \\
+         2500 & 348.02 & 22.33 & $16\times$ & 20.21 & $17\times$ \\
         \bottomrule
     \end{tabular}
 \end{table}
