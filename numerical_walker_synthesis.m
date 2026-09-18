@@ -41,13 +41,13 @@ resume_dir = '';
 
 % Common knobs to override (delete/comment any line to keep the preset default).
 %    heights_km: a vector sweeps; a scalar runs a single altitude.
-% heights_km                   = 500:10:1200;          % [km]
-% Master_config.Lat_range_deg  = [54+(35/60), 83+(40/60)];  % [min max] latitude band
-% Master_config.Min_elevation_UE = 20;                 % [deg] min elevation
-% Master_config.Num_Planes     = 2:25;                 % planes to search
-% Master_config.Sats_Plane     = 2:25;                 % sats/plane to search
-% Master_config.Inc_vec        = linspace(70, 80, 111);% [deg] inclinations to search
-% Master_config.Max_workers    = 16;                   % parallel pool size
+heights_km                   = 500:10:1200;          % [km]
+Master_config.Lat_range_deg  = [54+(35/60), 83+(40/60)];  % [min max] latitude band
+Master_config.Min_elevation_UE = 20;                 % [deg] min elevation
+Master_config.Num_Planes     = 2:25;                 % planes to search
+Master_config.Sats_Plane     = 2:25;                 % sats/plane to search
+Master_config.Inc_vec        = linspace(70, 80, 111);% [deg] inclinations to search
+Master_config.Max_workers    = 16;                   % parallel pool size
 %% =======================================================================
 
 out_dir = run_altitude_sweep(Master_config, heights_km, resume_dir);

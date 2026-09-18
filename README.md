@@ -13,7 +13,8 @@ This tool has been developed to help any constellation designer synthesise const
  - MATLAB tools
    - Parallel Computing
    - Satellite Communications
-   - Please add if you find others
+   - Mapping
+   - Probably more
 
 ## Repository structure
 - Main scripts in root
