@@ -42,6 +42,24 @@ function [Master_config, default_heights_km] = synthesis_preset(preset)
             cfg.Fast.Num_UEs            = 800;
             cfg.Max_workers             = 16;
             certainty = 0.99; fractional_area = 0.001; fractional_time = 0.001;
+        
+        case "high_precision"
+        default_heights_km          = 1030;
+        cfg.WalkerStar              = false;
+        cfg.folder_prefix           = "Master_Sweep_precise";
+        cfg.Lat_range_deg           = [54+(35/60), 83+(40/60)];  % Denmark min, Greenland max
+        cfg.Min_elevation_UE        = 20;
+        cfg.Num_Planes              = 2:25;
+        cfg.Sats_Plane              = 2:25;
+        cfg.Inc_vec                 = linspace(70, 80, 111);
+        cfg.Target_num_candidates   = 1;
+        cfg.SampleTime              = 660;
+        cfg.Ultrafast.Duration_h    = 3;
+        cfg.Ultrafast.Num_UEs       = 200;
+        cfg.Fast.Duration_h         = 50;
+        cfg.Fast.Num_UEs            = 1600;
+        cfg.Max_workers             = 16;
+        certainty = 0.99; fractional_area = 0.0001; fractional_time = 0.0001;
 
         case "iris2"
             default_heights_km          = [1200 8000];
@@ -106,9 +124,9 @@ function [Master_config, default_heights_km] = synthesis_preset(preset)
     end
 
     % --- Derived "Detailed" statistical tier (coverage-confidence sampling) ---
-    required_samples       = log(1 - certainty) / log(1 - fractional_area * fractional_time);
-    cfg.Detailed.Duration_h = ceil(sqrt(required_samples)) / (3600 / cfg.SampleTime);
-    cfg.Detailed.Num_UEs    = ceil(sqrt(required_samples));
+    required_samples       = log(1 - certainty) / log(1 - fractional_area * fractional_time)
+    cfg.Detailed.Duration_h = ceil(sqrt(required_samples)) / (3600 / cfg.SampleTime)
+    cfg.Detailed.Num_UEs    = ceil(sqrt(required_samples))
 
     Master_config = cfg;
 end

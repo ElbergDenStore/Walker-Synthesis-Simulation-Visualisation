@@ -16,7 +16,7 @@ target = '';
 % │   ├── deep_profile_report.txt
 % │   └── plot_data.mat
 % ├── 1200_264_IRIS2REGIONALDELTAOLD
-% /home/aau/master_matlab_sims/simulation_output/gridsearch_runs/8000_18_IRIS2GlobalMEO
+% /home/jacoben/master_matlab_sims/simulation_output/gridsearch_runs/8000_18_IRIS2GlobalMEO
 
 % Add the project to the MATLAB path (robust to the script's folder depth).
 workspace_root = fileparts(mfilename('fullpath'));
